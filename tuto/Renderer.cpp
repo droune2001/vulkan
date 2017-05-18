@@ -3,7 +3,13 @@
 #include <cstdlib>
 #include <assert.h>
 #include <vector>
+#include <array>
 #include <iostream>
+#include <sstream>
+
+#ifdef _WIN32
+#   include <windows.h>
+#endif
 
 Renderer::Renderer()
 {
@@ -18,7 +24,7 @@ Renderer::~Renderer()
     DeInitDevice();
     DeInitDebug();
     DeInitInstance();
-    // TUTORIAL 2: 41:57
+    // TUTORIAL 3: TODO
 }
 
 void Renderer::InitInstance()
@@ -36,6 +42,7 @@ void Renderer::InitInstance()
     instance_create_info.ppEnabledLayerNames        = _instance_layers.data();
     instance_create_info.enabledExtensionCount      = (uint32_t)_instance_extensions.size();
     instance_create_info.ppEnabledExtensionNames    = _instance_extensions.data();
+    instance_create_info.pNext                      = &debug_callback_create_info;
     auto err = vkCreateInstance( 
         &instance_create_info,
         nullptr, // no custom allocator
@@ -184,36 +191,60 @@ VulkanDebugCallback(
     const char *msg,
     void *user_data )
 {
-    std::cout << "VKDBG: ";
+    std::ostringstream oss;
+    oss << "VKDBG: ";
     if ( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT )
     {
-        std::cout << "[INFO]:  ";
+        oss << "[INFO]:  ";
     }
     if ( flags & VK_DEBUG_REPORT_WARNING_BIT_EXT )
     {
-        std::cout << "[WARN]:  ";
+        oss << "[WARN]:  ";
     }
     if ( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT )
     {
-        std::cout << "[PERF]:  ";
+        oss << "[PERF]:  ";
     }
     if ( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT )
     {
-        std::cout << "[ERROR]: ";
+        oss << "[ERROR]: ";
     }
     if ( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT )
     {
-        std::cout << "[DEBUG]: ";
+        oss << "[DEBUG]: ";
     }
 
-    std::cout << "@[" << layer_prefix << "]: ";
-    std::cout << msg << std::endl;
+    oss << "@[" << layer_prefix << "]: ";
+    oss << msg << std::endl;
+
+    std::cout << oss.str();
+
+#ifdef _WIN32
+    std::string s = oss.str();
+    if ( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT )
+    {
+        ::MessageBoxA( NULL, s.c_str(), "Vulkan Error!", 0 );
+    }
+    OutputDebugStringA( s.c_str() );
+#endif
 
     return false; // -> do not stop the command causing the error.
 }
 
 void Renderer::SetupDebug()
 {
+    // moved as a member of class and created here to be able to pass it to instance_create_info
+    // and be able to debug the VkCreateInstance function.
+    //VkDebugReportCallbackCreateInfoEXT debug_callback_create_info{};
+    debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+    debug_callback_create_info.pfnCallback = &VulkanDebugCallback;
+    debug_callback_create_info.flags =
+        VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
+        VK_DEBUG_REPORT_WARNING_BIT_EXT |
+        VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT |
+        VK_DEBUG_REPORT_ERROR_BIT_EXT |
+        VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+
     //_instance_layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
     //_instance_layers.push_back( "VK_LAYER_LUNARG_api_dump" );
     _instance_layers.push_back( "VK_LAYER_LUNARG_core_validation" );
@@ -250,15 +281,6 @@ void Renderer::InitDebug()
         std::exit( -1 );
     }
 
-    VkDebugReportCallbackCreateInfoEXT debug_callback_create_info{};
-    debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-    debug_callback_create_info.pfnCallback = &VulkanDebugCallback;
-    debug_callback_create_info.flags = 
-        VK_DEBUG_REPORT_INFORMATION_BIT_EXT | 
-        VK_DEBUG_REPORT_WARNING_BIT_EXT | 
-        VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | 
-        VK_DEBUG_REPORT_ERROR_BIT_EXT | 
-        VK_DEBUG_REPORT_DEBUG_BIT_EXT;
     fvkCreateDebugReportCallbackEXT( _instance, &debug_callback_create_info, nullptr, &_debug_report );
 }
 

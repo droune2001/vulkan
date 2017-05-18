@@ -35,5 +35,6 @@ private:
     std::vector<const char *>   _device_extensions; // deprecated
 
     VkDebugReportCallbackEXT    _debug_report = nullptr;
+    VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
 };
 
