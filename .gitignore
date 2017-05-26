@@ -46,6 +46,7 @@ Network Trash Folder
 Temporary Items
 .apdisk
 *.obj
+*.opendb
 .vs/vulkan/v14/.suo
 vulkan.VC.db
 

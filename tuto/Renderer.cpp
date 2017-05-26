@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "Shared.h"
 
 #include <cstdlib>
 #include <assert.h>
@@ -42,21 +43,16 @@ void Renderer::InitInstance()
     instance_create_info.ppEnabledLayerNames        = _instance_layers.data();
     instance_create_info.enabledExtensionCount      = (uint32_t)_instance_extensions.size();
     instance_create_info.ppEnabledExtensionNames    = _instance_extensions.data();
-    instance_create_info.pNext                      = &debug_callback_create_info;
+    instance_create_info.pNext                      = &debug_callback_create_info; // put it here to have debug info for the vkCreateInstance function, even if we have not given a debug callback yet.
     auto err = vkCreateInstance( 
         &instance_create_info,
         nullptr, // no custom allocator
         &_instance );
 
-    // NOTE(nfauvet): 
     // 0 = OK
     // positive error code = partial succes
     // negative = failure
-    if ( VK_SUCCESS != err )
-    {
-        assert( !"Vulkan ERROR: Create instance failed.");
-        std::exit( -1 );
-    }
+    ErrorCheck( err );
 }
 
 void Renderer::DeInitInstance()
@@ -161,17 +157,13 @@ void Renderer::InitDevice()
     //device_create_info.enabledExtensionCount = _device_extensions.size(); // deprecated
     //device_create_info.ppEnabledExtensionNames = _device_extensions.data(); // deprecated
 
-    auto err = vkCreateDevice( 
+    ErrorCheck( 
+        vkCreateDevice(
         _gpu,
         &device_create_info,
         nullptr, // allocator
-        &_device );
-
-    if ( VK_SUCCESS != err )
-    {
-        assert( !"Vulkan ERROR: Create Device failed." );
-        std::exit( -1 );
-    }
+        &_device )
+    );
 }
 
 void Renderer::DeInitDevice()
@@ -239,27 +231,29 @@ void Renderer::SetupDebug()
     debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
     debug_callback_create_info.pfnCallback = &VulkanDebugCallback;
     debug_callback_create_info.flags =
-        VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
+        //VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
         VK_DEBUG_REPORT_WARNING_BIT_EXT |
         VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT |
         VK_DEBUG_REPORT_ERROR_BIT_EXT |
-        VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+        //VK_DEBUG_REPORT_DEBUG_BIT_EXT
+        0;
 
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
+    _instance_layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
     //_instance_layers.push_back( "VK_LAYER_LUNARG_api_dump" );
-    _instance_layers.push_back( "VK_LAYER_LUNARG_core_validation" );
-    _instance_layers.push_back( "VK_LAYER_LUNARG_monitor" );
-    _instance_layers.push_back( "VK_LAYER_LUNARG_object_tracker" );
-    _instance_layers.push_back( "VK_LAYER_LUNARG_parameter_validation" );
-    _instance_layers.push_back( "VK_LAYER_LUNARG_screenshot" );
-    _instance_layers.push_back( "VK_LAYER_LUNARG_swapchain" );
-    _instance_layers.push_back( "VK_LAYER_GOOGLE_threading" );
-    _instance_layers.push_back( "VK_LAYER_GOOGLE_unique_objects" );
+
+    //_instance_layers.push_back( "VK_LAYER_LUNARG_core_validation" );
+    //_instance_layers.push_back( "VK_LAYER_LUNARG_monitor" );
+    //_instance_layers.push_back( "VK_LAYER_LUNARG_object_tracker" );
+    //_instance_layers.push_back( "VK_LAYER_LUNARG_parameter_validation" );
+    //_instance_layers.push_back( "VK_LAYER_LUNARG_screenshot" );
+    //_instance_layers.push_back( "VK_LAYER_LUNARG_swapchain" );
+    //_instance_layers.push_back( "VK_LAYER_GOOGLE_threading" );
+    //_instance_layers.push_back( "VK_LAYER_GOOGLE_unique_objects" );
+
     //_instance_layers.push_back( "VK_LAYER_LUNARG_vktrace" );
     //_instance_layers.push_back( "VK_LAYER_NV_optimus" );
     //_instance_layers.push_back( "VK_LAYER_RENDERDOC_Capture" );
     //_instance_layers.push_back( "VK_LAYER_VALVE_steam_overlay" );
-    _instance_layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
 
 
     _instance_extensions.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
