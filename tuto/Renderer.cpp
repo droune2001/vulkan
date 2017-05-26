@@ -25,7 +25,6 @@ Renderer::~Renderer()
     DeInitDevice();
     DeInitDebug();
     DeInitInstance();
-    // TUTORIAL 3: TODO
 }
 
 void Renderer::InitInstance()
@@ -33,8 +32,8 @@ void Renderer::InitInstance()
     VkApplicationInfo application_info{};
     application_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     application_info.apiVersion         = VK_MAKE_VERSION( 1, 0, 13 ); //VK_API_VERSION_1_0;
-    application_info.applicationVersion = VK_MAKE_VERSION( 0, 1, 0 );
-    application_info.pApplicationName   = "Vulkan Tutorial 1";
+    application_info.applicationVersion = VK_MAKE_VERSION( 0, 0, 4 );
+    application_info.pApplicationName   = "Vulkan Tutorial 4";
 
     VkInstanceCreateInfo instance_create_info{};
     instance_create_info.sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -164,6 +163,12 @@ void Renderer::InitDevice()
         nullptr, // allocator
         &_device )
     );
+
+    vkGetDeviceQueue( 
+        _device, 
+        _graphics_family_index, 
+        0, // index in queueCount
+        &_queue );
 }
 
 void Renderer::DeInitDevice()
