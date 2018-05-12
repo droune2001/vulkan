@@ -48,7 +48,11 @@ Temporary Items
 *.obj
 *.opendb
 .vs/vulkan/v14/.suo
+.vs/vulkan/v15/.suo
 vulkan.VC.db
 
 tuto\x64
 x64
+
+.vs/vulkan/v15/Browse.VC.db
+*.ipch

@@ -66,7 +66,7 @@ void ErrorCheck( VkResult result )
         case VK_ERROR_OUT_OF_POOL_MEMORY_KHR:
             std::cout << "VK_ERROR_OUT_OF_POOL_MEMORY_KHR" << std::endl;
             break;
-        case VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX:
+        case VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR:
             std::cout << "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX" << std::endl;
             break;
         default:
