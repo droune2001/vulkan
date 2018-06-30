@@ -165,6 +165,8 @@
     <ClCompile Include="volk.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="build_options.h" />
+    <ClInclude Include="platform.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shared.h" />
     <ClInclude Include="volk.h" />

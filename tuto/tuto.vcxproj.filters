@@ -38,5 +38,11 @@
     <ClInclude Include="volk.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="build_options.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="platform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

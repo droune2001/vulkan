@@ -1,5 +1,7 @@
+#include "platform.h"
 #include "Renderer.h"
 #include "Shared.h"
+#include "build_options.h"
 
 #include <cstdlib>
 #include <assert.h>
@@ -8,12 +10,19 @@
 #include <iostream>
 #include <sstream>
 
-#define WINDOWS_LEAN_AND_MEAN
-#include <windows.h>
-
 Renderer::Renderer()
 {
 	
+}
+
+Window * Renderer::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
+{
+	return nullptr;
+}
+
+bool Renderer::Run()
+{
+	return false;
 }
 
 bool Renderer::Init()
@@ -213,6 +222,8 @@ void Renderer::DeInitDevice()
     _device = nullptr;
 }
 
+#if BUILD_ENABLE_VULKAN_DEBUG
+
 VKAPI_ATTR VkBool32 VKAPI_CALL
 VulkanDebugCallback(
     VkDebugReportFlagsEXT flags,
@@ -306,27 +317,8 @@ void Renderer::SetupDebug()
 
 }
 
-PFN_vkCreateDebugReportCallbackEXT fvkCreateDebugReportCallbackEXT = nullptr;
-PFN_vkDestroyDebugReportCallbackEXT fvkDestroyDebugReportCallbackEXT = nullptr;
-
 bool Renderer::InitDebug()
 {
-	// @[Loader Message]: Layer "VK_LAYER_RENDERDOC_Capture" using deprecated 'vkGetInstanceProcAddr' tag which was deprecated starting with JSON file version 1.1.0.
-	// Instead, use the new vkNegotiateLayerInterfaceVersion function to return the GetInstanceProcAddr function for this layer.
-    
-	
-	// already done by volk
-	//fvkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( _instance, "vkCreateDebugReportCallbackEXT" );
-    //fvkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr( _instance, "vkDestroyDebugReportCallbackEXT" );
-
- /*   if ( !fvkCreateDebugReportCallbackEXT || !fvkDestroyDebugReportCallbackEXT )
-    {
-        assert(!"GetProcAddr failed");
-        std::exit( -1 );
-    }
-
-    fvkCreateDebugReportCallbackEXT( _instance, &debug_callback_create_info, nullptr, &_debug_report );*/
-
 	auto err = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
 	return (VK_SUCCESS == err);
 }
@@ -337,3 +329,10 @@ void Renderer::DeInitDebug()
     _debug_report = nullptr;
 }
 
+#else
+
+void Renderer::SetupDebug() {}
+bool Renderer::InitDebug() { return true; }
+void Renderer::DeInitDebug() {}
+
+#endif // BUILD_ENABLE_VULKAN_DEBUG

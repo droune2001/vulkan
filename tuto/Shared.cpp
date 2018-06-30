@@ -1,4 +1,8 @@
+#include "platform.h"
 #include "Shared.h"
+#include "build_options.h"
+
+#if BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
 
 void ErrorCheck( VkResult result )
 {
@@ -75,3 +79,10 @@ void ErrorCheck( VkResult result )
         assert( !"Vulkan runtime error!" );
     }
 }
+
+#else
+
+// TODO(nfauvet): do a macro instead.
+void ErrorCheck(VkResult result) {}
+
+#endif // BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
