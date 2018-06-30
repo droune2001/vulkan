@@ -1,7 +1,12 @@
 #pragma once
 
 #include <vector>
-#include <vulkan/vulkan.h>
+
+#define VK_USE_PLATFORM_WIN32_KHR
+#define VK_NO_PROTOTYPES
+#include "volk.h"
+
+//#include <vulkan/vulkan.h>
 
 class Renderer
 {
@@ -9,19 +14,21 @@ public:
     Renderer();
     ~Renderer();
 
+	bool Init();
+
     VkDevice device() { return _device; }
     uint32_t familyIndex() { return _graphics_family_index; }
     VkQueue queue() { return _queue; }
 
 private:
-    void InitInstance();
+	bool InitInstance();
     void DeInitInstance();
 
-    void InitDevice();
+	bool InitDevice();
     void DeInitDevice();
 
     void SetupDebug();
-    void InitDebug();
+	bool InitDebug();
     void DeInitDebug();
 
 private:

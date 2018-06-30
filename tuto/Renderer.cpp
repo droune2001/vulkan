@@ -8,16 +8,44 @@
 #include <iostream>
 #include <sstream>
 
-#ifdef _WIN32
-#   include <windows.h>
-#endif
+#define WINDOWS_LEAN_AND_MEAN
+#include <windows.h>
 
 Renderer::Renderer()
 {
-    SetupDebug();
-    InitInstance();
-    InitDebug();
-    InitDevice();
+	
+}
+
+bool Renderer::Init()
+{
+	// Manually load the dll, and grab the "vkGetInstanceProcAddr" symbol,
+	// vkCreateInstance, and vkEnumerate extensions and layers
+	if (volkInitialize() != VK_SUCCESS)
+		return false;
+
+	// Setup debug callback structure and desired layers names.
+	SetupDebug();
+
+	// Create the instance
+	if (!InitInstance())
+		return false;
+
+	// Loads all the symbols for that instance, beginning with vkCreateDevice.
+	volkLoadInstance(_instance);
+
+	// Install debug callback
+	if (!InitDebug())
+		return false;
+
+	// Create device and get rendering queue.
+	if (!InitDevice())
+		return false;
+
+	// Load all the rest of the symbols, specifically for that device, bypassing
+	// the loader dispatch,
+	volkLoadDevice(_device);
+
+	return true;
 }
 
 Renderer::~Renderer()
@@ -27,11 +55,11 @@ Renderer::~Renderer()
     DeInitInstance();
 }
 
-void Renderer::InitInstance()
+bool Renderer::InitInstance()
 {
     VkApplicationInfo application_info{};
     application_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    application_info.apiVersion         = VK_MAKE_VERSION( 1, 0, 13 ); //VK_API_VERSION_1_0;
+    application_info.apiVersion         = VK_MAKE_VERSION( 1, 1, 73 ); //VK_API_VERSION_1_0;
     application_info.applicationVersion = VK_MAKE_VERSION( 0, 0, 4 );
     application_info.pApplicationName   = "Vulkan Tutorial 4";
 
@@ -52,6 +80,8 @@ void Renderer::InitInstance()
     // positive error code = partial succes
     // negative = failure
     ErrorCheck( err );
+
+	return (VK_SUCCESS == err);
 }
 
 void Renderer::DeInitInstance()
@@ -61,17 +91,19 @@ void Renderer::DeInitInstance()
 }
 
 // NOTE(nfauvet): a device in Vulkan is like the context in OpenGL
-void Renderer::InitDevice()
+bool Renderer::InitDevice()
 {
+	bool ok = true;
+
     // Get all physical devices and choose one (the first here)
-    {
-        // Call once to get the number
-        uint32_t gpu_count = 0;
-        auto err1 = vkEnumeratePhysicalDevices( _instance, &gpu_count, nullptr );
+	{
+		// Call once to get the number
+		uint32_t gpu_count = 0;
+		ok &= (VK_SUCCESS == vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr));
 
         // Call a second time to get the actual devices
         std::vector<VkPhysicalDevice> gpu_list( gpu_count );
-        auto err2 = vkEnumeratePhysicalDevices( _instance, &gpu_count, gpu_list.data() );
+		ok &= (VK_SUCCESS == vkEnumeratePhysicalDevices(_instance, &gpu_count, gpu_list.data()));
 
         // Take first physical device
         _gpu = gpu_list[0];
@@ -101,7 +133,7 @@ void Renderer::InitDevice()
 
         if ( !found )
         {
-            assert( !"Vulkan ERROR: Queue family supporting grpahics not found." );
+            assert( !"Vulkan ERROR: Queue family supporting graphics not found." );
             std::exit( -1 );
         }
     }
@@ -109,10 +141,10 @@ void Renderer::InitDevice()
     // Instance Layer Properties
     {
         uint32_t layer_count = 0;
-        vkEnumerateInstanceLayerProperties( &layer_count, nullptr ); // first call = query number
+		ok &= (VK_SUCCESS == vkEnumerateInstanceLayerProperties(&layer_count, nullptr)); // first call = query number
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
-        vkEnumerateInstanceLayerProperties( &layer_count, layer_property_list.data() ); // second call with allocated array
+		ok &= (VK_SUCCESS == vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data())); // second call with allocated array
 
         std::cout << "Instance layers: \n";
         for ( auto &i : layer_property_list )
@@ -126,10 +158,10 @@ void Renderer::InitDevice()
     // Device Layer Properties (deprecated)
     {
         uint32_t layer_count = 0;
-        vkEnumerateDeviceLayerProperties( _gpu, &layer_count, nullptr ); // first call = query number
+		ok &= (VK_SUCCESS == vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr)); // first call = query number
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
-        vkEnumerateDeviceLayerProperties( _gpu, &layer_count, layer_property_list.data() ); // second call with allocated array
+		ok &= (VK_SUCCESS == vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data())); // second call with allocated array
 
         std::cout << "Device layers: (deprecated)\n";
         for ( auto &i : layer_property_list )
@@ -156,19 +188,23 @@ void Renderer::InitDevice()
     //device_create_info.enabledExtensionCount = _device_extensions.size(); // deprecated
     //device_create_info.ppEnabledExtensionNames = _device_extensions.data(); // deprecated
 
-    ErrorCheck( 
-        vkCreateDevice(
-        _gpu,
-        &device_create_info,
-        nullptr, // allocator
-        &_device )
-    );
+	auto err = vkCreateDevice(
+		_gpu,
+		&device_create_info,
+		nullptr, // allocator
+		&_device);
+
+    ErrorCheck(err);
+
+	ok &= (VK_SUCCESS == err);
 
     vkGetDeviceQueue( 
         _device, 
         _graphics_family_index, 
         0, // index in queueCount
         &_queue );
+
+	return ok;
 }
 
 void Renderer::DeInitDevice()
@@ -243,49 +279,61 @@ void Renderer::SetupDebug()
         //VK_DEBUG_REPORT_DEBUG_BIT_EXT
         0;
 
-    _instance_layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_api_dump" );
+    //_instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
+	//_instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
+    _instance_layers.push_back("VK_LAYER_LUNARG_core_validation" );
+	//_instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
+    //_instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
+    _instance_layers.push_back("VK_LAYER_LUNARG_object_tracker" );
+    _instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation" );
+    //_instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
+	_instance_layers.push_back("VK_LAYER_LUNARG_standard_validation" );
+    //_instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
+    _instance_layers.push_back("VK_LAYER_GOOGLE_threading" );
+    _instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects" );
+    //_instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
+    //_instance_layers.push_back("VK_LAYER_NV_optimus" );
+    //_instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );
+    //_instance_layers.push_back("VK_LAYER_VALVE_steam_overlay" );
 
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_core_validation" );
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_monitor" );
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_object_tracker" );
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_parameter_validation" );
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_screenshot" );
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_swapchain" );
-    //_instance_layers.push_back( "VK_LAYER_GOOGLE_threading" );
-    //_instance_layers.push_back( "VK_LAYER_GOOGLE_unique_objects" );
+	_instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+	_instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+	_instance_extensions.push_back("VK_KHR_win32_surface");
 
-    //_instance_layers.push_back( "VK_LAYER_LUNARG_vktrace" );
-    //_instance_layers.push_back( "VK_LAYER_NV_optimus" );
-    //_instance_layers.push_back( "VK_LAYER_RENDERDOC_Capture" );
-    //_instance_layers.push_back( "VK_LAYER_VALVE_steam_overlay" );
-
-
-    _instance_extensions.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
-
+	//_device_layers.push_back( "VK_LAYER_LUNARG_core_validation" ); // deprecated
+	//_device_layers.push_back( "VK_LAYER_LUNARG_parameter_validation" ); // deprecated
     //_device_layers.push_back( "VK_LAYER_LUNARG_standard_validation" ); // deprecated
+
 }
 
 PFN_vkCreateDebugReportCallbackEXT fvkCreateDebugReportCallbackEXT = nullptr;
 PFN_vkDestroyDebugReportCallbackEXT fvkDestroyDebugReportCallbackEXT = nullptr;
 
-void Renderer::InitDebug()
+bool Renderer::InitDebug()
 {
-    fvkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( _instance, "vkCreateDebugReportCallbackEXT" );
-    fvkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr( _instance, "vkDestroyDebugReportCallbackEXT" );
+	// @[Loader Message]: Layer "VK_LAYER_RENDERDOC_Capture" using deprecated 'vkGetInstanceProcAddr' tag which was deprecated starting with JSON file version 1.1.0.
+	// Instead, use the new vkNegotiateLayerInterfaceVersion function to return the GetInstanceProcAddr function for this layer.
+    
+	
+	// already done by volk
+	//fvkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( _instance, "vkCreateDebugReportCallbackEXT" );
+    //fvkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr( _instance, "vkDestroyDebugReportCallbackEXT" );
 
-    if ( !fvkCreateDebugReportCallbackEXT || !fvkDestroyDebugReportCallbackEXT )
+ /*   if ( !fvkCreateDebugReportCallbackEXT || !fvkDestroyDebugReportCallbackEXT )
     {
         assert(!"GetProcAddr failed");
         std::exit( -1 );
     }
 
-    fvkCreateDebugReportCallbackEXT( _instance, &debug_callback_create_info, nullptr, &_debug_report );
+    fvkCreateDebugReportCallbackEXT( _instance, &debug_callback_create_info, nullptr, &_debug_report );*/
+
+	auto err = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
+	return (VK_SUCCESS == err);
 }
 
 void Renderer::DeInitDebug()
 {
-    fvkDestroyDebugReportCallbackEXT( _instance, _debug_report, nullptr );
+    vkDestroyDebugReportCallbackEXT( _instance, _debug_report, nullptr );
     _debug_report = nullptr;
 }
 
