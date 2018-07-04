@@ -56,3 +56,6 @@ x64
 
 .vs/vulkan/v15/Browse.VC.db
 *.ipch
+.vs/vulkan/v15/Solution.VC.db
+.vs/vulkan/v15/Solution.VC.db-shm
+.vs/vulkan/v15/Solution.VC.db-wal
