@@ -1,7 +1,9 @@
+#include "build_options.h"
+
 #include "platform.h"
 #include "Renderer.h"
 #include "Shared.h"
-#include "build_options.h"
+#include "window.h"
 
 #include <cstdlib>
 #include <assert.h>
@@ -15,14 +17,24 @@ Renderer::Renderer()
 	
 }
 
+Renderer::~Renderer()
+{
+	delete _window;
+
+	DeInitDevice();
+	DeInitDebug();
+	DeInitInstance();
+}
+
 Window * Renderer::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
 {
-	return nullptr;
+	_window = new Window(this, size_x, size_y, title);
+	return _window;
 }
 
 bool Renderer::Run()
 {
-	return false;
+	return _window ? _window->Update() : true;
 }
 
 bool Renderer::Init()
@@ -32,8 +44,14 @@ bool Renderer::Init()
 	if (volkInitialize() != VK_SUCCESS)
 		return false;
 
-	// Setup debug callback structure and desired layers names.
+	// Setup debug callback structure.
 	SetupDebug();
+
+	// Fill the names of desired layers
+	SetupLayers();
+
+	// Fill the names of the desired extensions.
+	SetupExtensions();
 
 	// Create the instance
 	if (!InitInstance())
@@ -57,18 +75,11 @@ bool Renderer::Init()
 	return true;
 }
 
-Renderer::~Renderer()
-{
-    DeInitDevice();
-    DeInitDebug();
-    DeInitInstance();
-}
-
 bool Renderer::InitInstance()
 {
     VkApplicationInfo application_info{};
     application_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    application_info.apiVersion         = VK_MAKE_VERSION( 1, 1, 73 ); //VK_API_VERSION_1_0;
+    application_info.apiVersion         = VK_API_VERSION_1_0;//VK_MAKE_VERSION( 1, 1, 73 );
     application_info.applicationVersion = VK_MAKE_VERSION( 0, 0, 4 );
     application_info.pApplicationName   = "Vulkan Tutorial 4";
 
@@ -110,12 +121,18 @@ bool Renderer::InitDevice()
 		uint32_t gpu_count = 0;
 		ok &= (VK_SUCCESS == vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr));
 
+		if (gpu_count == 0)
+		{
+			assert(!"Vulkan ERROR: No GPU found.");
+			return false;
+		}
+
         // Call a second time to get the actual devices
         std::vector<VkPhysicalDevice> gpu_list( gpu_count );
 		ok &= (VK_SUCCESS == vkEnumeratePhysicalDevices(_instance, &gpu_count, gpu_list.data()));
 
-        // Take first physical device
-        _gpu = gpu_list[0];
+		// Take the first
+		_gpu = gpu_list[0];
 
         vkGetPhysicalDeviceProperties( _gpu, &_gpu_properties );
     }
@@ -143,7 +160,7 @@ bool Renderer::InitDevice()
         if ( !found )
         {
             assert( !"Vulkan ERROR: Queue family supporting graphics not found." );
-            std::exit( -1 );
+			return false;
         }
     }
 
@@ -155,12 +172,16 @@ bool Renderer::InitDevice()
         std::vector<VkLayerProperties> layer_property_list( layer_count );
 		ok &= (VK_SUCCESS == vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data())); // second call with allocated array
 
-        std::cout << "Instance layers: \n";
+		// use OutputDebugStringA
+		::OutputDebugStringA( "Instance layers: \n");
         for ( auto &i : layer_property_list )
         {
-            std::cout << "  " << i.layerName << "\t\t | " << i.description << std::endl;
+			std::ostringstream oss;
+            oss << "  " << i.layerName << "\t\t | " << i.description << std::endl;
+			std::string oss_str = oss.str();
+			OutputDebugStringA(oss_str.c_str());
         }
-        std::cout << std::endl;
+		::OutputDebugStringA("\n");
     }
 
 
@@ -172,12 +193,15 @@ bool Renderer::InitDevice()
         std::vector<VkLayerProperties> layer_property_list( layer_count );
 		ok &= (VK_SUCCESS == vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data())); // second call with allocated array
 
-        std::cout << "Device layers: (deprecated)\n";
+		OutputDebugStringA("Device layers: (deprecated)\n");
         for ( auto &i : layer_property_list )
         {
-            std::cout << "  " << i.layerName << "\t\t | " << i.description << std::endl;
+			std::ostringstream oss;
+            oss << "  " << i.layerName << "\t\t | " << i.description << std::endl;
+			std::string oss_str = oss.str();
+			OutputDebugStringA(oss_str.c_str());
         }
-        std::cout << std::endl;
+		OutputDebugStringA("\n");
     }
 
     float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
@@ -275,6 +299,42 @@ VulkanDebugCallback(
     return false; // -> do not stop the command causing the error.
 }
 
+void Renderer::SetupLayers()
+{
+	//_instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
+	//_instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
+	_instance_layers.push_back("VK_LAYER_LUNARG_core_validation");
+	//_instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
+	//_instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
+	_instance_layers.push_back("VK_LAYER_LUNARG_object_tracker");
+	_instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation");
+	//_instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
+	_instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
+	//_instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
+	_instance_layers.push_back("VK_LAYER_GOOGLE_threading");
+	_instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects");
+	//_instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
+	//_instance_layers.push_back("VK_LAYER_NV_optimus" );
+	//_instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );
+	//_instance_layers.push_back("VK_LAYER_VALVE_steam_overlay" );
+
+	// DEPRECATED
+	//_device_layers.push_back("VK_LAYER_NV_optimus"); // | NVIDIA Optimus layer
+	//_device_layers.push_back("VK_LAYER_LUNARG_core_validation"); // | LunarG Validation Layer
+	//_device_layers.push_back("VK_LAYER_LUNARG_object_tracker"); // | LunarG Validation Layer
+	//_device_layers.push_back("VK_LAYER_LUNARG_parameter_validation"); // | LunarG Validation Layer
+	//_device_layers.push_back("VK_LAYER_LUNARG_standard_validation"); // | LunarG Standard Validation
+	//_device_layers.push_back("VK_LAYER_GOOGLE_threading"); // | Google Validation Layer
+	//_device_layers.push_back("VK_LAYER_GOOGLE_unique_objects"); // | Google Validation Layer
+}
+
+void Renderer::SetupExtensions()
+{
+	_instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+	_instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+	_instance_extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+}
+
 void Renderer::SetupDebug()
 {
     // moved as a member of class and created here to be able to pass it to instance_create_info
@@ -289,32 +349,6 @@ void Renderer::SetupDebug()
         VK_DEBUG_REPORT_ERROR_BIT_EXT |
         //VK_DEBUG_REPORT_DEBUG_BIT_EXT
         0;
-
-    //_instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
-	//_instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
-    _instance_layers.push_back("VK_LAYER_LUNARG_core_validation" );
-	//_instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
-    //_instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
-    _instance_layers.push_back("VK_LAYER_LUNARG_object_tracker" );
-    _instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation" );
-    //_instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
-	_instance_layers.push_back("VK_LAYER_LUNARG_standard_validation" );
-    //_instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
-    _instance_layers.push_back("VK_LAYER_GOOGLE_threading" );
-    _instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects" );
-    //_instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
-    //_instance_layers.push_back("VK_LAYER_NV_optimus" );
-    //_instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );
-    //_instance_layers.push_back("VK_LAYER_VALVE_steam_overlay" );
-
-	_instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-	_instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-	_instance_extensions.push_back("VK_KHR_win32_surface");
-
-	//_device_layers.push_back( "VK_LAYER_LUNARG_core_validation" ); // deprecated
-	//_device_layers.push_back( "VK_LAYER_LUNARG_parameter_validation" ); // deprecated
-    //_device_layers.push_back( "VK_LAYER_LUNARG_standard_validation" ); // deprecated
-
 }
 
 bool Renderer::InitDebug()

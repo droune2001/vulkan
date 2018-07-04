@@ -7,32 +7,40 @@ class Window;
 class Renderer
 {
 public:
-    Renderer();
-    ~Renderer();
+	Renderer();
+	~Renderer();
 
-	// TODO(nfauvet): put that elsewhere, does not belong here.
-	Window *OpenWindow( uint32_t size_x, uint32_t size_y, const std::string &title);
+	Window *OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
 	bool Run();
+
 	bool Init();
 
-    VkDevice device() { return _device; }
-    uint32_t familyIndex() { return _graphics_family_index; }
-    VkQueue queue() { return _queue; }
+	const VkInstance GetVulkanInstance() const { return _instance; }
+	const VkPhysicalDevice GetVulkanPhysicalDevice() const { return _gpu; }
+	const VkDevice GetVulkanDevice() const { return _device; }
+	const VkQueue GetVulkanQueue() const { return _queue; }
+	const uint32_t GetVulkanGraphicsQueueFamilyIndex() const { return _graphics_family_index; }
+	const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
+	
 
 private:
 	bool InitInstance();
-    void DeInitInstance();
+	void DeInitInstance();
 
 	bool InitDevice();
-    void DeInitDevice();
+	void DeInitDevice();
 
-    void SetupDebug();
+	void SetupDebug();
 	bool InitDebug();
-    void DeInitDebug();
+	void DeInitDebug();
+
+	void SetupLayers();
+
+	void SetupExtensions();
 
 private:
 
-	Window *_window = nullptr;
+	Window * _window = nullptr;
 
 	VkInstance       _instance = VK_NULL_HANDLE; // ou nullptr, selon la version de vulkan
 	VkPhysicalDevice _gpu = VK_NULL_HANDLE;

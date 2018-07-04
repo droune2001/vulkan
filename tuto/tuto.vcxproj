@@ -43,14 +43,14 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -163,6 +163,8 @@
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shared.cpp" />
     <ClCompile Include="volk.c" />
+    <ClCompile Include="window.cpp" />
+    <ClCompile Include="window_win32.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="build_options.h" />
@@ -170,6 +172,7 @@
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shared.h" />
     <ClInclude Include="volk.h" />
+    <ClInclude Include="window.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
