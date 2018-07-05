@@ -12,16 +12,27 @@ Window::Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::
 	_surface_size_y(size_y),
 	_window_name(title)
 {
-	InitOSWindow();
-	InitSurface();
-	InitSwapChain();
 }
 
 Window::~Window()
 {
+	DeInitDepthStencilImage();
+	DeInitSwapChainImages();
 	DeInitSwapChain();
 	DeInitSurface();
 	DeInitOSWindow();
+}
+
+bool Window::Init()
+{
+	bool ok = true;
+	InitOSWindow();
+	ok &= InitSurface();
+	ok &= InitSwapChain();
+	InitSwapChainImages();
+	InitDepthStencilImage();
+
+	return ok;
 }
 
 void Window::Close()
@@ -35,23 +46,28 @@ bool Window::Update()
 	return _window_should_run;
 }
 
-void Window::InitSurface()
+bool Window::InitSurface()
 {
-	InitOSSurface();
+	VkResult result = VK_SUCCESS;
+	bool ok = true;
+
+	if (!InitOSSurface()) return false;
 
 	auto gpu = _renderer->GetVulkanPhysicalDevice();
 
 	VkBool32 supportsPresent;
-	vkGetPhysicalDeviceSurfaceSupportKHR(gpu, _renderer->GetVulkanGraphicsQueueFamilyIndex(), _surface, &supportsPresent);
-	if (!supportsPresent)
+	result = vkGetPhysicalDeviceSurfaceSupportKHR(gpu, _renderer->GetVulkanGraphicsQueueFamilyIndex(), _surface, &supportsPresent);
+	ErrorCheck(result);
+	if ((result != VK_SUCCESS) || !supportsPresent)
 	{
 		assert(!"device does not support presentation");
-		std::exit(-1);
+		return false;
 	}
 
 	//vkGetPhysicalDeviceSurfaceCapabilities2EXT ???
 	//vkGetPhysicalDeviceSurfaceCapabilities2KHR ???
-	auto result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, _surface, &_surface_caps);
+	result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, _surface, &_surface_caps);
+	ErrorCheck(result);
 	{
 		// The size of the surface may not be exactly the one we asked for.
 		if (_surface_caps.currentExtent.width < UINT32_MAX)
@@ -85,6 +101,8 @@ void Window::InitSurface()
 			_surface_format = surface_formats[0];
 		}
 	}
+
+	return ok;
 }
 
 void Window::DeInitSurface()
@@ -92,23 +110,30 @@ void Window::DeInitSurface()
 	vkDestroySurfaceKHR(_renderer->GetVulkanInstance(), _surface, nullptr);
 }
 
-void Window::InitSwapChain()
+bool Window::InitSwapChain()
 {
+	VkResult result;
+	bool ok = true;
+
 	// Test if we wanted more swap images than the system is capable of.
-	if (_swapchain_image_count > _surface_caps.maxImageCount) _swapchain_image_count = _surface_caps.maxImageCount;
-	if (_swapchain_image_count < _surface_caps.minImageCount + 1) _swapchain_image_count = _surface_caps.minImageCount;
+	if (_swapchain_image_count < _surface_caps.minImageCount + 1) 
+		_swapchain_image_count = _surface_caps.minImageCount + 1;
+	// if max is 0, then the implementation supports unlimited nb of swapchain.
+	if (_surface_caps.maxImageCount > 0 && _swapchain_image_count > _surface_caps.maxImageCount) 
+		_swapchain_image_count = _surface_caps.maxImageCount;
 
 	VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR; // VK_PRESENT_MODE_FIFO_KHR always available
 	{
 		uint32_t present_mode_count = 0;
-		ErrorCheck(vkGetPhysicalDeviceSurfacePresentModesKHR(_renderer->GetVulkanPhysicalDevice(), _surface, &present_mode_count, nullptr));
-		if (present_mode_count == 0)
-		{
-			assert(!"no present modes");
-			std::exit(-1);
-		}
+		result = vkGetPhysicalDeviceSurfacePresentModesKHR(_renderer->GetVulkanPhysicalDevice(), _surface, &present_mode_count, nullptr);
+		ErrorCheck(result);
+		ok &= (VK_SUCCESS == result);
+
 		std::vector<VkPresentModeKHR> present_modes(present_mode_count);
-		ErrorCheck(vkGetPhysicalDeviceSurfacePresentModesKHR(_renderer->GetVulkanPhysicalDevice(), _surface, &present_mode_count, present_modes.data()));
+		result = vkGetPhysicalDeviceSurfacePresentModesKHR(_renderer->GetVulkanPhysicalDevice(), _surface, &present_mode_count, present_modes.data());
+		ErrorCheck(result);
+		ok &= (VK_SUCCESS == result);
+		
 		for (auto m : present_modes)
 		{
 			// look for MailBox which does vsync.
@@ -138,22 +163,85 @@ void Window::InitSwapChain()
 	swapchain_create_info.clipped               = VK_TRUE;
 	swapchain_create_info.oldSwapchain          = VK_NULL_HANDLE; // used when reconstructing after having resized the window.
 
-	ErrorCheck(vkCreateSwapchainKHR(_renderer->GetVulkanDevice(), &swapchain_create_info, nullptr, &_swapchain));
-	
-	uint32_t swapchain_image_count = 0;
-	ErrorCheck(vkGetSwapchainImagesKHR(_renderer->GetVulkanDevice(), _swapchain, &swapchain_image_count, nullptr));
-	if (swapchain_image_count == 0)
-	{
-		assert(!"no swapchain images");
-		std::exit(-1);
-	}
+	result = vkCreateSwapchainKHR(_renderer->GetVulkanDevice(), &swapchain_create_info, nullptr, &_swapchain);
+	ErrorCheck(result);
+	ok &= (VK_SUCCESS == result);
 
-	// TODO(nfauvet): tuto 8
-	std::vector<VkImage> swapchain_images(swapchain_image_count);
-	ErrorCheck(vkGetSwapchainImagesKHR(_renderer->GetVulkanDevice(), _swapchain, &swapchain_image_count, swapchain_images.data()));
+	return ok;
 }
 
 void Window::DeInitSwapChain()
 {
 	vkDestroySwapchainKHR(_renderer->GetVulkanDevice(), _swapchain, nullptr);
+}
+
+void Window::InitSwapChainImages()
+{
+	auto result = VK_SUCCESS;
+
+	_swapchain_image_count = 0;
+	result = vkGetSwapchainImagesKHR(_renderer->GetVulkanDevice(), _swapchain, &_swapchain_image_count, nullptr);
+	ErrorCheck(result);
+
+	_swapchain_images.resize(_swapchain_image_count);
+	_swapchain_image_views.resize(_swapchain_image_count);
+	result = vkGetSwapchainImagesKHR(_renderer->GetVulkanDevice(), _swapchain, &_swapchain_image_count, _swapchain_images.data());
+	ErrorCheck(result);
+
+	for (uint32_t i = 0; i < _swapchain_image_count; ++i)
+	{
+		VkImageViewCreateInfo image_view_create_info = {};
+		image_view_create_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		image_view_create_info.image    = _swapchain_images[i];
+		image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		image_view_create_info.format   = _surface_format.format;
+		image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R; // or VK_COMPONENT_SWIZZLE_IDENTITY for all of them
+		image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
+		image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
+		image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
+		image_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+		image_view_create_info.subresourceRange.baseMipLevel   = 0;
+		image_view_create_info.subresourceRange.levelCount     = 1;
+		image_view_create_info.subresourceRange.baseArrayLayer = 0;
+		image_view_create_info.subresourceRange.layerCount     = 1;
+
+		result = vkCreateImageView(_renderer->GetVulkanDevice(), &image_view_create_info, nullptr, &_swapchain_image_views[i]);
+		ErrorCheck(result);
+	}
+}
+
+void Window::DeInitSwapChainImages()
+{
+	for (uint32_t i = 0; i < _swapchain_image_count; ++i)
+	{
+		vkDestroyImageView(_renderer->GetVulkanDevice(), _swapchain_image_views[i], nullptr);
+	}
+}
+
+void Window::InitDepthStencilImage()
+{
+	// TODO(nfauvet): TUTO 9 at 4:22
+	VkImageCreateInfo image_create_info = {};
+	image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	image_create_info.imageType = ;
+	image_create_info.format = ;
+	image_create_info.extent.width = ;
+	image_create_info.extent.height = ;
+	image_create_info.extent.depth = ;
+	image_create_info.mipLevels = ;
+	image_create_info.arrayLayers = ;
+	image_create_info.samples = ;
+	image_create_info.tiling = ;
+	image_create_info.usage = ;
+	image_create_info.sharingMode = ;
+	image_create_info.queueFamilyIndexCount = ;
+	image_create_info.pQueueFamilyIndices = ;
+	image_create_info.initialLayout = ;
+
+	auto result = vkCreateImage(_renderer->GetVulkanDevice(), &image_create_info, nullptr, &_depth_stencil_image);
+}
+
+void Window::DeInitDepthStencilImage()
+{
+
 }

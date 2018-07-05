@@ -26,10 +26,10 @@ Renderer::~Renderer()
 	DeInitInstance();
 }
 
-Window * Renderer::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
+Window *Renderer::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
 {
 	_window = new Window(this, size_x, size_y, title);
-	return _window;
+	return _window->Init() ? _window : nullptr;
 }
 
 bool Renderer::Run()
@@ -205,21 +205,21 @@ bool Renderer::InitDevice()
     }
 
     float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
-    VkDeviceQueueCreateInfo device_queue_create_info{};
+    VkDeviceQueueCreateInfo device_queue_create_info = {};
     device_queue_create_info.sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     device_queue_create_info.queueFamilyIndex   = _graphics_family_index;
     device_queue_create_info.queueCount         = 1;
     device_queue_create_info.pQueuePriorities   = queue_priorities;
 
     // Create a logical "device" associated with the physical "device"
-    VkDeviceCreateInfo device_create_info{};
+    VkDeviceCreateInfo device_create_info = {};
     device_create_info.sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     device_create_info.queueCreateInfoCount = 1;
     device_create_info.pQueueCreateInfos    = &device_queue_create_info;
     //device_create_info.enabledLayerCount = _device_layers.size(); // deprecated
     //device_create_info.ppEnabledLayerNames = _device_layers.data(); // deprecated
-    //device_create_info.enabledExtensionCount = _device_extensions.size(); // deprecated
-    //device_create_info.ppEnabledExtensionNames = _device_extensions.data(); // deprecated
+    device_create_info.enabledExtensionCount   = (uint32_t)_device_extensions.size();
+    device_create_info.ppEnabledExtensionNames = _device_extensions.data();
 
 	auto err = vkCreateDevice(
 		_gpu,
@@ -333,6 +333,8 @@ void Renderer::SetupExtensions()
 	_instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	_instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 	_instance_extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+
+	_device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
 void Renderer::SetupDebug()
@@ -354,6 +356,7 @@ void Renderer::SetupDebug()
 bool Renderer::InitDebug()
 {
 	auto err = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
+	ErrorCheck(err);
 	return (VK_SUCCESS == err);
 }
 

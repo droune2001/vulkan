@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 class Renderer;
 
@@ -10,6 +11,7 @@ public:
 	Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::string & title);
 	~Window();
 
+	bool Init();
 	void Close();
 	bool Update();
 
@@ -20,11 +22,19 @@ private:
 	void InitOSWindow();
 	void DeInitOSWindow();
 	void UpdateOSWindow();
-	void InitOSSurface();
-	void InitSurface();
+
+	bool InitOSSurface();
+	bool InitSurface();
 	void DeInitSurface();
-	void InitSwapChain();
+
+	bool InitSwapChain();
 	void DeInitSwapChain();
+
+	void InitSwapChainImages();
+	void DeInitSwapChainImages();
+
+	void InitDepthStencilImage();
+	void DeInitDepthStencilImage();
 
 private:
 
@@ -41,6 +51,9 @@ private:
 	VkSurfaceCapabilitiesKHR _surface_caps = {};
 	VkSurfaceFormatKHR _surface_format = {};
 	VkSwapchainKHR _swapchain = VK_NULL_HANDLE;
+	std::vector<VkImage> _swapchain_images;
+	std::vector<VkImageView> _swapchain_image_views;
+	VkImage _depth_stencil_image = {};
 
 public:
 

@@ -2,6 +2,7 @@
 #include "platform.h"
 #include "window.h"
 #include "Renderer.h"
+#include "Shared.h"
 
 #include <assert.h>
 
@@ -93,12 +94,15 @@ void Window::UpdateOSWindow()
 	}
 }
 
-void Window::InitOSSurface()
+bool Window::InitOSSurface()
 {
 	VkWin32SurfaceCreateInfoKHR surface_create_info = {};
 	surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 	surface_create_info.hinstance = _win32_instance;
 	surface_create_info.hwnd = _win32_window;
-
+	
 	auto result = vkCreateWin32SurfaceKHR(_renderer->GetVulkanInstance(), &surface_create_info, nullptr, &_surface);
+	ErrorCheck(result);
+
+	return (result == VK_SUCCESS);
 }

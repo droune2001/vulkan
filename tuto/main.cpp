@@ -92,7 +92,7 @@ int main(int argc, char **argv)
 	
 	if (!r.Init()) return -1;
 	
-	r.OpenWindow(800, 600, "test");
+	if (!r.OpenWindow(800, 600, "test")) return -1;
 	
 	while(r.Run())
 	{

@@ -4,7 +4,7 @@
 
 #if BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
 
-void ErrorCheck( VkResult result )
+void _ErrorCheck( VkResult result )
 {
     if ( result < 0 )
     {
@@ -79,10 +79,5 @@ void ErrorCheck( VkResult result )
         assert( !"Vulkan runtime error!" );
     }
 }
-
-#else
-
-// TODO(nfauvet): do a macro instead.
-void ErrorCheck(VkResult result) {}
 
 #endif // BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
