@@ -113,14 +113,14 @@ void Renderer::DeInitInstance()
 // NOTE(nfauvet): a device in Vulkan is like the context in OpenGL
 bool Renderer::InitDevice()
 {
-	bool ok = true;
+	VkResult result = VK_SUCCESS;
 
     // Get all physical devices and choose one (the first here)
 	{
 		// Call once to get the number
 		uint32_t gpu_count = 0;
-		ok &= (VK_SUCCESS == vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr));
-
+		result = vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr);
+		ErrorCheck(result);
 		if (gpu_count == 0)
 		{
 			assert(!"Vulkan ERROR: No GPU found.");
@@ -129,26 +129,37 @@ bool Renderer::InitDevice()
 
         // Call a second time to get the actual devices
         std::vector<VkPhysicalDevice> gpu_list( gpu_count );
-		ok &= (VK_SUCCESS == vkEnumeratePhysicalDevices(_instance, &gpu_count, gpu_list.data()));
-
+		result = vkEnumeratePhysicalDevices(_instance, &gpu_count, gpu_list.data());
+		ErrorCheck(result); // if it has passed the first time, it wont fail the second.
+		
 		// Take the first
 		_gpu = gpu_list[0];
 
-        vkGetPhysicalDeviceProperties( _gpu, &_gpu_properties );
+        vkGetPhysicalDeviceProperties(_gpu, &_gpu_properties);
+		vkGetPhysicalDeviceMemoryProperties(_gpu, &_gpu_memory_properties);
     }
 
     // Get the "Queue Family Properties" of the Device
     {
         uint32_t family_count = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties( _gpu, &family_count, nullptr );
-
-        std::vector<VkQueueFamilyProperties> family_property_list( family_count );
-        vkGetPhysicalDeviceQueueFamilyProperties( _gpu, &family_count, family_property_list.data() );
+        vkGetPhysicalDeviceQueueFamilyProperties(_gpu, &family_count, nullptr);
+		if (family_count == 0)
+		{
+			assert(!"Vulkan ERROR: No Queue family!!");
+			return false;
+		}
+        std::vector<VkQueueFamilyProperties> family_property_list(family_count);
+        vkGetPhysicalDeviceQueueFamilyProperties(_gpu, &family_count, family_property_list.data());
 
         // Look for a queue family supporting graphics operations.
         bool found = false;
         for ( uint32_t i = 0; i < family_count; ++i )
         {
+			// to know if support for presentation on windows desktop,
+			// even not knowing about the surface.
+			//VkBool32 supportsPresentation = VK_FALSE;
+			//vkGetPhysicalDeviceWin32PresentationSupportKHR(_gpu, i);
+
             if ( family_property_list[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
             {
                 found = true;
@@ -167,41 +178,44 @@ bool Renderer::InitDevice()
     // Instance Layer Properties
     {
         uint32_t layer_count = 0;
-		ok &= (VK_SUCCESS == vkEnumerateInstanceLayerProperties(&layer_count, nullptr)); // first call = query number
+		result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
+		ErrorCheck(result);
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
-		ok &= (VK_SUCCESS == vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data())); // second call with allocated array
+		result = vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data()); // second call with allocated array
+		ErrorCheck(result);
 
-		// use OutputDebugStringA
-		::OutputDebugStringA( "Instance layers: \n");
+		Log("Instance layers: \n");
         for ( auto &i : layer_property_list )
         {
 			std::ostringstream oss;
             oss << "  " << i.layerName << "\t\t | " << i.description << std::endl;
 			std::string oss_str = oss.str();
-			OutputDebugStringA(oss_str.c_str());
+			Log(oss_str.c_str());
         }
-		::OutputDebugStringA("\n");
+		Log("\n");
     }
 
 
     // Device Layer Properties (deprecated)
     {
         uint32_t layer_count = 0;
-		ok &= (VK_SUCCESS == vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr)); // first call = query number
+		result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr); // first call = query number
+		ErrorCheck(result);
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
-		ok &= (VK_SUCCESS == vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data())); // second call with allocated array
+		result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data()); // second call with allocated array
+		ErrorCheck(result);
 
-		OutputDebugStringA("Device layers: (deprecated)\n");
+		Log("Device layers: (deprecated)\n");
         for ( auto &i : layer_property_list )
         {
 			std::ostringstream oss;
             oss << "  " << i.layerName << "\t\t | " << i.description << std::endl;
 			std::string oss_str = oss.str();
-			OutputDebugStringA(oss_str.c_str());
+			Log(oss_str.c_str());
         }
-		OutputDebugStringA("\n");
+		Log("\n");
     }
 
     float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
@@ -221,23 +235,13 @@ bool Renderer::InitDevice()
     device_create_info.enabledExtensionCount   = (uint32_t)_device_extensions.size();
     device_create_info.ppEnabledExtensionNames = _device_extensions.data();
 
-	auto err = vkCreateDevice(
-		_gpu,
-		&device_create_info,
-		nullptr, // allocator
-		&_device);
+	result = vkCreateDevice(_gpu, &device_create_info, nullptr, &_device);
+    ErrorCheck(result);
 
-    ErrorCheck(err);
+	// get first queue in family (index 0)
+    vkGetDeviceQueue(_device, _graphics_family_index, 0, &_queue );
 
-	ok &= (VK_SUCCESS == err);
-
-    vkGetDeviceQueue( 
-        _device, 
-        _graphics_family_index, 
-        0, // index in queueCount
-        &_queue );
-
-	return ok;
+	return (VK_SUCCESS == result);
 }
 
 void Renderer::DeInitDevice()
@@ -285,15 +289,14 @@ VulkanDebugCallback(
     oss << "@[" << layer_prefix << "]: ";
     oss << msg << std::endl;
 
-    std::cout << oss.str();
+	std::string s = oss.str();
+	Log(s.c_str());
 
 #ifdef _WIN32
-    std::string s = oss.str();
     if ( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT )
     {
         ::MessageBoxA( NULL, s.c_str(), "Vulkan Error!", 0 );
     }
-    OutputDebugStringA( s.c_str() );
 #endif
 
     return false; // -> do not stop the command causing the error.
@@ -355,9 +358,10 @@ void Renderer::SetupDebug()
 
 bool Renderer::InitDebug()
 {
-	auto err = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
-	ErrorCheck(err);
-	return (VK_SUCCESS == err);
+	auto result = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
+	ErrorCheck(result);
+
+	return (result == VK_SUCCESS);
 }
 
 void Renderer::DeInitDebug()

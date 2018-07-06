@@ -15,3 +15,10 @@ void _ErrorCheck( VkResult result );
 #define ErrorCheck(e)
 
 #endif
+
+void Log(const char *text);
+
+uint32_t FindMemoryTypeIndex(
+	const VkPhysicalDeviceMemoryProperties *gpu_memory_properties, 
+	const VkMemoryRequirements *memory_requirements, 
+	const VkMemoryPropertyFlags required_memory_properties);

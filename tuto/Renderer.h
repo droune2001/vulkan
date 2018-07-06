@@ -21,7 +21,7 @@ public:
 	const VkQueue GetVulkanQueue() const { return _queue; }
 	const uint32_t GetVulkanGraphicsQueueFamilyIndex() const { return _graphics_family_index; }
 	const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
-	
+	const VkPhysicalDeviceMemoryProperties &GetVulkanPhysicalDeviceMemoryProperties() const { return _gpu_memory_properties; }
 
 private:
 	bool InitInstance();
@@ -47,6 +47,7 @@ private:
 	VkDevice         _device = VK_NULL_HANDLE;
 	VkQueue          _queue = VK_NULL_HANDLE;
 	VkPhysicalDeviceProperties _gpu_properties = {};
+	VkPhysicalDeviceMemoryProperties _gpu_memory_properties = {};
 
 	uint32_t _graphics_family_index = 0;
 

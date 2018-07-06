@@ -30,10 +30,10 @@ private:
 	bool InitSwapChain();
 	void DeInitSwapChain();
 
-	void InitSwapChainImages();
+	bool InitSwapChainImages();
 	void DeInitSwapChainImages();
 
-	void InitDepthStencilImage();
+	bool InitDepthStencilImage();
 	void DeInitDepthStencilImage();
 
 private:
@@ -53,7 +53,13 @@ private:
 	VkSwapchainKHR _swapchain = VK_NULL_HANDLE;
 	std::vector<VkImage> _swapchain_images;
 	std::vector<VkImageView> _swapchain_image_views;
+
 	VkImage _depth_stencil_image = {};
+	VkDeviceMemory _depth_stencil_image_memory = VK_NULL_HANDLE;
+	VkImageView _depth_stencil_image_view = VK_NULL_HANDLE;
+	VkFormat _depth_stencil_format = VK_FORMAT_UNDEFINED;
+	bool _stencil_available = false;
+
 
 public:
 
