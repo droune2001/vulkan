@@ -5,6 +5,8 @@
 #include "Shared.h"
 
 #include <assert.h>
+#include <sstream>
+#include <array>
 
 Window::Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::string & title)
 :	_renderer(renderer),
@@ -16,27 +18,48 @@ Window::Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::
 
 Window::~Window()
 {
+	Log("#  Destroy Render Pass\n");
+	DeInitRenderPass();
+
+	Log("#  Destroy Depth/Stencil\n");
 	DeInitDepthStencilImage();
+
+	Log("#  Destroy SwapChain Images\n");
 	DeInitSwapChainImages();
+
+	Log("#  Destroy SwapChain\n");
 	DeInitSwapChain();
+
+	Log("#  Destroy Backbuffer Surface\n");
 	DeInitSurface();
+
+	Log("#  Destroy OS Window\n");
 	DeInitOSWindow();
 }
 
 bool Window::Init()
 {
+	Log("#  Init OS Window\n");
 	InitOSWindow();
 
+	Log("#  Init Backbuffer Surface\n");
 	if (!InitSurface())
 		return false;
 
+	Log("#  Init SwapChain\n");
 	if (!InitSwapChain())
 		return false;
 
+	Log("#  InitSwapChain Images\n");
 	if (!InitSwapChainImages())
 		return false;
 
+	Log("#  Init Depth/Stencil\n");
 	if (!InitDepthStencilImage())
+		return false;
+
+	Log("#  Init Render Pass\n");
+	if (!InitRenderPass())
 		return false;
 
 	return true;
@@ -57,11 +80,13 @@ bool Window::InitSurface()
 {
 	VkResult result = VK_SUCCESS;
 	
+	Log("#   Init OS Surface\n");
 	if (!InitOSSurface()) 
 		return false;
 
 	auto gpu = _renderer->GetVulkanPhysicalDevice();
 
+	Log("#   Test Device supports surface?\n");
 	VkBool32 supportsPresent;
 	result = vkGetPhysicalDeviceSurfaceSupportKHR(gpu, _renderer->GetVulkanGraphicsQueueFamilyIndex(), _surface, &supportsPresent);
 	ErrorCheck(result);
@@ -73,6 +98,7 @@ bool Window::InitSurface()
 
 	//vkGetPhysicalDeviceSurfaceCapabilities2EXT ???
 	//vkGetPhysicalDeviceSurfaceCapabilities2KHR ???
+	Log("#   Get Physical Device Surface Capabilities\n");
 	result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, _surface, &_surface_caps);
 	ErrorCheck(result);
 	{
@@ -81,33 +107,40 @@ bool Window::InitSurface()
 		{
 			_surface_size_x = _surface_caps.currentExtent.width;
 			_surface_size_y = _surface_caps.currentExtent.height;
+
+			std::ostringstream oss;
+			oss << "#    width: " << _surface_size_x << " height: " << _surface_size_y << std::endl;
+			Log(oss.str().c_str());
 		}
 
-		// vkGetPhysicalDeviceSurfaceFormats2KHR ???
-		uint32_t surface_formats_count = 0;
-		result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, nullptr);
-		ErrorCheck(result);
-		if (surface_formats_count == 0)
 		{
-			assert(!"No surface formats");
-			return false;
-		}
+			// vkGetPhysicalDeviceSurfaceFormats2KHR ???
+			Log("#   Get Physical Device Surface Formats\n");
+			uint32_t surface_formats_count = 0;
+			result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, nullptr);
+			ErrorCheck(result);
+			if (surface_formats_count == 0)
+			{
+				assert(!"No surface formats");
+				return false;
+			}
 
-		// VkSurfaceFormat2KHR ???
-		std::vector<VkSurfaceFormatKHR> surface_formats;
-		surface_formats.resize(surface_formats_count);
-		result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, surface_formats.data());
-		ErrorCheck(result);
-		if (surface_formats_count == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED)
-		{
-			// if it does not care which format, lets choose one we want.
-			_surface_format.format = VK_FORMAT_B8G8R8A8_UNORM;
-			_surface_format.colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-		}
-		else
-		{
-			// recommanded to use the first one.
-			_surface_format = surface_formats[0];
+			// VkSurfaceFormat2KHR ???
+			std::vector<VkSurfaceFormatKHR> surface_formats;
+			surface_formats.resize(surface_formats_count);
+			result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, surface_formats.data());
+			ErrorCheck(result);
+			if (surface_formats_count == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED)
+			{
+				// if it does not care which format, lets choose one we want.
+				_surface_format.format = VK_FORMAT_B8G8R8A8_UNORM;
+				_surface_format.colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+			}
+			else
+			{
+				// recommanded to use the first one.
+				_surface_format = surface_formats[0];
+			}
 		}
 	}
 
@@ -130,6 +163,7 @@ bool Window::InitSwapChain()
 	if (_surface_caps.maxImageCount > 0 && _swapchain_image_count > _surface_caps.maxImageCount) 
 		_swapchain_image_count = _surface_caps.maxImageCount;
 
+	Log("#   Get Physical Device Surface Present Modes.\n");
 	VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR; // VK_PRESENT_MODE_FIFO_KHR always available
 	{
 		uint32_t present_mode_count = 0;
@@ -153,6 +187,12 @@ bool Window::InitSwapChain()
 			}
 		}
 	}
+	Log( (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) ? "#   -> VK_PRESENT_MODE_MAILBOX_KHR\n" : "#   -> VK_PRESENT_MODE_FIFO_KHR\n");
+
+	std::ostringstream oss;
+	oss << "#   Create SwapChain:\n"
+		<< "#   -> image count: " << _swapchain_image_count << "\n";
+	Log(oss.str().c_str());
 
 	VkSwapchainCreateInfoKHR swapchain_create_info = {};
 	swapchain_create_info.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -188,6 +228,7 @@ bool Window::InitSwapChainImages()
 {
 	auto result = VK_SUCCESS;
 
+	Log("#   Get SwapChain Images\n");
 	_swapchain_image_count = 0;
 	result = vkGetSwapchainImagesKHR(_renderer->GetVulkanDevice(), _swapchain, &_swapchain_image_count, nullptr);
 	ErrorCheck(result);
@@ -203,6 +244,10 @@ bool Window::InitSwapChainImages()
 
 	for (uint32_t i = 0; i < _swapchain_image_count; ++i)
 	{
+		std::ostringstream oss;
+		oss << "#   Create SwapChain Image View [" << i << "]\n";
+		Log(oss.str().c_str());
+
 		VkImageViewCreateInfo image_view_create_info = {};
 		image_view_create_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		image_view_create_info.image    = _swapchain_images[i];
@@ -249,6 +294,7 @@ bool Window::InitDepthStencilImage()
 			VK_FORMAT_D16_UNORM
 		};
 
+		Log("#   Scan Potential Formats Optimal Tiling... Get Physical Device Format Properties\n");
 		for (auto f : potential_formats)
 		{
 			// VkFormatProperties2 ??? 
@@ -276,6 +322,7 @@ bool Window::InitDepthStencilImage()
 		}
 	}
 
+	Log("#   Create Image\n");
 	VkImageCreateInfo image_create_info = {};
 	image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	image_create_info.imageType = VK_IMAGE_TYPE_2D;
@@ -299,9 +346,11 @@ bool Window::InitDepthStencilImage()
 	if (result != VK_SUCCESS)
 		return false;
 	
+	Log("#   Get Image Memory Requirements\n");
 	VkMemoryRequirements memory_requirements = {};
 	vkGetImageMemoryRequirements(_renderer->GetVulkanDevice(), _depth_stencil_image, &memory_requirements);
 
+	Log("#   Find Memory Type Index\n");
 	auto gpu_memory_properties = _renderer->GetVulkanPhysicalDeviceMemoryProperties();
 	uint32_t memory_index = FindMemoryTypeIndex(&gpu_memory_properties, &memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	if (memory_index == UINT32_MAX)
@@ -315,16 +364,19 @@ bool Window::InitDepthStencilImage()
 	memory_allocate_info.allocationSize = memory_requirements.size;
 	memory_allocate_info.memoryTypeIndex = memory_index;
 
+	Log("#   Allocate Memory\n");
 	result = vkAllocateMemory(_renderer->GetVulkanDevice(), &memory_allocate_info, nullptr, &_depth_stencil_image_memory);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
 
+	Log("#   Bind Image Memory\n");
 	result = vkBindImageMemory(_renderer->GetVulkanDevice(), _depth_stencil_image, _depth_stencil_image_memory, 0);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
 
+	Log("#   Create Image View\n");
 	VkImageViewCreateInfo image_view_create_info = {};
 	image_view_create_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	image_view_create_info.image    = _depth_stencil_image;
@@ -350,7 +402,94 @@ bool Window::InitDepthStencilImage()
 
 void Window::DeInitDepthStencilImage()
 {
+	Log("#   Destroy Image View\n");
 	vkDestroyImageView(_renderer->GetVulkanDevice(), _depth_stencil_image_view, nullptr);
+
+	Log("#   Free Memory\n");
 	vkFreeMemory(_renderer->GetVulkanDevice(), _depth_stencil_image_memory, nullptr);
+
+	Log("#   Destroy Image\n");
 	vkDestroyImage(_renderer->GetVulkanDevice(), _depth_stencil_image, nullptr);
+}
+
+bool Window::InitRenderPass()
+{
+	VkResult result;
+
+	const uint32_t ATTACH_INDEX_DEPTH = 0;
+	const uint32_t ATTACH_INDEX_COLOR = 1;
+
+	Log("#   Define Attachements\n");
+	std::array<VkAttachmentDescription, 2> attachements = {};
+	{   // depth/stencil
+		attachements[ATTACH_INDEX_DEPTH].flags = 0;
+		attachements[ATTACH_INDEX_DEPTH].format = _depth_stencil_format;
+		attachements[ATTACH_INDEX_DEPTH].samples = VK_SAMPLE_COUNT_1_BIT;
+		attachements[ATTACH_INDEX_DEPTH].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachements[ATTACH_INDEX_DEPTH].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachements[ATTACH_INDEX_DEPTH].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;// VK_ATTACHMENT_LOAD_OP_LOAD;
+		attachements[ATTACH_INDEX_DEPTH].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachements[ATTACH_INDEX_DEPTH].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachements[ATTACH_INDEX_DEPTH].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		// color
+		attachements[ATTACH_INDEX_COLOR].flags = 0;
+		attachements[ATTACH_INDEX_COLOR].format = _surface_format.format; // bc we are rendering directly to the screen
+		attachements[ATTACH_INDEX_COLOR].samples = VK_SAMPLE_COUNT_1_BIT; // needs to be the same for all attachements
+		attachements[ATTACH_INDEX_COLOR].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachements[ATTACH_INDEX_COLOR].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		//attachements[ATTACH_INDEX_COLOR].stencilLoadOp  = ; // not used for color att
+		//attachements[ATTACH_INDEX_COLOR].stencilStoreOp = ; // not used for color att
+		attachements[ATTACH_INDEX_COLOR].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachements[ATTACH_INDEX_COLOR].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // ready to present
+	}
+
+	Log("#   Define Attachment References\n");
+
+	VkAttachmentReference subpass_0_depth_attachment = {};
+	subpass_0_depth_attachment.attachment = ATTACH_INDEX_DEPTH;
+	subpass_0_depth_attachment.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	std::array<VkAttachmentReference, 1> subpass_0_color_attachments = {};
+	subpass_0_color_attachments[0].attachment = ATTACH_INDEX_COLOR;
+	subpass_0_color_attachments[0].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	Log("#   Define SubPasses\n");
+
+	std::array<VkSubpassDescription, 1> subpasses = {};
+	{
+		subpasses[0].flags                   = 0;
+		subpasses[0].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS; // or compute
+		subpasses[0].inputAttachmentCount    = 0; // used for example if we are in the second subpass and it needs something from the first subpass
+		subpasses[0].pInputAttachments       = nullptr;
+		subpasses[0].colorAttachmentCount    = (uint32_t)subpass_0_color_attachments.size();
+		subpasses[0].pColorAttachments       = subpass_0_color_attachments.data();
+		subpasses[0].pResolveAttachments     = nullptr;
+		subpasses[0].pDepthStencilAttachment = &subpass_0_depth_attachment;
+		subpasses[0].preserveAttachmentCount = 0;
+		subpasses[0].pPreserveAttachments    = nullptr;
+	}
+
+	Log("#   Create Render Pass\n");
+
+	VkRenderPassCreateInfo render_pass_create_info = {};
+	render_pass_create_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	render_pass_create_info.attachmentCount = (uint32_t)attachements.size();
+	render_pass_create_info.pAttachments    = attachements.data();
+	render_pass_create_info.subpassCount    = (uint32_t)subpasses.size();
+	render_pass_create_info.pSubpasses      = subpasses.data();
+	render_pass_create_info.dependencyCount = 0; // dependencies between subpasses, if one reads a buffer from another
+	render_pass_create_info.pDependencies   = nullptr;
+
+	result = vkCreateRenderPass(_renderer->GetVulkanDevice(), &render_pass_create_info, nullptr, &_render_pass);
+	ErrorCheck(result);
+	if (result != VK_SUCCESS)
+		return false;
+
+	return true;
+}
+  
+void Window::DeInitRenderPass()
+{
+	vkDestroyRenderPass(_renderer->GetVulkanDevice(), _render_pass, nullptr);
 }

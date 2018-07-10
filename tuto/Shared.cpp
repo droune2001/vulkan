@@ -104,5 +104,6 @@ uint32_t FindMemoryTypeIndex(
 			}
 		}
 	}
+	assert(!"Failed at finding required memory type.");
 	return UINT32_MAX;
 }

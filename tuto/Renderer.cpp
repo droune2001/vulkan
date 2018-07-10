@@ -19,16 +19,23 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	Log("# Destroy Window\n");
 	delete _window;
 
+	Log("# Destroy Device\n");
 	DeInitDevice();
+
+	Log("# Destroy Debug\n");
 	DeInitDebug();
+
+	Log("# Destroy Instance\n");
 	DeInitInstance();
 }
 
 Window *Renderer::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
 {
 	_window = new Window(this, size_x, size_y, title);
+	Log("#  Init Window.\n");
 	return _window->Init() ? _window : nullptr;
 }
 
@@ -41,35 +48,44 @@ bool Renderer::Init()
 {
 	// Manually load the dll, and grab the "vkGetInstanceProcAddr" symbol,
 	// vkCreateInstance, and vkEnumerate extensions and layers
+	Log("#  volkInitialize.\n");
 	if (volkInitialize() != VK_SUCCESS)
 		return false;
 
 	// Setup debug callback structure.
+	Log("#  Setup Debug\n");
 	SetupDebug();
 
 	// Fill the names of desired layers
+	Log("#  Setup Layers\n");
 	SetupLayers();
 
 	// Fill the names of the desired extensions.
+	Log("#  Setup Extensions\n");
 	SetupExtensions();
 
 	// Create the instance
+	Log("#  Init Instance\n");
 	if (!InitInstance())
 		return false;
 
 	// Loads all the symbols for that instance, beginning with vkCreateDevice.
+	Log("#  Load instance related function ptrs (volkLoadInstance).\n");
 	volkLoadInstance(_instance);
 
 	// Install debug callback
+	Log("#  Install debug callback\n");
 	if (!InitDebug())
 		return false;
 
 	// Create device and get rendering queue.
+	Log("#  Init device\n");
 	if (!InitDevice())
 		return false;
 
 	// Load all the rest of the symbols, specifically for that device, bypassing
 	// the loader dispatch,
+	Log("#  Load device related function ptrs (volkLoadDevice).\n");
 	volkLoadDevice(_device);
 
 	return true;
@@ -117,6 +133,7 @@ bool Renderer::InitDevice()
 
     // Get all physical devices and choose one (the first here)
 	{
+		Log("#   Enumerate Physcal Device\n");
 		// Call once to get the number
 		uint32_t gpu_count = 0;
 		result = vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr);
@@ -135,12 +152,17 @@ bool Renderer::InitDevice()
 		// Take the first
 		_gpu = gpu_list[0];
 
+		Log("#   Get Physical Device Properties\n");
         vkGetPhysicalDeviceProperties(_gpu, &_gpu_properties);
+
+		Log("#   GetPhysocal Device Memory Properties\n");
 		vkGetPhysicalDeviceMemoryProperties(_gpu, &_gpu_memory_properties);
     }
 
     // Get the "Queue Family Properties" of the Device
     {
+		Log("#   Get Physical Device Queue Family Properties\n");
+
         uint32_t family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(_gpu, &family_count, nullptr);
 		if (family_count == 0)
@@ -162,6 +184,7 @@ bool Renderer::InitDevice()
 
             if ( family_property_list[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
             {
+				Log("#   FOUND queue.\n");
                 found = true;
                 _graphics_family_index = i;
                 break;
@@ -177,6 +200,8 @@ bool Renderer::InitDevice()
 
     // Instance Layer Properties
     {
+		Log("#   Enumerate Instance Layer Properties:\n");
+
         uint32_t layer_count = 0;
 		result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
 		ErrorCheck(result);
@@ -185,11 +210,11 @@ bool Renderer::InitDevice()
 		result = vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data()); // second call with allocated array
 		ErrorCheck(result);
 
-		Log("Instance layers: \n");
+		//Log("Instance layers: \n");
         for ( auto &i : layer_property_list )
         {
 			std::ostringstream oss;
-            oss << "  " << i.layerName << "\t\t | " << i.description << std::endl;
+			oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
 			std::string oss_str = oss.str();
 			Log(oss_str.c_str());
         }
@@ -199,6 +224,8 @@ bool Renderer::InitDevice()
 
     // Device Layer Properties (deprecated)
     {
+		Log("#   Enumerate Device Layer Properties:\n");
+
         uint32_t layer_count = 0;
 		result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr); // first call = query number
 		ErrorCheck(result);
@@ -207,11 +234,11 @@ bool Renderer::InitDevice()
 		result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data()); // second call with allocated array
 		ErrorCheck(result);
 
-		Log("Device layers: (deprecated)\n");
+		//Log("Device layers: (deprecated)\n");
         for ( auto &i : layer_property_list )
         {
 			std::ostringstream oss;
-            oss << "  " << i.layerName << "\t\t | " << i.description << std::endl;
+			oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
 			std::string oss_str = oss.str();
 			Log(oss_str.c_str());
         }
@@ -235,10 +262,12 @@ bool Renderer::InitDevice()
     device_create_info.enabledExtensionCount   = (uint32_t)_device_extensions.size();
     device_create_info.ppEnabledExtensionNames = _device_extensions.data();
 
+	Log("#   Create Device\n");
 	result = vkCreateDevice(_gpu, &device_create_info, nullptr, &_device);
     ErrorCheck(result);
 
 	// get first queue in family (index 0)
+	Log("#   Get Device Queue\n");
     vkGetDeviceQueue(_device, _graphics_family_index, 0, &_queue );
 
 	return (VK_SUCCESS == result);
@@ -246,7 +275,7 @@ bool Renderer::InitDevice()
 
 void Renderer::DeInitDevice()
 {
-    vkDestroyDevice( _device, nullptr );
+	vkDestroyDevice( _device, nullptr );
     _device = nullptr;
 }
 
@@ -264,7 +293,7 @@ VulkanDebugCallback(
     void *user_data )
 {
     std::ostringstream oss;
-    oss << "VKDBG: ";
+	oss << "# ";
     if ( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT )
     {
         oss << "[INFO]:  ";

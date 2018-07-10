@@ -36,6 +36,9 @@ private:
 	bool InitDepthStencilImage();
 	void DeInitDepthStencilImage();
 
+	bool InitRenderPass();
+	void DeInitRenderPass();
+
 private:
 
 	Renderer * _renderer = nullptr;
@@ -60,6 +63,7 @@ private:
 	VkFormat _depth_stencil_format = VK_FORMAT_UNDEFINED;
 	bool _stencil_available = false;
 
+	VkRenderPass _render_pass = VK_NULL_HANDLE;
 
 public:
 
