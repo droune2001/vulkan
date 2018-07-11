@@ -15,27 +15,27 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
+    <ClCompile Include="..\src\tuto1-4\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Renderer.cpp">
+    <ClCompile Include="..\src\tuto1-4\Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Shared.cpp">
+    <ClCompile Include="..\src\tuto1-4\Shared.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="volk.c">
+    <ClCompile Include="..\src\tuto1-4\volk.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Renderer.h">
+    <ClInclude Include="..\src\tuto1-4\Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Shared.h">
+    <ClInclude Include="..\src\tuto1-4\Shared.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="volk.h">
+    <ClInclude Include="..\src\tuto1-4\volk.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
