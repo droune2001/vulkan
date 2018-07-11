@@ -98,7 +98,42 @@ int main(int argc, char **argv)
 			begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 			result = vkBeginCommandBuffer(command_buffer, &begin_info);
 			ErrorCheck(result);
-			{
+            {
+                // Do I really need to do it, because I said in my render pass
+                // to do it, no?
+
+
+                // Transition the depth/stencil image from UNDEFINED to OPTIMAL
+                VkImageSubresourceRange resource_range = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+                resource_range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT; // TODO: stencil only if available. Can we GET that?
+                resource_range.baseMipLevel = 0;
+                resource_range.levelCount = 1;
+                resource_range.baseArrayLayer = 0;
+                resource_range.layerCount = 1;
+
+                VkImageMemoryBarrier layout_transition_barrier = {};
+                layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                layout_transition_barrier.srcAccessMask = 0;
+                // not supported yet in the pipeline (that we have not yet created!)
+                //layout_transition_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+                layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                layout_transition_barrier.image = w->GetVulkanDepthStencilImage();
+                layout_transition_barrier.subresourceRange = resource_range;
+
+                vkCmdPipelineBarrier(
+                    command_buffer,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    0,
+                    0, nullptr,
+                    0, nullptr,
+                    1, &layout_transition_barrier);
+
+
+
 				VkRect2D render_area = {};
 				render_area.offset = { 0, 0 };
 				render_area.extent = w->GetVulkanSurfaceSize();
@@ -130,17 +165,18 @@ int main(int argc, char **argv)
 			ErrorCheck(result);
 
 			// Submit command buffer
+            VkPipelineStageFlags wait_stage_mask[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 			VkSubmitInfo submit_info = {};
 			submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 			submit_info.waitSemaphoreCount   = 0;
 			submit_info.pWaitSemaphores      = nullptr;
-			submit_info.pWaitDstStageMask    = nullptr;
+			submit_info.pWaitDstStageMask    = wait_stage_mask;
 			submit_info.commandBufferCount   = 1;
 			submit_info.pCommandBuffers      = &command_buffer;
 			submit_info.signalSemaphoreCount = 1; // signals this semaphore when the render is complete GPU side.
 			submit_info.pSignalSemaphores    = &render_complete_semaphore;
 			
-			result = vkQueueSubmit(r.GetVulkanQueue(), 1, &submit_info, VK_NULL_HANDLE); // no fence	
+			result = vkQueueSubmit(r.GetVulkanQueue(), 1, &submit_info, VK_NULL_HANDLE); // no fence
 			ErrorCheck(result);
 
 			// <------------------------------------------------- Wait on semaphores before presenting

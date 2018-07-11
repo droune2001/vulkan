@@ -53,6 +53,14 @@ bool Window::Init()
 	if (!InitSynchronizations())
 		return false;
 
+    Log("#  Init Vertex Buffer\n");
+    if (!InitVertexBuffer())
+        return false;
+
+    Log("#  Init Shaders\n");
+    if (!InitShaders())
+        return false;
+
 	//Log("#  Init Graphics Pipeline\n");
 	//if (!InitGraphicsPipeline())
 	//	return false;
@@ -66,6 +74,12 @@ Window::~Window()
 
 	//Log("#  Destroy Graphics Pipeline\n");
 	//DeInitGraphicsPipeline();
+
+    Log("#  Destroy Shaders\n");
+    DeInitShaders();
+
+    Log("#  Destroy Vertex Buffer\n");
+    DeInitVertexBuffer();
 
 	Log("#  Destroy Synchronizations\n");
 	DeInitSynchronizations();
@@ -92,6 +106,11 @@ Window::~Window()
 	DeInitOSWindow();
 }
 
+VkDevice Window::device()
+{ 
+    return _renderer->GetVulkanDevice(); 
+}
+
 void Window::Close()
 {
 	_window_should_run = false;
@@ -108,17 +127,17 @@ void Window::BeginRender()
 	VkResult result;
 
 	result = vkAcquireNextImageKHR(
-		_renderer->GetVulkanDevice(), _swapchain, UINT64_MAX, 
+		device(), _swapchain, UINT64_MAX, 
 		VK_NULL_HANDLE, _swapchain_image_available_fence, 
 		&_active_swapchain_image_id);
 	ErrorCheck(result);
 
 	// <------------------------------------------------- FENCE wait for swap image
 
-	result = vkWaitForFences(_renderer->GetVulkanDevice(), 1, &_swapchain_image_available_fence, VK_TRUE, UINT64_MAX ); // wait forever
+	result = vkWaitForFences(device(), 1, &_swapchain_image_available_fence, VK_TRUE, UINT64_MAX ); // wait forever
 	ErrorCheck(result);
 
-	result = vkResetFences(_renderer->GetVulkanDevice(), 1, &_swapchain_image_available_fence);
+	result = vkResetFences(device(), 1, &_swapchain_image_available_fence);
 	ErrorCheck(result);
 
 	// <------------------------------------------------- WAIT for queue
@@ -286,7 +305,7 @@ bool Window::InitSwapChain()
 	swapchain_create_info.clipped               = VK_TRUE;
 	swapchain_create_info.oldSwapchain          = VK_NULL_HANDLE; // used when reconstructing after having resized the window.
 
-	result = vkCreateSwapchainKHR(_renderer->GetVulkanDevice(), &swapchain_create_info, nullptr, &_swapchain);
+	result = vkCreateSwapchainKHR(device(), &swapchain_create_info, nullptr, &_swapchain);
 	ErrorCheck(result);
 
 	return (result == VK_SUCCESS);
@@ -294,7 +313,7 @@ bool Window::InitSwapChain()
 
 void Window::DeInitSwapChain()
 {
-	vkDestroySwapchainKHR(_renderer->GetVulkanDevice(), _swapchain, nullptr);
+	vkDestroySwapchainKHR(device(), _swapchain, nullptr);
 }
 
 bool Window::InitSwapChainImages()
@@ -303,14 +322,14 @@ bool Window::InitSwapChainImages()
 
 	Log("#   Get SwapChain Images\n");
 	_swapchain_image_count = 0;
-	result = vkGetSwapchainImagesKHR(_renderer->GetVulkanDevice(), _swapchain, &_swapchain_image_count, nullptr);
+	result = vkGetSwapchainImagesKHR(device(), _swapchain, &_swapchain_image_count, nullptr);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
 
 	_swapchain_images.resize(_swapchain_image_count);
 	_swapchain_image_views.resize(_swapchain_image_count);
-	result = vkGetSwapchainImagesKHR(_renderer->GetVulkanDevice(), _swapchain, &_swapchain_image_count, _swapchain_images.data());
+	result = vkGetSwapchainImagesKHR(device(), _swapchain, &_swapchain_image_count, _swapchain_images.data());
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
@@ -336,7 +355,7 @@ bool Window::InitSwapChainImages()
 		image_view_create_info.subresourceRange.baseArrayLayer = 0;
 		image_view_create_info.subresourceRange.layerCount     = 1;
 
-		result = vkCreateImageView(_renderer->GetVulkanDevice(), &image_view_create_info, nullptr, &_swapchain_image_views[i]);
+		result = vkCreateImageView(device(), &image_view_create_info, nullptr, &_swapchain_image_views[i]);
 		ErrorCheck(result);
 		if (result != VK_SUCCESS)
 			return false;
@@ -349,7 +368,7 @@ void Window::DeInitSwapChainImages()
 {
 	for (uint32_t i = 0; i < _swapchain_image_count; ++i)
 	{
-		vkDestroyImageView(_renderer->GetVulkanDevice(), _swapchain_image_views[i], nullptr);
+		vkDestroyImageView(device(), _swapchain_image_views[i], nullptr);
 	}
 }
 
@@ -414,14 +433,14 @@ bool Window::InitDepthStencilImage()
 	image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // will have to change layout after
 
 	// NOTE(nfauvet): only create a handle to the image, like glGenTexture.
-	result = vkCreateImage(_renderer->GetVulkanDevice(), &image_create_info, nullptr, &_depth_stencil_image);
+	result = vkCreateImage(device(), &image_create_info, nullptr, &_depth_stencil_image);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
 	
 	Log("#   Get Image Memory Requirements\n");
 	VkMemoryRequirements memory_requirements = {};
-	vkGetImageMemoryRequirements(_renderer->GetVulkanDevice(), _depth_stencil_image, &memory_requirements);
+	vkGetImageMemoryRequirements(device(), _depth_stencil_image, &memory_requirements);
 
 	Log("#   Find Memory Type Index\n");
 	auto gpu_memory_properties = _renderer->GetVulkanPhysicalDeviceMemoryProperties();
@@ -438,13 +457,13 @@ bool Window::InitDepthStencilImage()
 	memory_allocate_info.memoryTypeIndex = memory_index;
 
 	Log("#   Allocate Memory\n");
-	result = vkAllocateMemory(_renderer->GetVulkanDevice(), &memory_allocate_info, nullptr, &_depth_stencil_image_memory);
+	result = vkAllocateMemory(device(), &memory_allocate_info, nullptr, &_depth_stencil_image_memory);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
 
 	Log("#   Bind Image Memory\n");
-	result = vkBindImageMemory(_renderer->GetVulkanDevice(), _depth_stencil_image, _depth_stencil_image_memory, 0);
+	result = vkBindImageMemory(device(), _depth_stencil_image, _depth_stencil_image_memory, 0);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
@@ -465,7 +484,7 @@ bool Window::InitDepthStencilImage()
 	image_view_create_info.subresourceRange.baseArrayLayer = 0;
 	image_view_create_info.subresourceRange.layerCount     = 1;
 
-	result = vkCreateImageView(_renderer->GetVulkanDevice(), &image_view_create_info, nullptr, &_depth_stencil_image_view);
+	result = vkCreateImageView(device(), &image_view_create_info, nullptr, &_depth_stencil_image_view);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
@@ -476,13 +495,13 @@ bool Window::InitDepthStencilImage()
 void Window::DeInitDepthStencilImage()
 {
 	Log("#   Destroy Image View\n");
-	vkDestroyImageView(_renderer->GetVulkanDevice(), _depth_stencil_image_view, nullptr);
+	vkDestroyImageView(device(), _depth_stencil_image_view, nullptr);
 
 	Log("#   Free Memory\n");
-	vkFreeMemory(_renderer->GetVulkanDevice(), _depth_stencil_image_memory, nullptr);
+	vkFreeMemory(device(), _depth_stencil_image_memory, nullptr);
 
 	Log("#   Destroy Image\n");
-	vkDestroyImage(_renderer->GetVulkanDevice(), _depth_stencil_image, nullptr);
+	vkDestroyImage(device(), _depth_stencil_image, nullptr);
 }
 
 #define ATTACH_INDEX_DEPTH 0
@@ -554,7 +573,7 @@ bool Window::InitRenderPass()
 	render_pass_create_info.dependencyCount = 0; // dependencies between subpasses, if one reads a buffer from another
 	render_pass_create_info.pDependencies   = nullptr;
 
-	result = vkCreateRenderPass(_renderer->GetVulkanDevice(), &render_pass_create_info, nullptr, &_render_pass);
+	result = vkCreateRenderPass(device(), &render_pass_create_info, nullptr, &_render_pass);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
@@ -564,7 +583,7 @@ bool Window::InitRenderPass()
   
 void Window::DeInitRenderPass()
 {
-	vkDestroyRenderPass(_renderer->GetVulkanDevice(), _render_pass, nullptr);
+	vkDestroyRenderPass(device(), _render_pass, nullptr);
 }
 
 bool Window::InitFrameBuffers()
@@ -588,7 +607,7 @@ bool Window::InitFrameBuffers()
 		frame_buffer_create_info.height          = _surface_size_y;
 		frame_buffer_create_info.layers          = 1;
 
-		result = vkCreateFramebuffer(_renderer->GetVulkanDevice(), &frame_buffer_create_info, nullptr, &_framebuffers[i]);
+		result = vkCreateFramebuffer(device(), &frame_buffer_create_info, nullptr, &_framebuffers[i]);
 		ErrorCheck(result);
 		if (result != VK_SUCCESS)
 			return false;
@@ -598,9 +617,9 @@ bool Window::InitFrameBuffers()
 
 void Window::DeInitFrameBuffers()
 {
-	for (size_t i = 0; i < _framebuffers.size(); ++i)
+	for (auto & framebuffer : _framebuffers)
 	{
-		vkDestroyFramebuffer(_renderer->GetVulkanDevice(), _framebuffers[i], nullptr);
+		vkDestroyFramebuffer(device(), framebuffer, nullptr);
 	}
 }
 
@@ -611,7 +630,7 @@ bool Window::InitSynchronizations()
 	VkFenceCreateInfo fence_create_info = {};
 	fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 
-	result = vkCreateFence(_renderer->GetVulkanDevice(), &fence_create_info, nullptr, &_swapchain_image_available_fence);
+	result = vkCreateFence(device(), &fence_create_info, nullptr, &_swapchain_image_available_fence);
 	ErrorCheck(result);
 	if (result != VK_SUCCESS)
 		return false;
@@ -621,14 +640,144 @@ bool Window::InitSynchronizations()
 
 void Window::DeInitSynchronizations()
 {
-	vkDestroyFence(_renderer->GetVulkanDevice(), _swapchain_image_available_fence, nullptr);
+	vkDestroyFence(device(), _swapchain_image_available_fence, nullptr);
 }
 
+bool Window::InitVertexBuffer()
+{
+    VkResult result;
 
+    Log("#   Create Vertex Buffer\n");
+    VkBufferCreateInfo vertex_buffer_create_info = {};
+    vertex_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    vertex_buffer_create_info.size = sizeof(struct vertex) * 3; // size in Bytes
+    vertex_buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vertex_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
+    result = vkCreateBuffer(device(), &vertex_buffer_create_info, nullptr, &_vertex_buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
+    Log("#   Get Vertex Buffer Memory Requirements(size and type)\n");
+    VkMemoryRequirements vertex_buffer_memory_requirements = {};
+    vkGetBufferMemoryRequirements(device(), _vertex_buffer, &vertex_buffer_memory_requirements);
 
+    VkMemoryAllocateInfo vertex_buffer_allocate_info = {};
+    vertex_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    vertex_buffer_allocate_info.allocationSize = vertex_buffer_memory_requirements.size;
 
+    uint32_t vertex_memory_type_bits = vertex_buffer_memory_requirements.memoryTypeBits;
+    VkMemoryPropertyFlags vertex_desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    for (uint32_t i = 0; i < _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypeCount; ++i)
+    {
+        VkMemoryType memory_type = _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypes[i];
+        if (vertex_memory_type_bits & 1)
+        {
+            if ((memory_type.propertyFlags & vertex_desired_memory_flags) == vertex_desired_memory_flags) {
+                vertex_buffer_allocate_info.memoryTypeIndex = i;
+                break;
+            }
+        }
+        vertex_memory_type_bits = vertex_memory_type_bits >> 1;
+    }
+
+    Log("#   Allocate Vertex Buffer Memory\n");
+    result = vkAllocateMemory(device(), &vertex_buffer_allocate_info, nullptr, &_vertex_buffer_memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Map Vertex Buffer\n");
+    void *mapped = nullptr;
+    result = vkMapMemory(device(), _vertex_buffer_memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Write to Vertex Buffer\n");
+    vertex *triangle = (vertex *)mapped;
+    vertex v1 = {-1.0f, -1.0f, 0, 1.0f};
+    vertex v2 = {1.0f, -1.0f, 0, 1.0f};
+    vertex v3 = {0.0f,  1.0f, 0, 1.0f};
+    triangle[0] = v1;
+    triangle[1] = v2;
+    triangle[2] = v3;
+
+    Log("#   UnMap Vertex Buffer\n");
+    vkUnmapMemory(device(), _vertex_buffer_memory);
+
+    result = vkBindBufferMemory(device(), _vertex_buffer, _vertex_buffer_memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+void Window::DeInitVertexBuffer()
+{
+    Log("#   Free Memory\n");
+    vkFreeMemory(device(), _vertex_buffer_memory, nullptr);
+
+    Log("#   Destroy Buffer\n");
+    vkDestroyBuffer(device(), _vertex_buffer, nullptr);
+}
+
+bool Window::InitShaders()
+{
+    uint32_t codeSize;
+    char *code = new char[10000];
+    HANDLE fileHandle = nullptr;
+
+    // load our vertex shader:
+    fileHandle = ::CreateFile("vert.spv", GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (fileHandle == INVALID_HANDLE_VALUE) {
+        Log("!!!!!!!!! Failed to open shader file.\n");
+        return false;
+    }
+    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, 0);
+    ::CloseHandle(fileHandle);
+
+    VkResult result;
+
+    VkShaderModuleCreateInfo vertex_shader_creation_info = {};
+    vertex_shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    vertex_shader_creation_info.codeSize = codeSize;
+    vertex_shader_creation_info.pCode = (uint32_t *)code;
+
+    result = vkCreateShaderModule(device(), &vertex_shader_creation_info, nullptr, &vertex_shader_module);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    // load our fragment shader:
+    fileHandle = ::CreateFile("frag.spv", GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (fileHandle == INVALID_HANDLE_VALUE) {
+        Log("!!!!!!!!! Failed to open shader file.\n"); 
+        return false;
+    }
+    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, 0);
+    ::CloseHandle(fileHandle);
+
+    VkShaderModuleCreateInfo fragment_shader_creation_info = {};
+    fragment_shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    fragment_shader_creation_info.codeSize = codeSize;
+    fragment_shader_creation_info.pCode = (uint32_t *)code;
+
+    result = vkCreateShaderModule(device(), &fragment_shader_creation_info, nullptr, &fragment_shader_module);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+void Window::DeInitShaders()
+{
+    vkDestroyShaderModule(device(), fragment_shader_module, nullptr);
+    vkDestroyShaderModule(device(), vertex_shader_module, nullptr);
+}
 
 
 
@@ -671,7 +820,7 @@ bool Window::InitGraphicsPipeline()
 	pipeline_create_infos[0].basePipelineIndex     = -1;
 
 	result = vkCreateGraphicsPipelines(
-		_renderer->GetVulkanDevice(),
+		device(),
 		VK_NULL_HANDLE, // cache
 		(uint32_t)pipeline_create_infos.size(),
 		pipeline_create_infos.data(),
@@ -688,7 +837,7 @@ void Window::DeInitGraphicsPipeline()
 {
 	//for (size_t i = 0; i < _pipelines.size(); ++i)
 	//{
-	//	vkDestroyPipeline(_renderer->GetVulkanDevice(), _pipelines[i], nullptr);
+	//	vkDestroyPipeline(device(), _pipelines[i], nullptr);
 	//}
 }
 

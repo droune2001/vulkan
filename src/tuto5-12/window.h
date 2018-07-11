@@ -22,6 +22,7 @@ public:
 	VkRenderPass GetVulkanRenderPass() { return _render_pass; }
 	VkFramebuffer GetVulkanActiveFrameBuffer() { return _framebuffers[_active_swapchain_image_id]; }
 	VkExtent2D GetVulkanSurfaceSize() { return {_surface_size_x, _surface_size_y}; }
+    VkImage GetVulkanDepthStencilImage() { return _depth_stencil_image; }
 
 private:
 
@@ -51,14 +52,21 @@ private:
 	bool InitSynchronizations();
 	void DeInitSynchronizations();
 
+    bool InitVertexBuffer();
+    void DeInitVertexBuffer();
 
-
+    bool InitShaders();
+    void DeInitShaders();
 
 
 	bool InitGraphicsPipeline();
 	void DeInitGraphicsPipeline();
 
+    VkDevice device();
+
 private:
+
+    struct vertex { float x, y, z, w; };
 
 	Renderer * _renderer = nullptr;
 	std::string _window_name;
@@ -87,6 +95,13 @@ private:
 	bool _stencil_available = false;
 
 	VkRenderPass _render_pass = VK_NULL_HANDLE;
+
+    VkBuffer _vertex_buffer = VK_NULL_HANDLE;
+    VkDeviceMemory _vertex_buffer_memory = VK_NULL_HANDLE;
+
+    VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
+    VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
+
 	//std::array<VkPipeline, 1> _pipelines = {};
 	//VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
 
