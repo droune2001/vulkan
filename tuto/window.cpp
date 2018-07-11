@@ -16,27 +16,6 @@ Window::Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::
 {
 }
 
-Window::~Window()
-{
-	Log("#  Destroy Render Pass\n");
-	DeInitRenderPass();
-
-	Log("#  Destroy Depth/Stencil\n");
-	DeInitDepthStencilImage();
-
-	Log("#  Destroy SwapChain Images\n");
-	DeInitSwapChainImages();
-
-	Log("#  Destroy SwapChain\n");
-	DeInitSwapChain();
-
-	Log("#  Destroy Backbuffer Surface\n");
-	DeInitSurface();
-
-	Log("#  Destroy OS Window\n");
-	DeInitOSWindow();
-}
-
 bool Window::Init()
 {
 	Log("#  Init OS Window\n");
@@ -62,7 +41,55 @@ bool Window::Init()
 	if (!InitRenderPass())
 		return false;
 
+	Log("#  Init FrameBuffers\n");
+	if (!InitFrameBuffers())
+		return false;
+
+	Log("#  Init Graphics Pipeline\n");
+	if (!InitGraphicsPipeline())
+		return false;
+
+	Log("#  Init Synchronizations\n");
+	if (!InitSynchronizations())
+		return false;
+
+	//Log("#  Init Graphics Pipeline\n");
+	//if (!InitGraphicsPipeline())
+	//	return false;
+
 	return true;
+}
+
+Window::~Window()
+{
+	vkQueueWaitIdle(_renderer->GetVulkanQueue());
+
+	//Log("#  Destroy Graphics Pipeline\n");
+	//DeInitGraphicsPipeline();
+
+	Log("#  Destroy Synchronizations\n");
+	DeInitSynchronizations();
+
+	Log("#  Destroy FrameBuffers\n");
+	DeInitFrameBuffers();
+
+	Log("#  Destroy Render Pass\n");
+	DeInitRenderPass();
+
+	Log("#  Destroy Depth/Stencil\n");
+	DeInitDepthStencilImage();
+
+	Log("#  Destroy SwapChain Images\n");
+	DeInitSwapChainImages();
+
+	Log("#  Destroy SwapChain\n");
+	DeInitSwapChain();
+
+	Log("#  Destroy Backbuffer Surface\n");
+	DeInitSurface();
+
+	Log("#  Destroy OS Window\n");
+	DeInitOSWindow();
 }
 
 void Window::Close()
@@ -74,6 +101,52 @@ bool Window::Update()
 {
 	UpdateOSWindow();
 	return _window_should_run;
+}
+
+void Window::BeginRender()
+{
+	VkResult result;
+
+	result = vkAcquireNextImageKHR(
+		_renderer->GetVulkanDevice(), _swapchain, UINT64_MAX, 
+		VK_NULL_HANDLE, _swapchain_image_available_fence, 
+		&_active_swapchain_image_id);
+	ErrorCheck(result);
+
+	// <------------------------------------------------- FENCE wait for swap image
+
+	result = vkWaitForFences(_renderer->GetVulkanDevice(), 1, &_swapchain_image_available_fence, VK_TRUE, UINT64_MAX ); // wait forever
+	ErrorCheck(result);
+
+	result = vkResetFences(_renderer->GetVulkanDevice(), 1, &_swapchain_image_available_fence);
+	ErrorCheck(result);
+
+	// <------------------------------------------------- WAIT for queue
+
+	result = vkQueueWaitIdle(_renderer->GetVulkanQueue());
+	ErrorCheck(result);
+}
+
+void Window::EndRender(std::vector<VkSemaphore> wait_semaphores)
+{
+	VkResult result;
+
+	VkResult present_result = VkResult::VK_RESULT_MAX_ENUM;
+
+	// <------------------------------------------------- Wait on semaphores before presenting
+
+	VkPresentInfoKHR present_info = {};
+	present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.waitSemaphoreCount = (uint32_t)wait_semaphores.size();
+	present_info.pWaitSemaphores    = wait_semaphores.data();
+	present_info.swapchainCount     = 1; // how many swapchains we want to update/present to
+	present_info.pSwapchains        = &_swapchain;
+	present_info.pImageIndices      = &_active_swapchain_image_id; // of size swapchainCount, indices into each swapchain
+	present_info.pResults           = &present_result; // result for every swapchain
+
+	result = vkQueuePresentKHR(_renderer->GetVulkanQueue(), &present_info);
+	ErrorCheck(result);
+	ErrorCheck(present_result);
 }
 
 bool Window::InitSurface()
@@ -412,12 +485,12 @@ void Window::DeInitDepthStencilImage()
 	vkDestroyImage(_renderer->GetVulkanDevice(), _depth_stencil_image, nullptr);
 }
 
+#define ATTACH_INDEX_DEPTH 0
+#define ATTACH_INDEX_COLOR 1
+
 bool Window::InitRenderPass()
 {
 	VkResult result;
-
-	const uint32_t ATTACH_INDEX_DEPTH = 0;
-	const uint32_t ATTACH_INDEX_COLOR = 1;
 
 	Log("#   Define Attachements\n");
 	std::array<VkAttachmentDescription, 2> attachements = {};
@@ -493,3 +566,129 @@ void Window::DeInitRenderPass()
 {
 	vkDestroyRenderPass(_renderer->GetVulkanDevice(), _render_pass, nullptr);
 }
+
+bool Window::InitFrameBuffers()
+{
+	VkResult result;
+
+	_framebuffers.resize(_swapchain_image_count);
+	
+	for (uint32_t i = 0; i < _swapchain_image_count; ++i)
+	{
+		std::array<VkImageView, 2> attachments = {};
+		attachments[ATTACH_INDEX_DEPTH] = _depth_stencil_image_view; // shared between framebuffers
+		attachments[ATTACH_INDEX_COLOR] = _swapchain_image_views[i];
+
+		VkFramebufferCreateInfo frame_buffer_create_info = {};
+		frame_buffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		frame_buffer_create_info.renderPass      = _render_pass;
+		frame_buffer_create_info.attachmentCount = (uint32_t)attachments.size(); // need to be compatible with the render pass attachments
+		frame_buffer_create_info.pAttachments    = attachments.data();
+		frame_buffer_create_info.width           = _surface_size_x;
+		frame_buffer_create_info.height          = _surface_size_y;
+		frame_buffer_create_info.layers          = 1;
+
+		result = vkCreateFramebuffer(_renderer->GetVulkanDevice(), &frame_buffer_create_info, nullptr, &_framebuffers[i]);
+		ErrorCheck(result);
+		if (result != VK_SUCCESS)
+			return false;
+	}
+	return true;
+}
+
+void Window::DeInitFrameBuffers()
+{
+	for (size_t i = 0; i < _framebuffers.size(); ++i)
+	{
+		vkDestroyFramebuffer(_renderer->GetVulkanDevice(), _framebuffers[i], nullptr);
+	}
+}
+
+bool Window::InitSynchronizations()
+{
+	VkResult result;
+
+	VkFenceCreateInfo fence_create_info = {};
+	fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+	result = vkCreateFence(_renderer->GetVulkanDevice(), &fence_create_info, nullptr, &_swapchain_image_available_fence);
+	ErrorCheck(result);
+	if (result != VK_SUCCESS)
+		return false;
+
+	return true;
+}
+
+void Window::DeInitSynchronizations()
+{
+	vkDestroyFence(_renderer->GetVulkanDevice(), _swapchain_image_available_fence, nullptr);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool Window::InitGraphicsPipeline()
+{
+#if 0
+	VkResult result;
+
+	// TODO...
+	std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages = {};
+	VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
+	VkPipelineInputAssemblyStateCreateInfo assembly_state_create_info = {};
+	VkPipelineViewportStateCreateInfo viewport_state_create_info = {};
+	VkPipelineRasterizationStateCreateInfo raster_state_create_info = {};
+	VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {};
+	VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
+	VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
+
+	std::array<VkGraphicsPipelineCreateInfo, 1> pipeline_create_infos = {};
+	pipeline_create_infos[0].sType                 = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipeline_create_infos[0].stageCount            = (uint32_t)shader_stages.size();
+	pipeline_create_infos[0].pStages               = shader_stages.data();
+	pipeline_create_infos[0].pVertexInputState     = &vertex_input_state_create_info;
+	pipeline_create_infos[0].pInputAssemblyState   = &assembly_state_create_info;
+	pipeline_create_infos[0].pTessellationState    = nullptr;
+	pipeline_create_infos[0].pViewportState        = &viewport_state_create_info;
+	pipeline_create_infos[0].pRasterizationState   = &raster_state_create_info;
+	pipeline_create_infos[0].pMultisampleState     = &multisample_state_create_info;
+	pipeline_create_infos[0].pDepthStencilState    = &depth_stencil_state_create_info;
+	pipeline_create_infos[0].pColorBlendState      = &color_blend_state_create_info;
+	pipeline_create_infos[0].pDynamicState         = nullptr;
+	pipeline_create_infos[0].layout                = _pipeline_layout;
+	pipeline_create_infos[0].renderPass            = _render_pass;
+	pipeline_create_infos[0].subpass               = 0;
+	pipeline_create_infos[0].basePipelineHandle    = VK_NULL_HANDLE; // only if VK_PIPELINE_CREATE_DERIVATIVE flag is set.
+	pipeline_create_infos[0].basePipelineIndex     = -1;
+
+	result = vkCreateGraphicsPipelines(
+		_renderer->GetVulkanDevice(),
+		VK_NULL_HANDLE, // cache
+		(uint32_t)pipeline_create_infos.size(),
+		pipeline_create_infos.data(),
+		nullptr,
+		_pipelines.data());
+	ErrorCheck(result);
+	if (result != VK_SUCCESS)
+		return false;
+#endif
+	return true;
+}
+
+void Window::DeInitGraphicsPipeline()
+{
+	//for (size_t i = 0; i < _pipelines.size(); ++i)
+	//{
+	//	vkDestroyPipeline(_renderer->GetVulkanDevice(), _pipelines[i], nullptr);
+	//}
+}
+

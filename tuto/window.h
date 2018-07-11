@@ -14,8 +14,14 @@ public:
 	bool Init();
 	void Close();
 	bool Update();
+	
+	// can be put elsewhere. here because the window has access to the images/depth
+	void BeginRender();
+	void EndRender( std::vector<VkSemaphore> wait_semaphores );
 
-	const VkSurfaceKHR GetSurface() const { return _surface; }
+	VkRenderPass GetVulkanRenderPass() { return _render_pass; }
+	VkFramebuffer GetVulkanActiveFrameBuffer() { return _framebuffers[_active_swapchain_image_id]; }
+	VkExtent2D GetVulkanSurfaceSize() { return {_surface_size_x, _surface_size_y}; }
 
 private:
 
@@ -39,6 +45,19 @@ private:
 	bool InitRenderPass();
 	void DeInitRenderPass();
 
+	bool InitFrameBuffers();
+	void DeInitFrameBuffers();
+
+	bool InitSynchronizations();
+	void DeInitSynchronizations();
+
+
+
+
+
+	bool InitGraphicsPipeline();
+	void DeInitGraphicsPipeline();
+
 private:
 
 	Renderer * _renderer = nullptr;
@@ -56,6 +75,10 @@ private:
 	VkSwapchainKHR _swapchain = VK_NULL_HANDLE;
 	std::vector<VkImage> _swapchain_images;
 	std::vector<VkImageView> _swapchain_image_views;
+	std::vector<VkFramebuffer> _framebuffers;
+	uint32_t _active_swapchain_image_id = UINT32_MAX;
+
+	VkFence _swapchain_image_available_fence = VK_NULL_HANDLE;
 
 	VkImage _depth_stencil_image = {};
 	VkDeviceMemory _depth_stencil_image_memory = VK_NULL_HANDLE;
@@ -64,6 +87,8 @@ private:
 	bool _stencil_available = false;
 
 	VkRenderPass _render_pass = VK_NULL_HANDLE;
+	//std::array<VkPipeline, 1> _pipelines = {};
+	//VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
 
 public:
 
