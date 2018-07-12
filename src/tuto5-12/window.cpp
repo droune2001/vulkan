@@ -118,14 +118,28 @@ bool Window::Update()
     return _window_should_run;
 }
 
-void Window::BeginRender()
+void Window::BeginRender(VkSemaphore wait_semaphore)
 {
     VkResult result;
 
+    // version using semaphore
+    //result = vkAcquireNextImageKHR(
+    //    device(), _swapchain, UINT64_MAX, 
+    //    wait_semaphore, VK_NULL_HANDLE, 
+    //    &_active_swapchain_image_id);
+
+    //// version using fence
+    //result = vkAcquireNextImageKHR(
+    //    device(), _swapchain, UINT64_MAX,
+    //    VK_NULL_HANDLE, _swapchain_image_available_fence,
+    //    &_active_swapchain_image_id);
+
+    // version using BOTH!!!
     result = vkAcquireNextImageKHR(
-        device(), _swapchain, UINT64_MAX, 
-        VK_NULL_HANDLE, _swapchain_image_available_fence, 
+        device(), _swapchain, UINT64_MAX,
+        wait_semaphore, _swapchain_image_available_fence,
         &_active_swapchain_image_id);
+
     ErrorCheck(result);
 
     // <------------------------------------------------- FENCE wait for swap image

@@ -17,13 +17,16 @@ public:
     bool Update();
     
     // can be put elsewhere. here because the window has access to the images/depth
-    void BeginRender();
+    void BeginRender(VkSemaphore wait_semaphore);
     void EndRender( std::vector<VkSemaphore> wait_semaphores );
 
     VkRenderPass GetVulkanRenderPass() { return _render_pass; }
     VkFramebuffer GetVulkanActiveFrameBuffer() { return _framebuffers[_active_swapchain_image_id]; }
+    VkImage GetVulkanActiveImage() { return _swapchain_images[_active_swapchain_image_id]; }
     VkExtent2D GetVulkanSurfaceSize() { return {_surface_size_x, _surface_size_y}; }
     VkImage GetVulkanDepthStencilImage() { return _depth_stencil_image; }
+    VkPipeline GetPipeline(int i) { return _pipelines[i]; }
+    VkBuffer *GetVertexBufferPtr() { return &_vertex_buffer; }
 
 private:
 
