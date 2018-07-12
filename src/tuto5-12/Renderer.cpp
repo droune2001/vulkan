@@ -14,81 +14,81 @@
 
 Renderer::Renderer()
 {
-	
+    
 }
 
 Renderer::~Renderer()
 {
-	Log("# Destroy Window\n");
-	delete _window;
+    Log("# Destroy Window\n");
+    delete _window;
 
-	Log("# Destroy Device\n");
-	DeInitDevice();
+    Log("# Destroy Device\n");
+    DeInitDevice();
 
-	Log("# Destroy Debug\n");
-	DeInitDebug();
+    Log("# Destroy Debug\n");
+    DeInitDebug();
 
-	Log("# Destroy Instance\n");
-	DeInitInstance();
+    Log("# Destroy Instance\n");
+    DeInitInstance();
 }
 
 Window *Renderer::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
 {
-	_window = new Window(this, size_x, size_y, title);
-	Log("#  Init Window.\n");
-	return _window->Init() ? _window : nullptr;
+    _window = new Window(this, size_x, size_y, title);
+    Log("#  Init Window.\n");
+    return _window->Init() ? _window : nullptr;
 }
 
 bool Renderer::Run()
 {
-	return _window ? _window->Update() : true;
+    return _window ? _window->Update() : true;
 }
 
 bool Renderer::Init()
 {
-	// Manually load the dll, and grab the "vkGetInstanceProcAddr" symbol,
-	// vkCreateInstance, and vkEnumerate extensions and layers
-	Log("#  volkInitialize.\n");
-	if (volkInitialize() != VK_SUCCESS)
-		return false;
+    // Manually load the dll, and grab the "vkGetInstanceProcAddr" symbol,
+    // vkCreateInstance, and vkEnumerate extensions and layers
+    Log("#  volkInitialize.\n");
+    if (volkInitialize() != VK_SUCCESS)
+        return false;
 
-	// Setup debug callback structure.
-	Log("#  Setup Debug\n");
-	SetupDebug();
+    // Setup debug callback structure.
+    Log("#  Setup Debug\n");
+    SetupDebug();
 
-	// Fill the names of desired layers
-	Log("#  Setup Layers\n");
-	SetupLayers();
+    // Fill the names of desired layers
+    Log("#  Setup Layers\n");
+    SetupLayers();
 
-	// Fill the names of the desired extensions.
-	Log("#  Setup Extensions\n");
-	SetupExtensions();
+    // Fill the names of the desired extensions.
+    Log("#  Setup Extensions\n");
+    SetupExtensions();
 
-	// Create the instance
-	Log("#  Init Instance\n");
-	if (!InitInstance())
-		return false;
+    // Create the instance
+    Log("#  Init Instance\n");
+    if (!InitInstance())
+        return false;
 
-	// Loads all the symbols for that instance, beginning with vkCreateDevice.
-	Log("#  Load instance related function ptrs (volkLoadInstance).\n");
-	volkLoadInstance(_instance);
+    // Loads all the symbols for that instance, beginning with vkCreateDevice.
+    Log("#  Load instance related function ptrs (volkLoadInstance).\n");
+    volkLoadInstance(_instance);
 
-	// Install debug callback
-	Log("#  Install debug callback\n");
-	if (!InitDebug())
-		return false;
+    // Install debug callback
+    Log("#  Install debug callback\n");
+    if (!InitDebug())
+        return false;
 
-	// Create device and get rendering queue.
-	Log("#  Init device\n");
-	if (!InitDevice())
-		return false;
+    // Create device and get rendering queue.
+    Log("#  Init device\n");
+    if (!InitDevice())
+        return false;
 
-	// Load all the rest of the symbols, specifically for that device, bypassing
-	// the loader dispatch,
-	Log("#  Load device related function ptrs (volkLoadDevice).\n");
-	volkLoadDevice(_device);
+    // Load all the rest of the symbols, specifically for that device, bypassing
+    // the loader dispatch,
+    Log("#  Load device related function ptrs (volkLoadDevice).\n");
+    volkLoadDevice(_device);
 
-	return true;
+    return true;
 }
 
 bool Renderer::InitInstance()
@@ -117,7 +117,7 @@ bool Renderer::InitInstance()
     // negative = failure
     ErrorCheck( err );
 
-	return (VK_SUCCESS == err);
+    return (VK_SUCCESS == err);
 }
 
 void Renderer::DeInitInstance()
@@ -129,47 +129,47 @@ void Renderer::DeInitInstance()
 // NOTE(nfauvet): a device in Vulkan is like the context in OpenGL
 bool Renderer::InitDevice()
 {
-	VkResult result = VK_SUCCESS;
+    VkResult result = VK_SUCCESS;
 
     // Get all physical devices and choose one (the first here)
-	{
-		Log("#   Enumerate Physcal Device\n");
-		// Call once to get the number
-		uint32_t gpu_count = 0;
-		result = vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr);
-		ErrorCheck(result);
-		if (gpu_count == 0)
-		{
-			assert(!"Vulkan ERROR: No GPU found.");
-			return false;
-		}
+    {
+        Log("#   Enumerate Physcal Device\n");
+        // Call once to get the number
+        uint32_t gpu_count = 0;
+        result = vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr);
+        ErrorCheck(result);
+        if (gpu_count == 0)
+        {
+            assert(!"Vulkan ERROR: No GPU found.");
+            return false;
+        }
 
         // Call a second time to get the actual devices
         std::vector<VkPhysicalDevice> gpu_list( gpu_count );
-		result = vkEnumeratePhysicalDevices(_instance, &gpu_count, gpu_list.data());
-		ErrorCheck(result); // if it has passed the first time, it wont fail the second.
-		
-		// Take the first
-		_gpu = gpu_list[0];
+        result = vkEnumeratePhysicalDevices(_instance, &gpu_count, gpu_list.data());
+        ErrorCheck(result); // if it has passed the first time, it wont fail the second.
+        
+        // Take the first
+        _gpu = gpu_list[0];
 
-		Log("#   Get Physical Device Properties\n");
+        Log("#   Get Physical Device Properties\n");
         vkGetPhysicalDeviceProperties(_gpu, &_gpu_properties);
 
-		Log("#   GetPhysocal Device Memory Properties\n");
-		vkGetPhysicalDeviceMemoryProperties(_gpu, &_gpu_memory_properties);
+        Log("#   GetPhysocal Device Memory Properties\n");
+        vkGetPhysicalDeviceMemoryProperties(_gpu, &_gpu_memory_properties);
     }
 
     // Get the "Queue Family Properties" of the Device
     {
-		Log("#   Get Physical Device Queue Family Properties\n");
+        Log("#   Get Physical Device Queue Family Properties\n");
 
         uint32_t family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(_gpu, &family_count, nullptr);
-		if (family_count == 0)
-		{
-			assert(!"Vulkan ERROR: No Queue family!!");
-			return false;
-		}
+        if (family_count == 0)
+        {
+            assert(!"Vulkan ERROR: No Queue family!!");
+            return false;
+        }
         std::vector<VkQueueFamilyProperties> family_property_list(family_count);
         vkGetPhysicalDeviceQueueFamilyProperties(_gpu, &family_count, family_property_list.data());
 
@@ -177,14 +177,14 @@ bool Renderer::InitDevice()
         bool found = false;
         for ( uint32_t i = 0; i < family_count; ++i )
         {
-			// to know if support for presentation on windows desktop,
-			// even not knowing about the surface.
-			//VkBool32 supportsPresentation = VK_FALSE;
-			//vkGetPhysicalDeviceWin32PresentationSupportKHR(_gpu, i);
+            // to know if support for presentation on windows desktop,
+            // even not knowing about the surface.
+            //VkBool32 supportsPresentation = VK_FALSE;
+            //vkGetPhysicalDeviceWin32PresentationSupportKHR(_gpu, i);
 
             if ( family_property_list[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
             {
-				Log("#   FOUND queue.\n");
+                Log("#   FOUND queue.\n");
                 found = true;
                 _graphics_family_index = i;
                 break;
@@ -194,55 +194,55 @@ bool Renderer::InitDevice()
         if ( !found )
         {
             assert( !"Vulkan ERROR: Queue family supporting graphics not found." );
-			return false;
+            return false;
         }
     }
 
     // Instance Layer Properties
     {
-		Log("#   Enumerate Instance Layer Properties:\n");
+        Log("#   Enumerate Instance Layer Properties:\n");
 
         uint32_t layer_count = 0;
-		result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
-		ErrorCheck(result);
+        result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
+        ErrorCheck(result);
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
-		result = vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data()); // second call with allocated array
-		ErrorCheck(result);
+        result = vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data()); // second call with allocated array
+        ErrorCheck(result);
 
-		//Log("Instance layers: \n");
+        //Log("Instance layers: \n");
         for ( auto &i : layer_property_list )
         {
-			std::ostringstream oss;
-			oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-			std::string oss_str = oss.str();
-			Log(oss_str.c_str());
+            std::ostringstream oss;
+            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
+            std::string oss_str = oss.str();
+            Log(oss_str.c_str());
         }
-		Log("\n");
+        Log("\n");
     }
 
 
     // Device Layer Properties (deprecated)
     {
-		Log("#   Enumerate Device Layer Properties:\n");
+        Log("#   Enumerate Device Layer Properties:\n");
 
         uint32_t layer_count = 0;
-		result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr); // first call = query number
-		ErrorCheck(result);
+        result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr); // first call = query number
+        ErrorCheck(result);
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
-		result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data()); // second call with allocated array
-		ErrorCheck(result);
+        result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data()); // second call with allocated array
+        ErrorCheck(result);
 
-		//Log("Device layers: (deprecated)\n");
+        //Log("Device layers: (deprecated)\n");
         for ( auto &i : layer_property_list )
         {
-			std::ostringstream oss;
-			oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-			std::string oss_str = oss.str();
-			Log(oss_str.c_str());
+            std::ostringstream oss;
+            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
+            std::string oss_str = oss.str();
+            Log(oss_str.c_str());
         }
-		Log("\n");
+        Log("\n");
     }
 
     float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
@@ -262,20 +262,20 @@ bool Renderer::InitDevice()
     device_create_info.enabledExtensionCount   = (uint32_t)_device_extensions.size();
     device_create_info.ppEnabledExtensionNames = _device_extensions.data();
 
-	Log("#   Create Device\n");
-	result = vkCreateDevice(_gpu, &device_create_info, nullptr, &_device);
+    Log("#   Create Device\n");
+    result = vkCreateDevice(_gpu, &device_create_info, nullptr, &_device);
     ErrorCheck(result);
 
-	// get first queue in family (index 0)
-	Log("#   Get Device Queue\n");
+    // get first queue in family (index 0)
+    Log("#   Get Device Queue\n");
     vkGetDeviceQueue(_device, _graphics_family_index, 0, &_queue );
 
-	return (VK_SUCCESS == result);
+    return (VK_SUCCESS == result);
 }
 
 void Renderer::DeInitDevice()
 {
-	vkDestroyDevice( _device, nullptr );
+    vkDestroyDevice( _device, nullptr );
     _device = nullptr;
 }
 
@@ -293,7 +293,7 @@ VulkanDebugCallback(
     void *user_data )
 {
     std::ostringstream oss;
-	oss << "# ";
+    oss << "# ";
     if ( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT )
     {
         oss << "[INFO]:  ";
@@ -318,8 +318,8 @@ VulkanDebugCallback(
     oss << "@[" << layer_prefix << "]: ";
     oss << msg << std::endl;
 
-	std::string s = oss.str();
-	Log(s.c_str());
+    std::string s = oss.str();
+    Log(s.c_str());
 
 #ifdef _WIN32
     if ( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT )
@@ -333,40 +333,40 @@ VulkanDebugCallback(
 
 void Renderer::SetupLayers()
 {
-	//_instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
-	//_instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
-	_instance_layers.push_back("VK_LAYER_LUNARG_core_validation");
-	//_instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
-	//_instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
-	_instance_layers.push_back("VK_LAYER_LUNARG_object_tracker");
-	_instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation");
-	//_instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
-	_instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
-	//_instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
-	_instance_layers.push_back("VK_LAYER_GOOGLE_threading");
-	_instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects");
-	//_instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
-	//_instance_layers.push_back("VK_LAYER_NV_optimus" );
-	//_instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );
-	//_instance_layers.push_back("VK_LAYER_VALVE_steam_overlay" );
+    //_instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
+    //_instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
+    _instance_layers.push_back("VK_LAYER_LUNARG_core_validation");
+    //_instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
+    //_instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
+    _instance_layers.push_back("VK_LAYER_LUNARG_object_tracker");
+    _instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation");
+    //_instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
+    _instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
+    //_instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
+    _instance_layers.push_back("VK_LAYER_GOOGLE_threading");
+    _instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects");
+    //_instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
+    //_instance_layers.push_back("VK_LAYER_NV_optimus" );
+    //_instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );
+    //_instance_layers.push_back("VK_LAYER_VALVE_steam_overlay" );
 
-	// DEPRECATED
-	//_device_layers.push_back("VK_LAYER_NV_optimus"); // | NVIDIA Optimus layer
-	//_device_layers.push_back("VK_LAYER_LUNARG_core_validation"); // | LunarG Validation Layer
-	//_device_layers.push_back("VK_LAYER_LUNARG_object_tracker"); // | LunarG Validation Layer
-	//_device_layers.push_back("VK_LAYER_LUNARG_parameter_validation"); // | LunarG Validation Layer
-	//_device_layers.push_back("VK_LAYER_LUNARG_standard_validation"); // | LunarG Standard Validation
-	//_device_layers.push_back("VK_LAYER_GOOGLE_threading"); // | Google Validation Layer
-	//_device_layers.push_back("VK_LAYER_GOOGLE_unique_objects"); // | Google Validation Layer
+    // DEPRECATED
+    //_device_layers.push_back("VK_LAYER_NV_optimus"); // | NVIDIA Optimus layer
+    //_device_layers.push_back("VK_LAYER_LUNARG_core_validation"); // | LunarG Validation Layer
+    //_device_layers.push_back("VK_LAYER_LUNARG_object_tracker"); // | LunarG Validation Layer
+    //_device_layers.push_back("VK_LAYER_LUNARG_parameter_validation"); // | LunarG Validation Layer
+    //_device_layers.push_back("VK_LAYER_LUNARG_standard_validation"); // | LunarG Standard Validation
+    //_device_layers.push_back("VK_LAYER_GOOGLE_threading"); // | Google Validation Layer
+    //_device_layers.push_back("VK_LAYER_GOOGLE_unique_objects"); // | Google Validation Layer
 }
 
 void Renderer::SetupExtensions()
 {
-	_instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-	_instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-	_instance_extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+    _instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    _instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    _instance_extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 
-	_device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    _device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
 void Renderer::SetupDebug()
@@ -387,10 +387,10 @@ void Renderer::SetupDebug()
 
 bool Renderer::InitDebug()
 {
-	auto result = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
-	ErrorCheck(result);
+    auto result = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
+    ErrorCheck(result);
 
-	return (result == VK_SUCCESS);
+    return (result == VK_SUCCESS);
 }
 
 void Renderer::DeInitDebug()

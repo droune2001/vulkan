@@ -10,5 +10,5 @@
 #include "volk.h"
 
 #else
-#	error Platform not yet supported
+#    error Platform not yet supported
 #endif

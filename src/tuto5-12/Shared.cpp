@@ -11,7 +11,7 @@ void _ErrorCheck( VkResult result )
         switch ( result )
         {
         case VK_ERROR_OUT_OF_HOST_MEMORY:
-			Log("VK_ERROR_OUT_OF_HOST_MEMORY\n");
+            Log("VK_ERROR_OUT_OF_HOST_MEMORY\n");
             break;
         case VK_ERROR_OUT_OF_DEVICE_MEMORY:
             Log("VK_ERROR_OUT_OF_DEVICE_MEMORY\n");
@@ -84,26 +84,26 @@ void _ErrorCheck( VkResult result )
 
 void Log(const char *text)
 {
-	std::cout << text;
-	::OutputDebugStringA(text);
+    std::cout << text;
+    ::OutputDebugStringA(text);
 }
 
 
 uint32_t FindMemoryTypeIndex(
-	const VkPhysicalDeviceMemoryProperties *gpu_memory_properties,
-	const VkMemoryRequirements *memory_requirements,
-	const VkMemoryPropertyFlags required_memory_properties)
+    const VkPhysicalDeviceMemoryProperties *gpu_memory_properties,
+    const VkMemoryRequirements *memory_requirements,
+    const VkMemoryPropertyFlags required_memory_properties)
 {
-	for (uint32_t i = 0; i < gpu_memory_properties->memoryTypeCount; ++i) 
-	{
-		if (memory_requirements->memoryTypeBits & (1 << i)) 
-		{
-			if ((gpu_memory_properties->memoryTypes[i].propertyFlags & required_memory_properties) == required_memory_properties)
-			{
-				return i;
-			}
-		}
-	}
-	assert(!"Failed at finding required memory type.");
-	return UINT32_MAX;
+    for (uint32_t i = 0; i < gpu_memory_properties->memoryTypeCount; ++i) 
+    {
+        if (memory_requirements->memoryTypeBits & (1 << i)) 
+        {
+            if ((gpu_memory_properties->memoryTypes[i].propertyFlags & required_memory_properties) == required_memory_properties)
+            {
+                return i;
+            }
+        }
+    }
+    assert(!"Failed at finding required memory type.");
+    return UINT32_MAX;
 }

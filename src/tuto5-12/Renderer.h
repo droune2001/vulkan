@@ -7,57 +7,57 @@ class Window;
 class Renderer
 {
 public:
-	Renderer();
-	~Renderer();
+    Renderer();
+    ~Renderer();
 
-	Window *OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
-	bool Run();
+    Window *OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
+    bool Run();
 
-	bool Init();
+    bool Init();
 
-	const VkInstance GetVulkanInstance() const { return _instance; }
-	const VkPhysicalDevice GetVulkanPhysicalDevice() const { return _gpu; }
-	const VkDevice GetVulkanDevice() const { return _device; }
-	const VkQueue GetVulkanQueue() const { return _queue; }
-	const uint32_t GetVulkanGraphicsQueueFamilyIndex() const { return _graphics_family_index; }
-	const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
-	const VkPhysicalDeviceMemoryProperties &GetVulkanPhysicalDeviceMemoryProperties() const { return _gpu_memory_properties; }
-
-private:
-	bool InitInstance();
-	void DeInitInstance();
-
-	bool InitDevice();
-	void DeInitDevice();
-
-	void SetupDebug();
-	bool InitDebug();
-	void DeInitDebug();
-
-	void SetupLayers();
-
-	void SetupExtensions();
+    const VkInstance GetVulkanInstance() const { return _instance; }
+    const VkPhysicalDevice GetVulkanPhysicalDevice() const { return _gpu; }
+    const VkDevice GetVulkanDevice() const { return _device; }
+    const VkQueue GetVulkanQueue() const { return _queue; }
+    const uint32_t GetVulkanGraphicsQueueFamilyIndex() const { return _graphics_family_index; }
+    const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
+    const VkPhysicalDeviceMemoryProperties &GetVulkanPhysicalDeviceMemoryProperties() const { return _gpu_memory_properties; }
 
 private:
+    bool InitInstance();
+    void DeInitInstance();
 
-	Window * _window = nullptr;
+    bool InitDevice();
+    void DeInitDevice();
 
-	VkInstance       _instance = VK_NULL_HANDLE; // ou nullptr, selon la version de vulkan
-	VkPhysicalDevice _gpu = VK_NULL_HANDLE;
-	VkDevice         _device = VK_NULL_HANDLE;
-	VkQueue          _queue = VK_NULL_HANDLE;
-	VkPhysicalDeviceProperties _gpu_properties = {};
-	VkPhysicalDeviceMemoryProperties _gpu_memory_properties = {};
+    void SetupDebug();
+    bool InitDebug();
+    void DeInitDebug();
 
-	uint32_t _graphics_family_index = 0;
+    void SetupLayers();
 
-	std::vector< const char * > _instance_layers;
-	std::vector< const char * > _instance_extensions;
-	std::vector< const char * > _device_layers; // deprecated
-	std::vector< const char * > _device_extensions; // deprecated
+    void SetupExtensions();
 
-	VkDebugReportCallbackEXT    _debug_report = VK_NULL_HANDLE;
+private:
 
-	// keep it in here to be able to give it to VkCreateInstance
-	VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
+    Window * _window = nullptr;
+
+    VkInstance       _instance = VK_NULL_HANDLE; // ou nullptr, selon la version de vulkan
+    VkPhysicalDevice _gpu = VK_NULL_HANDLE;
+    VkDevice         _device = VK_NULL_HANDLE;
+    VkQueue          _queue = VK_NULL_HANDLE;
+    VkPhysicalDeviceProperties _gpu_properties = {};
+    VkPhysicalDeviceMemoryProperties _gpu_memory_properties = {};
+
+    uint32_t _graphics_family_index = 0;
+
+    std::vector< const char * > _instance_layers;
+    std::vector< const char * > _instance_extensions;
+    std::vector< const char * > _device_layers; // deprecated
+    std::vector< const char * > _device_extensions; // deprecated
+
+    VkDebugReportCallbackEXT    _debug_report = VK_NULL_HANDLE;
+
+    // keep it in here to be able to give it to VkCreateInstance
+    VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
 };
