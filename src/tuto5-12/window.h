@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <array>
 
 class Renderer;
 
@@ -99,11 +100,11 @@ private:
     VkBuffer _vertex_buffer = VK_NULL_HANDLE;
     VkDeviceMemory _vertex_buffer_memory = VK_NULL_HANDLE;
 
-    VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
-    VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
+    VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
+    VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;
 
-	//std::array<VkPipeline, 1> _pipelines = {};
-	//VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
+	std::array<VkPipeline, 1> _pipelines = {};
+	VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
 
 public:
 

@@ -59,3 +59,4 @@ vc2015/vulkan.VC.db
 
 vc2017/vulkan.VC.db
 *.spv
+*.user
