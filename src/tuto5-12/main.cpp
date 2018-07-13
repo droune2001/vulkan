@@ -11,17 +11,12 @@
 
 /* 
 TODO:
- * replace _renderer->GetVulkanDevice() by _device, put in cache.
-
-
 
 */
-
 
 int main(int argc, char **argv)
 {
     Log("### Main program starting.\n");
-
     {
         Log("# Creating Renderer\n");
         Renderer r;
@@ -112,10 +107,9 @@ int main(int argc, char **argv)
             result = vkBeginCommandBuffer(command_buffer, &begin_info);
             ErrorCheck(result);
             {
-                // Do I really need to do it, because I said in my render pass
-                // to do it, no? using AttachmentReferences.
-
-#if 0
+				// The render pass expects some layouts for render targets.
+				// Does subpasses do it for us???? Using AttachmentReferences???
+#if 1
                 // Transition color image layout from VK_IMAGE_LAYOUT_PRESENT_SRC_KHR to VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 // Transition the depth/stencil image from UNDEFINED to OPTIMAL
                 std::array<VkImageSubresourceRange, 2> resource_ranges = {};
@@ -124,8 +118,8 @@ int main(int argc, char **argv)
                 
                 std::array<VkImageMemoryBarrier, 2> layout_transition_barriers = {};
                 layout_transition_barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                layout_transition_barriers[0].srcAccessMask = 0;
-                layout_transition_barriers[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                //layout_transition_barriers[0].srcAccessMask = 0;
+                //layout_transition_barriers[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                 layout_transition_barriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
                 layout_transition_barriers[0].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
                 layout_transition_barriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -134,8 +128,8 @@ int main(int argc, char **argv)
                 layout_transition_barriers[0].subresourceRange = resource_ranges[0];
 
                 layout_transition_barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                layout_transition_barriers[1].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-                layout_transition_barriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                //layout_transition_barriers[1].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+                //layout_transition_barriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
                 layout_transition_barriers[1].oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
                 layout_transition_barriers[1].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 layout_transition_barriers[1].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -145,8 +139,8 @@ int main(int argc, char **argv)
 
                 vkCmdPipelineBarrier(
                     command_buffer,
-                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, // srcStageMask
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, // dstStageMask
                     0,
                     0, nullptr,
                     0, nullptr,
