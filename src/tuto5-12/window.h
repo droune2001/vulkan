@@ -56,12 +56,14 @@ private:
     bool InitSynchronizations();
     void DeInitSynchronizations();
 
+    bool InitUniformBuffer();
+    void DeInitUniformBuffer();
+
     bool InitVertexBuffer();
     void DeInitVertexBuffer();
 
     bool InitShaders();
     void DeInitShaders();
-
 
     bool InitGraphicsPipeline();
     void DeInitGraphicsPipeline();
@@ -108,6 +110,14 @@ private:
 
     std::array<VkPipeline, 1> _pipelines = {};
     VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
+
+    struct uniform_buffer
+    {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+    };
+
+    uniform_buffer _uniforms;
 
 public:
 

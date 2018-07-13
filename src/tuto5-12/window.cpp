@@ -49,6 +49,10 @@ bool Window::Init()
     if (!InitSynchronizations())
         return false;
 
+    Log("#  Init Uniform Buffer\n");
+    if (!InitUniformBuffer())
+        return false;
+
     Log("#  Init Vertex Buffer\n");
     if (!InitVertexBuffer())
         return false;
@@ -76,6 +80,9 @@ Window::~Window()
 
     Log("#  Destroy Vertex Buffer\n");
     DeInitVertexBuffer();
+
+    Log("#  Destroy Uniform Buffer\n");
+    DeInitUniformBuffer();
 
     Log("#  Destroy Synchronizations\n");
     DeInitSynchronizations();
@@ -662,6 +669,89 @@ void Window::DeInitSynchronizations()
     vkDestroyFence(device(), _swapchain_image_available_fence, nullptr);
 }
 
+bool Window::InitUniformBuffer()
+{
+    VkResult result;
+
+    float identity_matrix[16] = 
+    {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    };
+
+    Log("#   Create Uniform\n");
+    VkBufferCreateInfo uniform_buffer_create_info = {};
+    uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    uniform_buffer_create_info.size = sizeof(float) * 16;                    // size in bytes
+    uniform_buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
+    uniform_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    result = vkCreateBuffer(device(), &uniform_buffer_create_info, nullptr, &_uniforms.buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Get Uniform Buffer Memory Requirements(size and type)\n");
+    VkMemoryRequirements uniform_buffer_memory_requirements = {};
+    vkGetBufferMemoryRequirements(device(), _uniforms.buffer, &uniform_buffer_memory_requirements);
+
+    VkMemoryAllocateInfo uniform_buffer_allocate_info = {};
+    uniform_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    uniform_buffer_allocate_info.allocationSize = uniform_buffer_memory_requirements.size;
+
+    uint32_t uniform_memory_type_bits = uniform_buffer_memory_requirements.memoryTypeBits;
+    VkMemoryPropertyFlags uniform_desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    for (uint32_t i = 0; i < _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypeCount; ++i)
+    {
+        VkMemoryType memory_type = _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypes[i];
+        if (uniform_memory_type_bits & 1)
+        {
+            if ((memory_type.propertyFlags & uniform_desired_memory_flags) == uniform_desired_memory_flags) {
+                uniform_buffer_allocate_info.memoryTypeIndex = i;
+                break;
+            }
+        }
+        uniform_memory_type_bits = uniform_memory_type_bits >> 1;
+    }
+
+    Log("#   Allocate Uniform Buffer Memory\n");
+    result = vkAllocateMemory(device(), &uniform_buffer_allocate_info, nullptr, &_uniforms.memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Bind memory to buffer\n");
+    result = vkBindBufferMemory(device(), _uniforms.buffer, _uniforms.memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Map Uniform Buffer\n");
+    void *mapped = nullptr;
+    result = vkMapMemory(device(), _uniforms.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    memcpy(mapped, &identity_matrix, 16*sizeof(float));
+
+    Log("#   UnMap Uniform Buffer\n");
+    vkUnmapMemory(device(), _uniforms.memory);
+
+    return true;
+}
+
+void Window::DeInitUniformBuffer()
+{
+    Log("#   Free Memory\n");
+    vkFreeMemory(device(), _uniforms.memory, nullptr);
+
+    Log("#   Destroy Buffer\n");
+    vkDestroyBuffer(device(), _uniforms.buffer, nullptr);
+}
+
 bool Window::InitVertexBuffer()
 {
     VkResult result;
@@ -726,6 +816,7 @@ bool Window::InitVertexBuffer()
     Log("#   UnMap Vertex Buffer\n");
     vkUnmapMemory(device(), _vertex_buffer_memory);
 
+    // AFTER having written to it???
     result = vkBindBufferMemory(device(), _vertex_buffer, _vertex_buffer_memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)

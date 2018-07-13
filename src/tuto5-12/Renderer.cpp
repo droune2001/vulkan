@@ -200,7 +200,7 @@ bool Renderer::InitDevice()
 
     // Instance Layer Properties
     {
-        Log("#   Enumerate Instance Layer Properties:\n");
+        Log("#   Enumerate Instance Layer Properties: (or not)\n");
 
         uint32_t layer_count = 0;
         result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
@@ -211,20 +211,20 @@ bool Renderer::InitDevice()
         ErrorCheck(result);
 
         //Log("Instance layers: \n");
-        for ( auto &i : layer_property_list )
-        {
-            std::ostringstream oss;
-            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-            std::string oss_str = oss.str();
-            Log(oss_str.c_str());
-        }
-        Log("\n");
+        //for ( auto &i : layer_property_list )
+        //{
+        //    std::ostringstream oss;
+        //    oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
+        //    std::string oss_str = oss.str();
+        //    Log(oss_str.c_str());
+        //}
+        //Log("\n");
     }
 
 
     // Device Layer Properties (deprecated)
     {
-        Log("#   Enumerate Device Layer Properties:\n");
+        Log("#   Enumerate Device Layer Properties: (or not)\n");
 
         uint32_t layer_count = 0;
         result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr); // first call = query number
@@ -235,14 +235,14 @@ bool Renderer::InitDevice()
         ErrorCheck(result);
 
         //Log("Device layers: (deprecated)\n");
-        for ( auto &i : layer_property_list )
-        {
-            std::ostringstream oss;
-            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-            std::string oss_str = oss.str();
-            Log(oss_str.c_str());
-        }
-        Log("\n");
+        //for ( auto &i : layer_property_list )
+        //{
+        //    std::ostringstream oss;
+        //    oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
+        //    std::string oss_str = oss.str();
+        //    Log(oss_str.c_str());
+        //}
+        //Log("\n");
     }
 
     float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
