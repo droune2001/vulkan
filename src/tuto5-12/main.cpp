@@ -107,9 +107,7 @@ int main(int argc, char **argv)
             result = vkBeginCommandBuffer(command_buffer, &begin_info);
             ErrorCheck(result);
             {
-				// The render pass expects some layouts for render targets.
-				// Does subpasses do it for us???? Using AttachmentReferences???
-#if 1
+#if 0           // No Need to transition at the beginning if specified by our renderpass dependencies (EXTERNAL)
                 // Transition color image layout from VK_IMAGE_LAYOUT_PRESENT_SRC_KHR to VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 // Transition the depth/stencil image from UNDEFINED to OPTIMAL
                 std::array<VkImageSubresourceRange, 2> resource_ranges = {};
@@ -194,12 +192,13 @@ int main(int argc, char **argv)
                 }
                 vkCmdEndRenderPass(command_buffer);
 
+#if 0 // NO NEED to transition at the end, if already specified in the render pass.
                 // Transition color from OPTIMAL to PRESENT
                 VkImageMemoryBarrier pre_present_layout_transition_barrier = {};
                 pre_present_layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
                 pre_present_layout_transition_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
                 pre_present_layout_transition_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-                pre_present_layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                pre_present_layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; //VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 pre_present_layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
                 pre_present_layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 pre_present_layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -213,6 +212,7 @@ int main(int argc, char **argv)
                     0, nullptr,
                     0, nullptr,
                     1, &pre_present_layout_transition_barrier);
+#endif
             }
             result = vkEndCommandBuffer(command_buffer); // compiles the command buffer
             ErrorCheck(result);
@@ -243,7 +243,7 @@ int main(int argc, char **argv)
             vkDestroyFence(device, render_fence, nullptr);
 
             // <------------------------------------------------- Wait on semaphores before presenting
-            // End render
+
             w->EndRender({render_complete_semaphore});
 
             vkDestroySemaphore(device, render_complete_semaphore, nullptr);
@@ -252,10 +252,6 @@ int main(int argc, char **argv)
 
         Log("# Wait Queue Idle\n");
         vkQueueWaitIdle(r.GetVulkanQueue());
-
-        //Log("# Destroy \"render complete\" Semaphore\n");
-        //vkDestroySemaphore(device, render_complete_semaphore, nullptr);
-        //vkDestroySemaphore(device, present_complete_semaphore, nullptr);
 
         Log("# Destroy Command Pool\n");
         vkDestroyCommandPool(device, command_pool, nullptr);

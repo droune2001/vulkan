@@ -528,11 +528,11 @@ bool Window::InitRenderPass()
         attachements[ATTACH_INDEX_DEPTH].format = _depth_stencil_format;
         attachements[ATTACH_INDEX_DEPTH].samples = VK_SAMPLE_COUNT_1_BIT;
         attachements[ATTACH_INDEX_DEPTH].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attachements[ATTACH_INDEX_DEPTH].storeOp = VK_ATTACHMENT_STORE_OP_STORE; // VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachements[ATTACH_INDEX_DEPTH].storeOp = VK_ATTACHMENT_STORE_OP_STORE; // VK_ATTACHMENT_STORE_OP_DONT_CARE;
         attachements[ATTACH_INDEX_DEPTH].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;// VK_ATTACHMENT_LOAD_OP_LOAD;
         attachements[ATTACH_INDEX_DEPTH].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachements[ATTACH_INDEX_DEPTH].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // format EXPECTED (render pass DOES NOT do it for you)
-		attachements[ATTACH_INDEX_DEPTH].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // renderpass DOES transform into it at the end.
+        attachements[ATTACH_INDEX_DEPTH].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // format EXPECTED (render pass DOES NOT do it for you)
+        attachements[ATTACH_INDEX_DEPTH].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // renderpass DOES transform into it at the end.
 
         // color
         attachements[ATTACH_INDEX_COLOR].flags = 0;
@@ -542,7 +542,7 @@ bool Window::InitRenderPass()
         attachements[ATTACH_INDEX_COLOR].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         //attachements[ATTACH_INDEX_COLOR].stencilLoadOp  = ; // not used for color att
         //attachements[ATTACH_INDEX_COLOR].stencilStoreOp = ; // not used for color att
-		attachements[ATTACH_INDEX_COLOR].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // UNDEFINED allows vulkan to throw the old content.
+        attachements[ATTACH_INDEX_COLOR].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // UNDEFINED allows vulkan to throw the old content.
         attachements[ATTACH_INDEX_COLOR].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // ready to present
     }
 
@@ -572,6 +572,15 @@ bool Window::InitRenderPass()
         subpasses[0].pPreserveAttachments    = nullptr;
     }
 
+    VkSubpassDependency dependency = {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // between the previous (acquire) command
+    dependency.dstSubpass = 0;                   // and the first subpass
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                             //| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
     Log("#   Create Render Pass\n");
 
     VkRenderPassCreateInfo render_pass_create_info = {};
@@ -580,8 +589,8 @@ bool Window::InitRenderPass()
     render_pass_create_info.pAttachments    = attachements.data();
     render_pass_create_info.subpassCount    = (uint32_t)subpasses.size();
     render_pass_create_info.pSubpasses      = subpasses.data();
-    render_pass_create_info.dependencyCount = 0; // dependencies between subpasses, if one reads a buffer from another
-    render_pass_create_info.pDependencies   = nullptr;
+    render_pass_create_info.dependencyCount = 1; // dependencies between subpasses, if one reads a buffer from another
+    render_pass_create_info.pDependencies   = &dependency;
 
     result = vkCreateRenderPass(device(), &render_pass_create_info, nullptr, &_render_pass);
     ErrorCheck(result);
@@ -970,9 +979,10 @@ bool Window::InitGraphicsPipeline()
 
 void Window::DeInitGraphicsPipeline()
 {
-    for (size_t i = 0; i < _pipelines.size(); ++i)
+    for (auto & pipeline : _pipelines)
     {
-        vkDestroyPipeline(device(), _pipelines[i], nullptr);
+        vkDestroyPipeline(device(), pipeline, nullptr);
     }
+    vkDestroyPipelineLayout(device(), _pipeline_layout, nullptr);
 }
 
