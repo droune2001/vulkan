@@ -680,18 +680,50 @@ bool Window::InitUniformBuffer()
 {
     VkResult result;
 
-    float identity_matrix[16] = 
-    {
-        1, 0, 0, 0.5, // <-- translate x
+    const double PI = 3.14159265359f;
+    const double TORAD = PI / 180.0f;
+
+    // perspective projection parameters:
+    float fov = 45.0f;
+    float nearZ = 0.1f;
+    float farZ = 1000.0f;
+
+    float aspectRatio = _surface_size_x / (float)_surface_size_y;
+    float t = 1.0f / std::tan(fov * TORAD * 0.5);
+    float nf = nearZ - farZ;
+
+    float projMatrix[16] = 
+    { 
+        t / aspectRatio, 0, 0, 0,
+        0, t, 0, 0,
+        0, 0, (-nearZ - farZ) / nf, (2 * nearZ*farZ) / nf,
+        0, 0, 1, 0 
+    };
+
+    float viewMatrix[16] = 
+    { 
+        1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, 1, 0,
-        0, 0, 0, 1
+        0, 0, 0, 1 
     };
+
+    float modelMatrix[16] = 
+    { 
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1 
+    };
+
+    memcpy(_uniforms.modelMatrix, modelMatrix, sizeof(modelMatrix));
+    memcpy(_uniforms.viewMatrix,  viewMatrix,  sizeof(viewMatrix));
+    memcpy(_uniforms.projMatrix,  projMatrix,  sizeof(projMatrix));
 
     Log("#   Create Uniform\n");
     VkBufferCreateInfo uniform_buffer_create_info = {};
     uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    uniform_buffer_create_info.size = sizeof(float) * 16;                    // size in bytes
+    uniform_buffer_create_info.size = 3 * sizeof(float) * 16;                    // size in bytes
     uniform_buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
     uniform_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -742,7 +774,10 @@ bool Window::InitUniformBuffer()
     if (result != VK_SUCCESS)
         return false;
 
-    memcpy(mapped, &identity_matrix, 16*sizeof(float));
+    Log("#   Copy matrices, first time.\n");
+    memcpy(mapped,                 _uniforms.modelMatrix, sizeof(_uniforms.modelMatrix));
+    memcpy(((float *)mapped + 16), _uniforms.viewMatrix,  sizeof(_uniforms.viewMatrix));
+    memcpy(((float *)mapped + 32), _uniforms.projMatrix,  sizeof(_uniforms.projMatrix));
 
     Log("#   UnMap Uniform Buffer\n");
     vkUnmapMemory(device(), _uniforms.memory);
@@ -761,7 +796,7 @@ void Window::DeInitUniformBuffer()
 
 bool Window::InitDescriptors()
 {
-	VkResult result;
+    VkResult result;
 
     VkDescriptorSetLayoutBinding bindings = {};
     bindings.binding = 0; // <---- used in the shader itself
@@ -836,8 +871,8 @@ bool Window::InitDescriptors()
 
 void Window::DeInitDescriptors()
 {
-	Log("#   Destroy Descriptor Pool\n");
-	vkDestroyDescriptorPool(device(), _descriptor_pool, nullptr);
+    Log("#   Destroy Descriptor Pool\n");
+    vkDestroyDescriptorPool(device(), _descriptor_pool, nullptr);
 
     Log("#   Destroy Descriptor Set Layout\n");
     vkDestroyDescriptorSetLayout(device(), _descriptor_set_layout, nullptr);
@@ -897,9 +932,9 @@ bool Window::InitVertexBuffer()
 
     Log("#   Write to Vertex Buffer\n");
     vertex *triangle = (vertex *)mapped;
-    vertex v1 = {-1.0f, -1.0f, 0, 1.0f};
-    vertex v2 = {1.0f, -1.0f, 0, 1.0f};
-    vertex v3 = {0.0f,  1.0f, 0, 1.0f};
+    vertex v1 = {-1.0f, -1.0f, 1.0f, 1.0f};
+    vertex v2 = {1.0f, -1.0f,  0.0f, 1.0f};
+    vertex v3 = {0.0f,  1.0f,  0.0f, 1.0f};
     triangle[0] = v1;
     triangle[1] = v2;
     triangle[2] = v3;
@@ -1088,8 +1123,8 @@ bool Window::InitGraphicsPipeline()
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
     depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil_state_create_info.depthTestEnable = VK_TRUE;
-    depth_stencil_state_create_info.depthWriteEnable = VK_TRUE;
+    depth_stencil_state_create_info.depthTestEnable = VK_TRUE;//VK_FALSE;// VK_TRUE;
+    depth_stencil_state_create_info.depthWriteEnable = VK_TRUE;//VK_FALSE;// VK_TRUE;
     depth_stencil_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
     depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;

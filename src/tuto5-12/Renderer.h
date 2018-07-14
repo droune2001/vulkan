@@ -10,10 +10,15 @@ public:
     Renderer();
     ~Renderer();
 
-    Window *OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
-    bool Run();
+	bool Init();
 
-    bool Init();
+    Window *OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
+
+    bool Run();
+    
+	bool PrepareDraw();
+	void Draw();
+	void CleanupDraw();
 
     const VkInstance GetVulkanInstance() const { return _instance; }
     const VkPhysicalDevice GetVulkanPhysicalDevice() const { return _gpu; }
@@ -22,6 +27,8 @@ public:
     const uint32_t GetVulkanGraphicsQueueFamilyIndex() const { return _graphics_family_index; }
     const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
     const VkPhysicalDeviceMemoryProperties &GetVulkanPhysicalDeviceMemoryProperties() const { return _gpu_memory_properties; }
+
+	const VkCommandBuffer GetVulkanCommandBuffer() const { return _command_buffer; }
 
 private:
     bool InitInstance();
@@ -60,4 +67,11 @@ private:
 
     // keep it in here to be able to give it to VkCreateInstance
     VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
+
+
+
+	// "Scene"
+	VkCommandPool _command_pool = VK_NULL_HANDLE;
+	VkCommandBuffer _command_buffer = VK_NULL_HANDLE;
+
 };

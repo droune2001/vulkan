@@ -75,7 +75,7 @@ private:
 
     VkDevice device();
 
-private:
+public:
 
     struct vertex { float x, y, z, w; };
 
@@ -105,6 +105,9 @@ private:
     VkFormat _depth_stencil_format = VK_FORMAT_UNDEFINED;
     bool _stencil_available = false;
 
+
+
+
     VkRenderPass _render_pass = VK_NULL_HANDLE;
 
     VkBuffer _vertex_buffer = VK_NULL_HANDLE;
@@ -124,8 +127,14 @@ private:
     {
         VkBuffer buffer = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
+
+		float modelMatrix[16];
+		float viewMatrix[16];
+		float projMatrix[16];
     };
 
+	float cameraZ = 10.0f;
+	float cameraZDir = -1.0f;
     uniform_buffer _uniforms;
 
 public:
