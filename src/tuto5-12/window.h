@@ -67,6 +67,9 @@ private:
     bool InitVertexBuffer();
     void DeInitVertexBuffer();
 
+    bool InitFakeImage();
+    void DeInitFakeImage();
+
     bool InitShaders();
     void DeInitShaders();
 
@@ -76,8 +79,6 @@ private:
     VkDevice device();
 
 public:
-
-    struct vertex { float x, y, z, w; };
 
     Renderer * _renderer = nullptr;
     std::string _window_name;
@@ -123,19 +124,29 @@ public:
     std::array<VkPipeline, 1> _pipelines = {};
     VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
 
+    struct vertex 
+    { 
+        float x, y, z, w;
+        float nx, ny, nz;
+        float u, v;
+    };
+
     struct uniform_buffer
     {
         VkBuffer buffer = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
 
-		float modelMatrix[16];
-		float viewMatrix[16];
-		float projMatrix[16];
+        float modelMatrix[16];
+        float viewMatrix[16];
+        float projMatrix[16];
     };
 
-	float cameraZ = 10.0f;
-	float cameraZDir = -1.0f;
+    float cameraZ = 10.0f;
+    float cameraZDir = -1.0f;
     uniform_buffer _uniforms;
+
+    VkImage _texture_image = VK_NULL_HANDLE;
+    VkDeviceMemory _texture_image_memory = {};
 
 public:
 

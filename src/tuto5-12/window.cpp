@@ -53,6 +53,10 @@ bool Window::Init()
     if (!InitUniformBuffer())
         return false;
     
+    Log("#  Init FakeImage\n");
+    if (!InitFakeImage())
+        return false;
+
     Log("#  Init Descriptors\n");
     if (!InitDescriptors())
         return false;
@@ -88,6 +92,9 @@ Window::~Window()
     Log("#  Destroy Descriptors\n");
     DeInitDescriptors();
     
+    Log("#  Destroy FakeImage\n");
+    DeInitFakeImage();
+
     Log("#  Destroy Uniform Buffer\n");
     DeInitUniformBuffer();
 
@@ -680,8 +687,8 @@ bool Window::InitUniformBuffer()
 {
     VkResult result;
 
-    const double PI = 3.14159265359f;
-    const double TORAD = PI / 180.0f;
+    const float PI = 3.14159265359f;
+    const float TORAD = PI / 180.0f;
 
     // perspective projection parameters:
     float fov = 45.0f;
@@ -689,7 +696,7 @@ bool Window::InitUniformBuffer()
     float farZ = 1000.0f;
 
     float aspectRatio = _surface_size_x / (float)_surface_size_y;
-    float t = 1.0f / std::tan(fov * TORAD * 0.5);
+    float t = 1.0f / std::tanf(fov * TORAD * 0.5f);
     float nf = nearZ - farZ;
 
     float projMatrix[16] = 
@@ -932,9 +939,21 @@ bool Window::InitVertexBuffer()
 
     Log("#   Write to Vertex Buffer\n");
     vertex *triangle = (vertex *)mapped;
-    vertex v1 = {-1.0f, -1.0f, 1.0f, 1.0f};
-    vertex v2 = {1.0f, -1.0f,  0.0f, 1.0f};
-    vertex v3 = {0.0f,  1.0f,  0.0f, 1.0f};
+    vertex v1 = {
+        -1.0f, -1.0f, 1.0f, 1.0f, // position
+         0.0f, -1.0f, 0.0f,       // normal
+         0.0f,  0.0f              // uv
+    };
+    vertex v2 = {
+        1.0f, -1.0f, 0.0f, 1.0f,  // position
+        0.0f, -1.0f, 0.0f,        // normal
+        0.0f,  0.0f               // uv
+    };
+    vertex v3 = {
+        0.0f, 1.0f, 0.0f, 1.0f,  // position
+        0.0f, 0.0f, 1.0f,        // normal
+        0.0f, 0.0f               // uv
+    };
     triangle[0] = v1;
     triangle[1] = v2;
     triangle[2] = v3;
@@ -958,6 +977,119 @@ void Window::DeInitVertexBuffer()
 
     Log("#   Destroy Buffer\n");
     vkDestroyBuffer(device(), _vertex_buffer, nullptr);
+}
+
+bool Window::InitFakeImage()
+{
+    struct loaded_image {
+        int width;
+        int height;
+        void *data;
+    };
+
+    loaded_image test_image;
+    test_image.width = 800;
+    test_image.height = 600;
+    test_image.data = (void *) new float[test_image.width * test_image.height * 3];
+
+    for (uint32_t x = 0; x < (uint32_t)test_image.width; ++x) {
+        for (uint32_t y = 0; y < (uint32_t)test_image.height; ++y) {
+            float g = 0.3f;
+            if (x % 40 < 20 && y % 40 < 20) {
+                g = 1;
+            }
+            if (x % 40 >= 20 && y % 40 >= 20) {
+                g = 1;
+            }
+
+            float *pixel = ((float *)test_image.data) + (x * test_image.height * 3) + (y * 3);
+            pixel[0] = g * 0.4f;
+            pixel[1] = g * 0.5f;
+            pixel[2] = g * 0.7f;
+        }
+    }
+
+    VkResult result;
+
+    VkImageCreateInfo texture_create_info = {};
+    texture_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    texture_create_info.imageType = VK_IMAGE_TYPE_2D;
+    texture_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
+    texture_create_info.extent = { (uint32_t)test_image.width, (uint32_t)test_image.height, 1 };
+    texture_create_info.mipLevels = 1;
+    texture_create_info.arrayLayers = 1;
+    texture_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    texture_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+    texture_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+    texture_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
+
+    result = vkCreateImage(device(), &texture_create_info, NULL, &_texture_image);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkMemoryRequirements texture_memory_requirements = {};
+    vkGetImageMemoryRequirements(device(), _texture_image, &texture_memory_requirements);
+
+    VkMemoryAllocateInfo texture_image_allocate_info = {};
+    texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    texture_image_allocate_info.allocationSize = texture_memory_requirements.size;
+
+    uint32_t texture_memory_type_bits = texture_memory_requirements.memoryTypeBits;
+    VkMemoryPropertyFlags tDesiredMemoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    for (uint32_t i = 0; i < 32; ++i) {
+        VkMemoryType memory_type = _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypes[i];
+        if (texture_memory_type_bits & 1) {
+            if ((memory_type.propertyFlags & tDesiredMemoryFlags) == tDesiredMemoryFlags) {
+                texture_image_allocate_info.memoryTypeIndex = i;
+                break;
+            }
+        }
+        texture_memory_type_bits = texture_memory_type_bits >> 1;
+    }
+
+    result = vkAllocateMemory(device(), &texture_image_allocate_info, nullptr, &_texture_image_memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkBindImageMemory(device(), _texture_image, _texture_image_memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    void *imageMapped;
+    result = vkMapMemory(device(), _texture_image_memory, 0, VK_WHOLE_SIZE, 0, &imageMapped);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    memcpy(imageMapped, test_image.data, sizeof(float) * test_image.width * test_image.height * 3);
+
+    VkMappedMemoryRange memoryRange = {};
+    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memoryRange.memory = _texture_image_memory;
+    memoryRange.offset = 0;
+    memoryRange.size = VK_WHOLE_SIZE;
+    vkFlushMappedMemoryRanges(device(), 1, &memoryRange);
+
+    vkUnmapMemory(device(), _texture_image_memory);
+
+    // we can clear the image data:
+    delete[] test_image.data;
+
+    // TODO: transition
+
+    // TODO: image view
+
+    return true;
+}
+
+void Window::DeInitFakeImage()
+{
+    vkDestroyImage(device(), _texture_image, nullptr);
+    vkFreeMemory(device(), _texture_image_memory, nullptr);
 }
 
 bool Window::InitShaders()
@@ -1052,18 +1184,28 @@ bool Window::InitGraphicsPipeline()
     vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     // bind input to location=0, binding=0
-    VkVertexInputAttributeDescription vertex_attribute_description = {};
-    vertex_attribute_description.location = 0;
-    vertex_attribute_description.binding = 0;
-    vertex_attribute_description.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    vertex_attribute_description.offset = 0;
+    VkVertexInputAttributeDescription vertex_attribute_description[3] = {};
+    vertex_attribute_description[0].location = 0;
+    vertex_attribute_description[0].binding = 0;
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
+    vertex_attribute_description[0].offset = 0;
+
+    vertex_attribute_description[1].location = 1;
+    vertex_attribute_description[1].binding = 0;
+    vertex_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
+    vertex_attribute_description[1].offset = 4*sizeof(float);
+
+    vertex_attribute_description[2].location = 2;
+    vertex_attribute_description[2].binding = 0;
+    vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
+    vertex_attribute_description[2].offset = (4+3)*sizeof(float);
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertex_input_state_create_info.vertexBindingDescriptionCount = 1;
     vertex_input_state_create_info.pVertexBindingDescriptions = &vertex_binding_description;
-    vertex_input_state_create_info.vertexAttributeDescriptionCount = 1;
-    vertex_input_state_create_info.pVertexAttributeDescriptions = &vertex_attribute_description;
+    vertex_input_state_create_info.vertexAttributeDescriptionCount = 3;
+    vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_attribute_description;
 
     // vertex topology config = triangles
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {};
