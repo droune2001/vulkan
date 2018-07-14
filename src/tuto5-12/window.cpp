@@ -52,7 +52,11 @@ bool Window::Init()
     Log("#  Init Uniform Buffer\n");
     if (!InitUniformBuffer())
         return false;
-
+    
+    Log("#  Init Descriptors\n");
+    if (!InitDescriptors())
+        return false;
+    
     Log("#  Init Vertex Buffer\n");
     if (!InitVertexBuffer())
         return false;
@@ -81,6 +85,9 @@ Window::~Window()
     Log("#  Destroy Vertex Buffer\n");
     DeInitVertexBuffer();
 
+    Log("#  Destroy Descriptors\n");
+    DeInitDescriptors();
+    
     Log("#  Destroy Uniform Buffer\n");
     DeInitUniformBuffer();
 
@@ -675,7 +682,7 @@ bool Window::InitUniformBuffer()
 
     float identity_matrix[16] = 
     {
-        1, 0, 0, 0,
+        1, 0, 0, 0.5, // <-- translate x
         0, 1, 0, 0,
         0, 0, 1, 0,
         0, 0, 0, 1
@@ -750,6 +757,90 @@ void Window::DeInitUniformBuffer()
 
     Log("#   Destroy Buffer\n");
     vkDestroyBuffer(device(), _uniforms.buffer, nullptr);
+}
+
+bool Window::InitDescriptors()
+{
+	VkResult result;
+
+    VkDescriptorSetLayoutBinding bindings = {};
+    bindings.binding = 0; // <---- used in the shader itself
+    bindings.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings.descriptorCount = 1;
+    bindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    bindings.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo set_layout_create_info = {};
+    set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    set_layout_create_info.bindingCount = 1;
+    set_layout_create_info.pBindings = &bindings;
+
+    Log("#   Create Descriptor Set Layout\n");
+    result = vkCreateDescriptorSetLayout(device(), &set_layout_create_info, nullptr, &_descriptor_set_layout);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    // allocate just enough for one uniform descriptor set
+    VkDescriptorPoolSize uniform_buffer_pool_size = {};
+    uniform_buffer_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniform_buffer_pool_size.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo pool_create_info = {}; 
+    pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_create_info.maxSets = 1;
+    pool_create_info.poolSizeCount = 1;
+    pool_create_info.pPoolSizes = &uniform_buffer_pool_size;
+
+    Log("#   Create Descriptor Set Pool\n");
+    result = vkCreateDescriptorPool(device(), &pool_create_info, nullptr, &_descriptor_pool);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkDescriptorSetAllocateInfo descriptor_allocate_info = {};
+    descriptor_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_allocate_info.descriptorPool = _descriptor_pool;
+    descriptor_allocate_info.descriptorSetCount = 1;
+    descriptor_allocate_info.pSetLayouts = &_descriptor_set_layout;
+
+    Log("#   Allocate Descriptor Set\n");
+    result = vkAllocateDescriptorSets(device(), &descriptor_allocate_info, &_descriptor_set);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    // When a set is allocated all values are undefined and all 
+    // descriptors are uninitialised. must init all statically used bindings:
+    VkDescriptorBufferInfo descriptor_buffer_info = {};
+    descriptor_buffer_info.buffer = _uniforms.buffer;
+    descriptor_buffer_info.offset = 0;
+    descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet write_descriptor = {};
+    write_descriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor.dstSet = _descriptor_set;
+    write_descriptor.dstBinding = 0;
+    write_descriptor.dstArrayElement = 0;
+    write_descriptor.descriptorCount = 1;
+    write_descriptor.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor.pImageInfo = nullptr;
+    write_descriptor.pBufferInfo = &descriptor_buffer_info;
+    write_descriptor.pTexelBufferView = nullptr;
+
+    Log("#   Update Descriptor Set\n");
+    vkUpdateDescriptorSets(device(), 1, &write_descriptor, 0, nullptr );
+    
+    return true;
+}
+
+void Window::DeInitDescriptors()
+{
+	Log("#   Destroy Descriptor Pool\n");
+	vkDestroyDescriptorPool(device(), _descriptor_pool, nullptr);
+
+    Log("#   Destroy Descriptor Set Layout\n");
+    vkDestroyDescriptorSetLayout(device(), _descriptor_set_layout, nullptr);
 }
 
 bool Window::InitVertexBuffer()
@@ -896,10 +987,10 @@ bool Window::InitGraphicsPipeline()
     // use it later to define uniform buffer
     VkPipelineLayoutCreateInfo layout_create_info = {};
     layout_create_info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_create_info.setLayoutCount         = 0;
-    layout_create_info.pSetLayouts            = nullptr;    // Not setting any bindings!
+    layout_create_info.setLayoutCount         = 1;
+    layout_create_info.pSetLayouts            = &_descriptor_set_layout;
     layout_create_info.pushConstantRangeCount = 0;
-    layout_create_info.pPushConstantRanges    = NULL; // constant into shader for opti???
+    layout_create_info.pPushConstantRanges    = nullptr; // constant into shader for opti???
 
     Log("#   Fill Pipeline Layout... and everything else.\n");
     result = vkCreatePipelineLayout(device(), &layout_create_info, nullptr, &_pipeline_layout);

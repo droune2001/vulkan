@@ -26,6 +26,8 @@ public:
     VkExtent2D GetVulkanSurfaceSize() { return {_surface_size_x, _surface_size_y}; }
     VkImage GetVulkanDepthStencilImage() { return _depth_stencil_image; }
     VkPipeline GetPipeline(int i) { return _pipelines[i]; }
+    VkPipelineLayout GetPipelineLayout() { return _pipeline_layout; }
+    VkDescriptorSet *GetDescriptorSetPtr() { return &_descriptor_set; }
     VkBuffer *GetVertexBufferPtr() { return &_vertex_buffer; }
 
 private:
@@ -59,6 +61,9 @@ private:
     bool InitUniformBuffer();
     void DeInitUniformBuffer();
 
+	bool InitDescriptors();
+	void DeInitDescriptors();
+	
     bool InitVertexBuffer();
     void DeInitVertexBuffer();
 
@@ -105,6 +110,10 @@ private:
     VkBuffer _vertex_buffer = VK_NULL_HANDLE;
     VkDeviceMemory _vertex_buffer_memory = VK_NULL_HANDLE;
 
+	VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
+    VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;
+	VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
+	
     VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
     VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;
 

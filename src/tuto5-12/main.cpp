@@ -169,8 +169,12 @@ int main(int argc, char **argv)
 
                 vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
                 {
+                    // TODO: put into window, too many get...
+                    // w->BindPipeline(command_buffer)
                     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, w->GetPipeline(0));
 
+                    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, w->GetPipelineLayout(), 0, 1, w->GetDescriptorSetPtr(), 0, nullptr );
+                         
                     // take care of dynamic state:
                     VkExtent2D surface_size = w->GetVulkanSurfaceSize();
 
