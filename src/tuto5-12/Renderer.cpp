@@ -22,6 +22,9 @@ Renderer::~Renderer()
     Log("# Destroy Window\n");
     delete _window;
 
+    Log("# Destroy Command Buffer\n");
+    DeInitCommandBuffer();
+
     Log("# Destroy Device\n");
     DeInitDevice();
 
@@ -87,6 +90,11 @@ bool Renderer::Init()
     // the loader dispatch,
     Log("#  Load device related function ptrs (volkLoadDevice).\n");
     volkLoadDevice(_device);
+
+    // Create device and get rendering queue.
+    Log("#  Init CommandBuffer\n");
+    if (!InitCommandBuffer())
+        return false;
 
     return true;
 }
@@ -414,37 +422,42 @@ void Renderer::DeInitDebug() {}
 // SCENE
 //
 
-
-bool Renderer::PrepareDraw()
+bool Renderer::InitCommandBuffer()
 {
-	VkResult result;
+    VkResult result;
 
-	Log("#  Create Command Pool\n");
-	VkCommandPoolCreateInfo pool_create_info = {};
-	pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	pool_create_info.queueFamilyIndex = _graphics_family_index;
-	pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | // commands will be short lived, might be reset of freed often.
-		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // we are going to reset
+    Log("#  Create Command Pool\n");
+    VkCommandPoolCreateInfo pool_create_info = {};
+    pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    pool_create_info.queueFamilyIndex = _graphics_family_index;
+    pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | // commands will be short lived, might be reset of freed often.
+        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // we are going to reset
 
-	result = vkCreateCommandPool(_device, &pool_create_info, nullptr, &_command_pool);
-	ErrorCheck(result);
-	if (result != VK_SUCCESS)
-		return false;
+    result = vkCreateCommandPool(_device, &pool_create_info, nullptr, &_command_pool);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
-	Log("#  Allocate Command Buffer\n");
+    Log("#  Allocate Command Buffer\n");
 
-	VkCommandBufferAllocateInfo command_buffer_allocate_info{};
-	command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	command_buffer_allocate_info.commandPool = _command_pool;
-	command_buffer_allocate_info.commandBufferCount = 1;
-	command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
+    VkCommandBufferAllocateInfo command_buffer_allocate_info{};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.commandPool = _command_pool;
+    command_buffer_allocate_info.commandBufferCount = 1;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
 
-	result = vkAllocateCommandBuffers(_device, &command_buffer_allocate_info, &_command_buffer);
-	ErrorCheck(result);
-	if (result != VK_SUCCESS)
-		return false;
+    result = vkAllocateCommandBuffers(_device, &command_buffer_allocate_info, &_command_buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
-	return true;
+    return true;
+}
+
+void Renderer::DeInitCommandBuffer()
+{
+    Log("#  Destroy Command Pool\n");
+    vkDestroyCommandPool(_device, _command_pool, nullptr);
 }
 
 void Renderer::Draw()
@@ -629,26 +642,3 @@ void Renderer::Draw()
 	vkDestroySemaphore(_device, render_complete_semaphore, nullptr);
 	vkDestroySemaphore(_device, present_complete_semaphore, nullptr);
 }
-
-void Renderer::CleanupDraw()
-{
-	Log("#  Wait Queue Idle\n");
-	vkQueueWaitIdle(_queue);
-
-	Log("#  Destroy Command Pool\n");
-	vkDestroyCommandPool(_device, _command_pool, nullptr);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-

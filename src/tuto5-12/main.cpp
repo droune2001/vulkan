@@ -28,10 +28,6 @@ int main(int argc, char **argv)
         Window *w = r.OpenWindow(800, 600, "test");
         if (!w) return -1;
 
-		Log("# Prepare Draw\n");
-		if (!r.PrepareDraw())
-			return -1;
-
         // FPS
         auto timer = std::chrono::steady_clock();
         auto last_time = timer.now();
@@ -58,8 +54,8 @@ int main(int argc, char **argv)
 			r.Draw();
         }
 
-		Log("# Cleanup Draw\n");
-		r.CleanupDraw(); // delete command pool
+        Log("#  Wait Queue Idle\n");
+        vkQueueWaitIdle(r.GetVulkanQueue());
     }
 
     Log("### DONE - Press any key...\n");

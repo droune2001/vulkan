@@ -1081,6 +1081,56 @@ bool Window::InitFakeImage()
 
     // TODO: transition
 
+    VkFence submit_fence = {};
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(device(), &fence_create_info, nullptr, &submit_fence);
+
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(_renderer->GetVulkanCommandBuffer(), &begin_info);
+
+    VkImageMemoryBarrier layout_transition_barrier = {};
+    layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    layout_transition_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+    layout_transition_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+    layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.image = _texture_image;
+    layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    vkCmdPipelineBarrier(_renderer->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_HOST_BIT, //VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,//VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &layout_transition_barrier);
+
+    vkEndCommandBuffer(_renderer->GetVulkanCommandBuffer());
+
+    VkPipelineStageFlags waitStageMask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = waitStageMask;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &_renderer->GetVulkanCommandBuffer();
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
+    result = vkQueueSubmit(_renderer->GetVulkanQueue(), 1, &submit_info, submit_fence);
+
+    vkWaitForFences(device(), 1, &submit_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(device(), 1, &submit_fence);
+    vkResetCommandBuffer(_renderer->GetVulkanCommandBuffer(), 0);
+
+    vkDestroyFence(device(), submit_fence, nullptr);
+
     // TODO: image view
 
     return true;

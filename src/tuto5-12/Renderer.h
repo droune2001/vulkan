@@ -16,10 +16,8 @@ public:
 
     bool Run();
     
-	bool PrepareDraw();
 	void Draw();
-	void CleanupDraw();
-
+	
     const VkInstance GetVulkanInstance() const { return _instance; }
     const VkPhysicalDevice GetVulkanPhysicalDevice() const { return _gpu; }
     const VkDevice GetVulkanDevice() const { return _device; }
@@ -28,7 +26,7 @@ public:
     const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
     const VkPhysicalDeviceMemoryProperties &GetVulkanPhysicalDeviceMemoryProperties() const { return _gpu_memory_properties; }
 
-	const VkCommandBuffer GetVulkanCommandBuffer() const { return _command_buffer; }
+	VkCommandBuffer &GetVulkanCommandBuffer() { return _command_buffer; }
 
 private:
     bool InitInstance();
@@ -44,6 +42,9 @@ private:
     void SetupLayers();
 
     void SetupExtensions();
+
+    bool InitCommandBuffer();
+    void DeInitCommandBuffer();
 
 private:
 
@@ -68,10 +69,7 @@ private:
     // keep it in here to be able to give it to VkCreateInstance
     VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
 
-
-
 	// "Scene"
 	VkCommandPool _command_pool = VK_NULL_HANDLE;
 	VkCommandBuffer _command_buffer = VK_NULL_HANDLE;
-
 };
