@@ -61,9 +61,9 @@ private:
     bool InitUniformBuffer();
     void DeInitUniformBuffer();
 
-	bool InitDescriptors();
-	void DeInitDescriptors();
-	
+    bool InitDescriptors();
+    void DeInitDescriptors();
+
     bool InitVertexBuffer();
     void DeInitVertexBuffer();
 
@@ -147,6 +147,8 @@ public:
 
     VkImage _texture_image = VK_NULL_HANDLE;
     VkDeviceMemory _texture_image_memory = {};
+    VkImageView _texture_view = VK_NULL_HANDLE;
+    VkSampler _sampler = VK_NULL_HANDLE;
 
 public:
 

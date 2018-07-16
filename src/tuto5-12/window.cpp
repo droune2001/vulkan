@@ -805,17 +805,26 @@ bool Window::InitDescriptors()
 {
     VkResult result;
 
-    VkDescriptorSetLayoutBinding bindings = {};
-    bindings.binding = 0; // <---- used in the shader itself
-    bindings.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    bindings.descriptorCount = 1;
-    bindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    bindings.pImmutableSamplers = nullptr;
+    Log("#   Init bindings for the UBO of matrices and texture sampler\n");
+    // layout( std140, binding = 0 ) uniform buffer { mat4 m; mat4 v; mat4 p; } UBO;
+    std::array<VkDescriptorSetLayoutBinding,2> bindings = {};
+    bindings[0].binding = 0; // <---- value used in the shader itself
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[0].descriptorCount = 1;
+    bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    bindings[0].pImmutableSamplers = nullptr;
+
+    // layout ( set = 0, binding = 1 ) uniform sampler2D diffuse_tex_sampler;
+    bindings[1].binding = 1; // <---- value used in the shader itself
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[1].pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo set_layout_create_info = {};
     set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    set_layout_create_info.bindingCount = 1;
-    set_layout_create_info.pBindings = &bindings;
+    set_layout_create_info.bindingCount = (uint32_t)bindings.size();
+    set_layout_create_info.pBindings = bindings.data();
 
     Log("#   Create Descriptor Set Layout\n");
     result = vkCreateDescriptorSetLayout(device(), &set_layout_create_info, nullptr, &_descriptor_set_layout);
@@ -824,15 +833,18 @@ bool Window::InitDescriptors()
         return false;
 
     // allocate just enough for one uniform descriptor set
-    VkDescriptorPoolSize uniform_buffer_pool_size = {};
-    uniform_buffer_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniform_buffer_pool_size.descriptorCount = 1;
+    std::array<VkDescriptorPoolSize,2> uniform_buffer_pool_sizes = {};
+    uniform_buffer_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniform_buffer_pool_sizes[0].descriptorCount = 1;
+
+    uniform_buffer_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    uniform_buffer_pool_sizes[1].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo pool_create_info = {}; 
     pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     pool_create_info.maxSets = 1;
-    pool_create_info.poolSizeCount = 1;
-    pool_create_info.pPoolSizes = &uniform_buffer_pool_size;
+    pool_create_info.poolSizeCount = (uint32_t)uniform_buffer_pool_sizes.size();
+    pool_create_info.pPoolSizes = uniform_buffer_pool_sizes.data();
 
     Log("#   Create Descriptor Set Pool\n");
     result = vkCreateDescriptorPool(device(), &pool_create_info, nullptr, &_descriptor_pool);
@@ -854,25 +866,45 @@ bool Window::InitDescriptors()
 
     // When a set is allocated all values are undefined and all 
     // descriptors are uninitialised. must init all statically used bindings:
-    VkDescriptorBufferInfo descriptor_buffer_info = {};
-    descriptor_buffer_info.buffer = _uniforms.buffer;
-    descriptor_buffer_info.offset = 0;
-    descriptor_buffer_info.range = VK_WHOLE_SIZE;
+    VkDescriptorBufferInfo descriptor_uniform_buffer_info = {};
+    descriptor_uniform_buffer_info.buffer = _uniforms.buffer;
+    descriptor_uniform_buffer_info.offset = 0;
+    descriptor_uniform_buffer_info.range = VK_WHOLE_SIZE;
 
-    VkWriteDescriptorSet write_descriptor = {};
-    write_descriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor.dstSet = _descriptor_set;
-    write_descriptor.dstBinding = 0;
-    write_descriptor.dstArrayElement = 0;
-    write_descriptor.descriptorCount = 1;
-    write_descriptor.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_descriptor.pImageInfo = nullptr;
-    write_descriptor.pBufferInfo = &descriptor_buffer_info;
-    write_descriptor.pTexelBufferView = nullptr;
+    VkWriteDescriptorSet write_descriptor_for_uniform_buffer = {};
+    write_descriptor_for_uniform_buffer.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_for_uniform_buffer.dstSet           = _descriptor_set;
+    write_descriptor_for_uniform_buffer.dstBinding       = 0;
+    write_descriptor_for_uniform_buffer.dstArrayElement  = 0;
+    write_descriptor_for_uniform_buffer.descriptorCount  = 1;
+    write_descriptor_for_uniform_buffer.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_for_uniform_buffer.pImageInfo       = nullptr;
+    write_descriptor_for_uniform_buffer.pBufferInfo      = &descriptor_uniform_buffer_info;
+    write_descriptor_for_uniform_buffer.pTexelBufferView = nullptr;
 
-    Log("#   Update Descriptor Set\n");
-    vkUpdateDescriptorSets(device(), 1, &write_descriptor, 0, nullptr );
-    
+    Log("#   Update Descriptor Set (UBO)\n");
+    vkUpdateDescriptorSets(device(), 1, &write_descriptor_for_uniform_buffer, 0, nullptr );
+
+    VkDescriptorImageInfo descriptor_image_info = {};
+    descriptor_image_info.sampler = _sampler;
+    descriptor_image_info.imageView = _texture_view;
+    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!!
+    // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
+    VkWriteDescriptorSet write_descriptor_for_sampler = {};
+    write_descriptor_for_sampler.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_for_sampler.dstSet           = _descriptor_set;
+    write_descriptor_for_sampler.dstBinding       = 1; // <----- beware
+    write_descriptor_for_sampler.dstArrayElement  = 0;
+    write_descriptor_for_sampler.descriptorCount  = 1;
+    write_descriptor_for_sampler.descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write_descriptor_for_sampler.pImageInfo       = &descriptor_image_info;
+    write_descriptor_for_sampler.pBufferInfo      = nullptr;
+    write_descriptor_for_sampler.pTexelBufferView = nullptr;
+
+    Log("#   Update Descriptor Set (texture sampler)\n");
+    vkUpdateDescriptorSets(device(), 1, &write_descriptor_for_sampler, 0, nullptr);
+
     return true;
 }
 
@@ -947,12 +979,12 @@ bool Window::InitVertexBuffer()
     vertex v2 = {
         1.0f, -1.0f, 0.0f, 1.0f,  // position
         0.0f, -1.0f, 0.0f,        // normal
-        0.0f,  0.0f               // uv
+        1.0f,  0.0f               // uv
     };
     vertex v3 = {
         0.0f, 1.0f, 0.0f, 1.0f,  // position
         0.0f, 0.0f, 1.0f,        // normal
-        0.0f, 0.0f               // uv
+        0.5f, 1.0f               // uv
     };
     triangle[0] = v1;
     triangle[1] = v2;
@@ -1024,7 +1056,7 @@ bool Window::InitFakeImage()
     texture_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
 
-    result = vkCreateImage(device(), &texture_create_info, NULL, &_texture_image);
+    result = vkCreateImage(device(), &texture_create_info, nullptr, &_texture_image);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1132,12 +1164,50 @@ bool Window::InitFakeImage()
     vkDestroyFence(device(), submit_fence, nullptr);
 
     // TODO: image view
+    VkImageViewCreateInfo texture_image_view_create_info = {};
+    texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    texture_image_view_create_info.image = _texture_image;
+    texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    texture_image_view_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
+    texture_image_view_create_info.components = {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A};
+    texture_image_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    texture_image_view_create_info.subresourceRange.baseMipLevel   = 0;
+    texture_image_view_create_info.subresourceRange.levelCount     = 1;
+    texture_image_view_create_info.subresourceRange.baseArrayLayer = 0;
+    texture_image_view_create_info.subresourceRange.layerCount     = 1;
+
+    result = vkCreateImageView(device(), &texture_image_view_create_info, nullptr, &_texture_view);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkSamplerCreateInfo sampler_create_info = {};
+    sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_create_info.magFilter = VK_FILTER_LINEAR;
+    sampler_create_info.minFilter = VK_FILTER_LINEAR;
+    sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.mipLodBias = 0;
+    sampler_create_info.anisotropyEnable = VK_FALSE;
+    sampler_create_info.minLod = 0;
+    sampler_create_info.maxLod = 5;
+    sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+
+    result = vkCreateSampler(device(), &sampler_create_info, nullptr, &_sampler);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
     return true;
 }
 
 void Window::DeInitFakeImage()
 {
+    vkDestroySampler(device(), _sampler, nullptr);
+    vkDestroyImageView(device(), _texture_view, nullptr);
     vkDestroyImage(device(), _texture_image, nullptr);
     vkFreeMemory(device(), _texture_image_memory, nullptr);
 }
@@ -1154,7 +1224,7 @@ bool Window::InitShaders()
         Log("!!!!!!!!! Failed to open shader file.\n");
         return false;
     }
-    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, 0);
+    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, nullptr);
     ::CloseHandle(fileHandle);
 
     VkResult result;
@@ -1175,7 +1245,7 @@ bool Window::InitShaders()
         Log("!!!!!!!!! Failed to open shader file.\n"); 
         return false;
     }
-    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, 0);
+    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, nullptr);
     ::CloseHandle(fileHandle);
 
     VkShaderModuleCreateInfo fragment_shader_creation_info = {};
