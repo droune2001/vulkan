@@ -72,4 +72,10 @@ private:
 	// "Scene"
 	VkCommandPool _command_pool = VK_NULL_HANDLE;
 	VkCommandBuffer _command_buffer = VK_NULL_HANDLE;
+
+    struct camera
+    {
+        float cameraZ = 10.0f;
+        float cameraZDir = -1.0f;
+    } _camera;
 };

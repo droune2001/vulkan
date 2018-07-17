@@ -42,7 +42,7 @@ bool Window::Init()
         return false;
 
     Log("#  Init FrameBuffers\n");
-    if (!InitFrameBuffers())
+    if (!InitSwapChainFrameBuffers())
         return false;
 
     Log("#  Init Synchronizations\n");
@@ -102,7 +102,7 @@ Window::~Window()
     DeInitSynchronizations();
 
     Log("#  Destroy FrameBuffers\n");
-    DeInitFrameBuffers();
+    DeInitSwapChainFrameBuffers();
 
     Log("#  Destroy Render Pass\n");
     DeInitRenderPass();
@@ -626,11 +626,11 @@ void Window::DeInitRenderPass()
     vkDestroyRenderPass(device(), _render_pass, nullptr);
 }
 
-bool Window::InitFrameBuffers()
+bool Window::InitSwapChainFrameBuffers()
 {
     VkResult result;
 
-    _framebuffers.resize(_swapchain_image_count);
+    _swapchain_framebuffers.resize(_swapchain_image_count);
     
     for (uint32_t i = 0; i < _swapchain_image_count; ++i)
     {
@@ -647,7 +647,7 @@ bool Window::InitFrameBuffers()
         frame_buffer_create_info.height          = _surface_size_y;
         frame_buffer_create_info.layers          = 1;
 
-        result = vkCreateFramebuffer(device(), &frame_buffer_create_info, nullptr, &_framebuffers[i]);
+        result = vkCreateFramebuffer(device(), &frame_buffer_create_info, nullptr, &_swapchain_framebuffers[i]);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
@@ -655,9 +655,9 @@ bool Window::InitFrameBuffers()
     return true;
 }
 
-void Window::DeInitFrameBuffers()
+void Window::DeInitSwapChainFrameBuffers()
 {
-    for (auto & framebuffer : _framebuffers)
+    for (auto & framebuffer : _swapchain_framebuffers)
     {
         vkDestroyFramebuffer(device(), framebuffer, nullptr);
     }
@@ -723,25 +723,25 @@ bool Window::InitUniformBuffer()
         0, 0, 0, 1 
     };
 
-    memcpy(_uniforms.modelMatrix, modelMatrix, sizeof(modelMatrix));
-    memcpy(_uniforms.viewMatrix,  viewMatrix,  sizeof(viewMatrix));
-    memcpy(_uniforms.projMatrix,  projMatrix,  sizeof(projMatrix));
+    memcpy(_mvp.m, modelMatrix, sizeof(modelMatrix));
+    memcpy(_mvp.v, viewMatrix,  sizeof(viewMatrix));
+    memcpy(_mvp.p, projMatrix,  sizeof(projMatrix));
 
-    Log("#   Create Uniform\n");
+    Log("#   Create Matrices Uniform Buffer\n");
     VkBufferCreateInfo uniform_buffer_create_info = {};
     uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    uniform_buffer_create_info.size = 3 * sizeof(float) * 16;                    // size in bytes
+    uniform_buffer_create_info.size = sizeof(_mvp);// 3 * sizeof(float) * 16;                    // size in bytes
     uniform_buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
     uniform_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    result = vkCreateBuffer(device(), &uniform_buffer_create_info, nullptr, &_uniforms.buffer);
+    result = vkCreateBuffer(device(), &uniform_buffer_create_info, nullptr, &_matrices_ubo.buffer);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#   Get Uniform Buffer Memory Requirements(size and type)\n");
     VkMemoryRequirements uniform_buffer_memory_requirements = {};
-    vkGetBufferMemoryRequirements(device(), _uniforms.buffer, &uniform_buffer_memory_requirements);
+    vkGetBufferMemoryRequirements(device(), _matrices_ubo.buffer, &uniform_buffer_memory_requirements);
 
     VkMemoryAllocateInfo uniform_buffer_allocate_info = {};
     uniform_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -763,31 +763,31 @@ bool Window::InitUniformBuffer()
     }
 
     Log("#   Allocate Uniform Buffer Memory\n");
-    result = vkAllocateMemory(device(), &uniform_buffer_allocate_info, nullptr, &_uniforms.memory);
+    result = vkAllocateMemory(device(), &uniform_buffer_allocate_info, nullptr, &_matrices_ubo.memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#   Bind memory to buffer\n");
-    result = vkBindBufferMemory(device(), _uniforms.buffer, _uniforms.memory, 0);
+    result = vkBindBufferMemory(device(), _matrices_ubo.buffer, _matrices_ubo.memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#   Map Uniform Buffer\n");
     void *mapped = nullptr;
-    result = vkMapMemory(device(), _uniforms.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    result = vkMapMemory(device(), _matrices_ubo.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#   Copy matrices, first time.\n");
-    memcpy(mapped,                 _uniforms.modelMatrix, sizeof(_uniforms.modelMatrix));
-    memcpy(((float *)mapped + 16), _uniforms.viewMatrix,  sizeof(_uniforms.viewMatrix));
-    memcpy(((float *)mapped + 32), _uniforms.projMatrix,  sizeof(_uniforms.projMatrix));
+    memcpy(mapped,                 _mvp.m, sizeof(_mvp.m));
+    memcpy(((float *)mapped + 16), _mvp.v, sizeof(_mvp.v));
+    memcpy(((float *)mapped + 32), _mvp.p, sizeof(_mvp.p));
 
     Log("#   UnMap Uniform Buffer\n");
-    vkUnmapMemory(device(), _uniforms.memory);
+    vkUnmapMemory(device(), _matrices_ubo.memory);
 
     return true;
 }
@@ -795,10 +795,10 @@ bool Window::InitUniformBuffer()
 void Window::DeInitUniformBuffer()
 {
     Log("#   Free Memory\n");
-    vkFreeMemory(device(), _uniforms.memory, nullptr);
+    vkFreeMemory(device(), _matrices_ubo.memory, nullptr);
 
     Log("#   Destroy Buffer\n");
-    vkDestroyBuffer(device(), _uniforms.buffer, nullptr);
+    vkDestroyBuffer(device(), _matrices_ubo.buffer, nullptr);
 }
 
 bool Window::InitDescriptors()
@@ -814,7 +814,7 @@ bool Window::InitDescriptors()
     bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     bindings[0].pImmutableSamplers = nullptr;
 
-    // layout ( set = 0, binding = 1 ) uniform sampler2D diffuse_tex_sampler;
+    // layout ( set = 0, binding = 1 ) uniform sampler2D diffuse_tex_checker_texure._sampler;
     bindings[1].binding = 1; // <---- value used in the shader itself
     bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     bindings[1].descriptorCount = 1;
@@ -867,7 +867,7 @@ bool Window::InitDescriptors()
     // When a set is allocated all values are undefined and all 
     // descriptors are uninitialised. must init all statically used bindings:
     VkDescriptorBufferInfo descriptor_uniform_buffer_info = {};
-    descriptor_uniform_buffer_info.buffer = _uniforms.buffer;
+    descriptor_uniform_buffer_info.buffer = _matrices_ubo.buffer;
     descriptor_uniform_buffer_info.offset = 0;
     descriptor_uniform_buffer_info.range = VK_WHOLE_SIZE;
 
@@ -886,24 +886,24 @@ bool Window::InitDescriptors()
     vkUpdateDescriptorSets(device(), 1, &write_descriptor_for_uniform_buffer, 0, nullptr );
 
     VkDescriptorImageInfo descriptor_image_info = {};
-    descriptor_image_info.sampler = _sampler;
-    descriptor_image_info.imageView = _texture_view;
+    descriptor_image_info.sampler = _checker_texture.sampler;
+    descriptor_image_info.imageView = _checker_texture.texture_view;
     descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!!
     // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
-    VkWriteDescriptorSet write_descriptor_for_sampler = {};
-    write_descriptor_for_sampler.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_for_sampler.dstSet           = _descriptor_set;
-    write_descriptor_for_sampler.dstBinding       = 1; // <----- beware
-    write_descriptor_for_sampler.dstArrayElement  = 0;
-    write_descriptor_for_sampler.descriptorCount  = 1;
-    write_descriptor_for_sampler.descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write_descriptor_for_sampler.pImageInfo       = &descriptor_image_info;
-    write_descriptor_for_sampler.pBufferInfo      = nullptr;
-    write_descriptor_for_sampler.pTexelBufferView = nullptr;
+    VkWriteDescriptorSet write_descriptor_for_checker_texture_sampler = {};
+    write_descriptor_for_checker_texture_sampler.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_for_checker_texture_sampler.dstSet           = _descriptor_set;
+    write_descriptor_for_checker_texture_sampler.dstBinding       = 1; // <----- beware
+    write_descriptor_for_checker_texture_sampler.dstArrayElement  = 0;
+    write_descriptor_for_checker_texture_sampler.descriptorCount  = 1;
+    write_descriptor_for_checker_texture_sampler.descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write_descriptor_for_checker_texture_sampler.pImageInfo       = &descriptor_image_info;
+    write_descriptor_for_checker_texture_sampler.pBufferInfo      = nullptr;
+    write_descriptor_for_checker_texture_sampler.pTexelBufferView = nullptr;
 
     Log("#   Update Descriptor Set (texture sampler)\n");
-    vkUpdateDescriptorSets(device(), 1, &write_descriptor_for_sampler, 0, nullptr);
+    vkUpdateDescriptorSets(device(), 1, &write_descriptor_for_checker_texture_sampler, 0, nullptr);
 
     return true;
 }
@@ -928,14 +928,14 @@ bool Window::InitVertexBuffer()
     vertex_buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     vertex_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    result = vkCreateBuffer(device(), &vertex_buffer_create_info, nullptr, &_vertex_buffer);
+    result = vkCreateBuffer(device(), &vertex_buffer_create_info, nullptr, &_triangle_vbo.buffer);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#   Get Vertex Buffer Memory Requirements(size and type)\n");
     VkMemoryRequirements vertex_buffer_memory_requirements = {};
-    vkGetBufferMemoryRequirements(device(), _vertex_buffer, &vertex_buffer_memory_requirements);
+    vkGetBufferMemoryRequirements(device(), _triangle_vbo.buffer, &vertex_buffer_memory_requirements);
 
     VkMemoryAllocateInfo vertex_buffer_allocate_info = {};
     vertex_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -957,14 +957,14 @@ bool Window::InitVertexBuffer()
     }
 
     Log("#   Allocate Vertex Buffer Memory\n");
-    result = vkAllocateMemory(device(), &vertex_buffer_allocate_info, nullptr, &_vertex_buffer_memory);
+    result = vkAllocateMemory(device(), &vertex_buffer_allocate_info, nullptr, &_triangle_vbo.memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#   Map Vertex Buffer\n");
     void *mapped = nullptr;
-    result = vkMapMemory(device(), _vertex_buffer_memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    result = vkMapMemory(device(), _triangle_vbo.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -991,10 +991,10 @@ bool Window::InitVertexBuffer()
     triangle[2] = v3;
 
     Log("#   UnMap Vertex Buffer\n");
-    vkUnmapMemory(device(), _vertex_buffer_memory);
+    vkUnmapMemory(device(), _triangle_vbo.memory);
 
     // AFTER having written to it???
-    result = vkBindBufferMemory(device(), _vertex_buffer, _vertex_buffer_memory, 0);
+    result = vkBindBufferMemory(device(), _triangle_vbo.buffer, _triangle_vbo.memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1005,10 +1005,10 @@ bool Window::InitVertexBuffer()
 void Window::DeInitVertexBuffer()
 {
     Log("#   Free Memory\n");
-    vkFreeMemory(device(), _vertex_buffer_memory, nullptr);
+    vkFreeMemory(device(), _triangle_vbo.memory, nullptr);
 
     Log("#   Destroy Buffer\n");
-    vkDestroyBuffer(device(), _vertex_buffer, nullptr);
+    vkDestroyBuffer(device(), _triangle_vbo.buffer, nullptr);
 }
 
 bool Window::InitFakeImage()
@@ -1056,13 +1056,13 @@ bool Window::InitFakeImage()
     texture_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
 
-    result = vkCreateImage(device(), &texture_create_info, nullptr, &_texture_image);
+    result = vkCreateImage(device(), &texture_create_info, nullptr, &_checker_texture.texture_image);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     VkMemoryRequirements texture_memory_requirements = {};
-    vkGetImageMemoryRequirements(device(), _texture_image, &texture_memory_requirements);
+    vkGetImageMemoryRequirements(device(), _checker_texture.texture_image, &texture_memory_requirements);
 
     VkMemoryAllocateInfo texture_image_allocate_info = {};
     texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1081,32 +1081,32 @@ bool Window::InitFakeImage()
         texture_memory_type_bits = texture_memory_type_bits >> 1;
     }
 
-    result = vkAllocateMemory(device(), &texture_image_allocate_info, nullptr, &_texture_image_memory);
+    result = vkAllocateMemory(device(), &texture_image_allocate_info, nullptr, &_checker_texture.texture_image_memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    result = vkBindImageMemory(device(), _texture_image, _texture_image_memory, 0);
+    result = vkBindImageMemory(device(), _checker_texture.texture_image, _checker_texture.texture_image_memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    void *imageMapped;
-    result = vkMapMemory(device(), _texture_image_memory, 0, VK_WHOLE_SIZE, 0, &imageMapped);
+    void *image_mapped;
+    result = vkMapMemory(device(), _checker_texture.texture_image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    memcpy(imageMapped, test_image.data, sizeof(float) * test_image.width * test_image.height * 3);
+    memcpy(image_mapped, test_image.data, sizeof(float) * test_image.width * test_image.height * 3);
 
-    VkMappedMemoryRange memoryRange = {};
-    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memoryRange.memory = _texture_image_memory;
-    memoryRange.offset = 0;
-    memoryRange.size = VK_WHOLE_SIZE;
-    vkFlushMappedMemoryRanges(device(), 1, &memoryRange);
+    VkMappedMemoryRange memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memory_range.memory = _checker_texture.texture_image_memory;
+    memory_range.offset = 0;
+    memory_range.size = VK_WHOLE_SIZE;
+    vkFlushMappedMemoryRanges(device(), 1, &memory_range);
 
-    vkUnmapMemory(device(), _texture_image_memory);
+    vkUnmapMemory(device(), _checker_texture.texture_image_memory);
 
     // we can clear the image data:
     delete[] test_image.data;
@@ -1132,7 +1132,7 @@ bool Window::InitFakeImage()
     layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.image = _texture_image;
+    layout_transition_barrier.image = _checker_texture.texture_image;
     layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
     vkCmdPipelineBarrier(_renderer->GetVulkanCommandBuffer(),
@@ -1166,7 +1166,7 @@ bool Window::InitFakeImage()
     // TODO: image view
     VkImageViewCreateInfo texture_image_view_create_info = {};
     texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    texture_image_view_create_info.image = _texture_image;
+    texture_image_view_create_info.image = _checker_texture.texture_image;
     texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     texture_image_view_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
     texture_image_view_create_info.components = {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A};
@@ -1176,7 +1176,7 @@ bool Window::InitFakeImage()
     texture_image_view_create_info.subresourceRange.baseArrayLayer = 0;
     texture_image_view_create_info.subresourceRange.layerCount     = 1;
 
-    result = vkCreateImageView(device(), &texture_image_view_create_info, nullptr, &_texture_view);
+    result = vkCreateImageView(device(), &texture_image_view_create_info, nullptr, &_checker_texture.texture_view);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1196,7 +1196,7 @@ bool Window::InitFakeImage()
     sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
     sampler_create_info.unnormalizedCoordinates = VK_FALSE;
 
-    result = vkCreateSampler(device(), &sampler_create_info, nullptr, &_sampler);
+    result = vkCreateSampler(device(), &sampler_create_info, nullptr, &_checker_texture.sampler);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1206,10 +1206,10 @@ bool Window::InitFakeImage()
 
 void Window::DeInitFakeImage()
 {
-    vkDestroySampler(device(), _sampler, nullptr);
-    vkDestroyImageView(device(), _texture_view, nullptr);
-    vkDestroyImage(device(), _texture_image, nullptr);
-    vkFreeMemory(device(), _texture_image_memory, nullptr);
+    vkDestroySampler(device(), _checker_texture.sampler, nullptr);
+    vkDestroyImageView(device(), _checker_texture.texture_view, nullptr);
+    vkDestroyImage(device(), _checker_texture.texture_image, nullptr);
+    vkFreeMemory(device(), _checker_texture.texture_image_memory, nullptr);
 }
 
 bool Window::InitShaders()
@@ -1465,3 +1465,34 @@ void Window::DeInitGraphicsPipeline()
     vkDestroyPipelineLayout(device(), _pipeline_layout, nullptr);
 }
 
+void Window::set_camera_position(float x, float y, float z)
+{
+    _mvp.v[3]  = x;
+    _mvp.v[7]  = y;
+    _mvp.v[11] = z;
+}
+
+void Window::update_matrices_ubo()
+{
+    void *matrix_mapped;
+    vkMapMemory(device(), _matrices_ubo.memory, 0, VK_WHOLE_SIZE, 0, &matrix_mapped);
+
+    memcpy(matrix_mapped,                 _mvp.m, sizeof(_mvp.m));
+    memcpy(((float *)matrix_mapped + 16), _mvp.v, sizeof(_mvp.v));
+    memcpy(((float *)matrix_mapped + 32), _mvp.p, sizeof(_mvp.p));
+
+    /*
+    memcpy(matrix_mapped + offsetof(_mvp, m), _mvp.m, sizeof(_mvp.m));
+    memcpy(matrix_mapped + offsetof(_mvp, v), _mvp.v, sizeof(_mvp.v));
+    memcpy(matrix_mapped + offsetof(_mvp, p), _mvp.p, sizeof(_mvp.p));
+    */
+
+    VkMappedMemoryRange memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memory_range.memory = _matrices_ubo.memory;
+    memory_range.offset = 0;
+    memory_range.size = VK_WHOLE_SIZE;
+    vkFlushMappedMemoryRanges(device(), 1, &memory_range);
+
+    vkUnmapMemory(device(), _matrices_ubo.memory);
+}

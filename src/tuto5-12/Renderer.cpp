@@ -463,40 +463,22 @@ void Renderer::DeInitCommandBuffer()
 void Renderer::Draw()
 {
 	// animate camera
-	if (_window->cameraZ <= 1) 
+	if (_camera.cameraZ <= 1) 
 	{
-		_window->cameraZ = 1;
-		_window->cameraZDir = 1;
+		_camera.cameraZ = 1;
+		_camera.cameraZDir = 1;
 	}
-	else if (_window->cameraZ >= 10) 
+	else if (_camera.cameraZ >= 10) 
 	{
-		_window->cameraZ = 10;
-		_window->cameraZDir = -1;
+		_camera.cameraZ = 10;
+		_camera.cameraZDir = -1;
 	}
 
-	_window->cameraZ += _window->cameraZDir * 0.01f;
-	_window->_uniforms.viewMatrix[11] = _window->cameraZ;
+	_camera.cameraZ += _camera.cameraZDir * 0.01f;
 
-
-    // UPLOAD new matrices
-    void *matrixMapped;
-    vkMapMemory(_device, _window->_uniforms.memory, 0, VK_WHOLE_SIZE, 0, &matrixMapped);
-
-    memcpy(matrixMapped,                 _window->_uniforms.modelMatrix, sizeof(float) * 16);
-    memcpy(((float *)matrixMapped + 16), _window->_uniforms.viewMatrix,  sizeof(float) * 16);
-    memcpy(((float *)matrixMapped + 32), _window->_uniforms.projMatrix,  sizeof(float) * 16);
-
-    VkMappedMemoryRange memoryRange = {};
-    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memoryRange.memory = _window->_uniforms.memory;
-    memoryRange.offset = 0;
-    memoryRange.size = VK_WHOLE_SIZE;
-    vkFlushMappedMemoryRanges(_device, 1, &memoryRange);
-
-    vkUnmapMemory(_device, _window->_uniforms.memory);
-
-
-
+    // Set and upload new matrices
+    _window->set_camera_position(0.0f, 0.0f, _camera.cameraZ);
+    _window->update_matrices_ubo();
 
 	VkResult result;
 
@@ -537,7 +519,7 @@ void Renderer::Draw()
 
 		VkRect2D render_area = {};
 		render_area.offset = { 0, 0 };
-		render_area.extent = _window->GetVulkanSurfaceSize();
+		render_area.extent = _window->surface_size();
 
 		// NOTE: these values are used only if the attachment has the loadOp LOAD_OP_CLEAR
 		std::array<VkClearValue, 2> clear_values = {};
@@ -550,8 +532,8 @@ void Renderer::Draw()
 
 		VkRenderPassBeginInfo render_pass_begin_info = {};
 		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		render_pass_begin_info.renderPass = _window->GetVulkanRenderPass();
-		render_pass_begin_info.framebuffer = _window->GetVulkanActiveFrameBuffer();
+		render_pass_begin_info.renderPass = _window->render_pass();
+		render_pass_begin_info.framebuffer = _window->active_swapchain_framebuffer();
 		render_pass_begin_info.renderArea = render_area;
 		render_pass_begin_info.clearValueCount = (uint32_t)clear_values.size();
 		render_pass_begin_info.pClearValues = clear_values.data();
@@ -560,12 +542,12 @@ void Renderer::Draw()
 		{
 			// TODO: put into window, too many get...
 			// w->BindPipeline(command_buffer)
-			vkCmdBindPipeline(_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->GetPipeline(0));
+			vkCmdBindPipeline(_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline(0));
 
-			vkCmdBindDescriptorSets(_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->GetPipelineLayout(), 0, 1, _window->GetDescriptorSetPtr(), 0, nullptr);
+			vkCmdBindDescriptorSets(_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline_layout(), 0, 1, _window->descriptor_set_ptr(), 0, nullptr);
 
 			// take care of dynamic state:
-			VkExtent2D surface_size = _window->GetVulkanSurfaceSize();
+			VkExtent2D surface_size = _window->surface_size();
 
 			VkViewport viewport = { 0, 0, (float)surface_size.width, (float)surface_size.height, 0, 1 };
 			vkCmdSetViewport(_command_buffer, 0, 1, &viewport);
@@ -574,7 +556,7 @@ void Renderer::Draw()
 			vkCmdSetScissor(_command_buffer, 0, 1, &scissor);
 
 			VkDeviceSize offsets = {};
-			vkCmdBindVertexBuffers(_command_buffer, 0, 1, _window->GetVertexBufferPtr(), &offsets);
+			vkCmdBindVertexBuffers(_command_buffer, 0, 1, _window->triangle_vbo_ptr(), &offsets);
 
 			// DRAW TRIANGLE!!!!!!!!!!!!!!!!!!
 			vkCmdDraw(_command_buffer,
