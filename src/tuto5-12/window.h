@@ -4,6 +4,8 @@
 #include <vector>
 #include <array>
 
+#include "vk_mem_alloc_usage.h"
+
 class Renderer;
 
 class Window
@@ -34,6 +36,9 @@ public:
     void update_matrices_ubo();
 
 private:
+
+    bool InitVma();
+    void DeInitVma();
 
     void InitOSWindow();
     void DeInitOSWindow();
@@ -86,6 +91,8 @@ public:
     // ==== APPLICATION/MAIN ======
     bool _window_should_run = true;
     // ============================
+
+    VmaAllocator _allocator = VK_NULL_HANDLE;
 
     Renderer * _renderer = nullptr;
     std::string _window_name;

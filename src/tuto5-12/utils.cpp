@@ -2,17 +2,17 @@
 
 namespace vk
 {
-    bool create_host_vertex_buffer(context *ctx, uint64_t size, buffer *dst)
+    bool create_host_vertex_buffer(context *ctx, uint64_t size, buffer_t *dst)
     {
         return create_buffer(ctx, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, dst);
     }
 
-    bool create_resident_host_vertex_buffer(context *ctx, uint64_t size, buffer *dst)
+    bool create_resident_host_vertex_buffer(context *ctx, uint64_t size, buffer_t *dst)
     {
         return create_buffer(ctx, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, dst);
     }
 
-    bool create_buffer(context *ctx, uint64_t size_in_bytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags desired_memory_flags, buffer *dst_buffer)
+    bool create_buffer(context *ctx, uint64_t size_in_bytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags desired_memory_flags, buffer_t *dst_buffer)
     {
         VkResult result;
 

@@ -9,11 +9,6 @@
 #include <chrono>
 #include <sstream>
 
-/* 
-TODO:
-
-*/
-
 int main(int argc, char **argv)
 {
     Log("### Main program starting.\n");

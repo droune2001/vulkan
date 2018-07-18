@@ -463,12 +463,12 @@ void Renderer::DeInitCommandBuffer()
 void Renderer::Draw()
 {
 	// animate camera
-	if (_camera.cameraZ <= 1) 
+	if (_camera.cameraZ < 1)
 	{
-		_camera.cameraZ = 1;
-		_camera.cameraZDir = 1;
+        _camera.cameraZ = 1;
+        _camera.cameraZDir = 1;
 	}
-	else if (_camera.cameraZ >= 10) 
+	else if (_camera.cameraZ > 10) 
 	{
 		_camera.cameraZ = 10;
 		_camera.cameraZDir = -1;

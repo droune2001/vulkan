@@ -4,6 +4,11 @@
 #include "Renderer.h"
 #include "Shared.h"
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE 1 // clip space z [0..1] instead of [-1..1]
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp> // glm::perspective
+#include <glm/gtc/type_ptr.hpp> // glm::value_ptr
+
 #include <assert.h>
 #include <sstream>
 #include <array>
@@ -18,6 +23,10 @@ Window::Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::
 
 bool Window::Init()
 {
+    Log("#  Init VMA\n");
+    if (!InitVma())
+        return false;
+
     Log("#  Init OS Window\n");
     InitOSWindow();
 
@@ -121,6 +130,9 @@ Window::~Window()
 
     Log("#  Destroy OS Window\n");
     DeInitOSWindow();
+
+    Log("  Destroy Vma\n");
+    DeInitVma();
 }
 
 VkDevice Window::device()
@@ -197,6 +209,41 @@ void Window::EndRender(std::vector<VkSemaphore> wait_semaphores)
     result = vkQueuePresentKHR(_renderer->GetVulkanQueue(), &present_info);
     ErrorCheck(result);
     ErrorCheck(present_result);
+}
+
+bool Window::InitVma()
+{
+    VmaVulkanFunctions vulkan_functions = {};
+    vulkan_functions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
+    vulkan_functions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
+    vulkan_functions.vkAllocateMemory = vkAllocateMemory;
+    vulkan_functions.vkFreeMemory = vkFreeMemory;
+    vulkan_functions.vkMapMemory = vkMapMemory;
+    vulkan_functions.vkUnmapMemory = vkUnmapMemory;
+    vulkan_functions.vkBindBufferMemory = vkBindBufferMemory;
+    vulkan_functions.vkBindImageMemory = vkBindImageMemory;
+    vulkan_functions.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
+    vulkan_functions.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
+    vulkan_functions.vkCreateBuffer = vkCreateBuffer;
+    vulkan_functions.vkDestroyBuffer = vkDestroyBuffer;
+    vulkan_functions.vkCreateImage = vkCreateImage;
+    vulkan_functions.vkDestroyImage = vkDestroyImage;
+    vulkan_functions.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR;
+    vulkan_functions.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR;
+
+    VmaAllocatorCreateInfo allocator_info = {};
+    allocator_info.physicalDevice = _renderer->GetVulkanPhysicalDevice();
+    allocator_info.device = _renderer->GetVulkanDevice();
+    allocator_info.pVulkanFunctions = &vulkan_functions;
+
+    VkResult result = vmaCreateAllocator(&allocator_info, &_allocator);
+    return( result == VK_SUCCESS );
+    return true;
+}
+
+void Window::DeInitVma()
+{
+    vmaDestroyAllocator(_allocator);
 }
 
 bool Window::InitSurface()
@@ -695,17 +742,20 @@ bool Window::InitUniformBuffer()
     float nearZ = 0.1f;
     float farZ = 1000.0f;
 
-    float aspectRatio = _surface_size_x / (float)_surface_size_y;
+    float aspect_ratio = _surface_size_x / (float)_surface_size_y;
     float t = 1.0f / std::tanf(fov * TORAD * 0.5f);
     float nf = nearZ - farZ;
 
-    float projMatrix[16] = 
-    { 
-        t / aspectRatio, 0, 0, 0,
-        0, t, 0, 0,
-        0, 0, (-nearZ - farZ) / nf, (2 * nearZ*farZ) / nf,
-        0, 0, 1, 0 
-    };
+    glm::mat4 proj = glm::perspective(45.0f, aspect_ratio, 0.1f, 1000.0f);
+    proj[1][1] *= -1.0f; // vulkan clip space with Y down.
+
+    //float projMatrix[16] = 
+    //{ 
+    //    t / aspect_ratio, 0, 0, 0,
+    //    0, t, 0, 0,
+    //    0, 0, (-nearZ - farZ) / nf, (2 * nearZ*farZ) / nf,
+    //    0, 0, 1, 0 
+    //};
 
     float viewMatrix[16] = 
     { 
@@ -725,7 +775,8 @@ bool Window::InitUniformBuffer()
 
     memcpy(_mvp.m, modelMatrix, sizeof(modelMatrix));
     memcpy(_mvp.v, viewMatrix,  sizeof(viewMatrix));
-    memcpy(_mvp.p, projMatrix,  sizeof(projMatrix));
+    //memcpy(_mvp.p, projMatrix,  sizeof(projMatrix));
+    memcpy(_mvp.p, glm::value_ptr(proj), sizeof(proj));
 
     Log("#   Create Matrices Uniform Buffer\n");
     VkBufferCreateInfo uniform_buffer_create_info = {};
@@ -1358,7 +1409,7 @@ bool Window::InitGraphicsPipeline()
     raster_state_create_info.rasterizerDiscardEnable = VK_FALSE;
     raster_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
     raster_state_create_info.cullMode = VK_CULL_MODE_NONE;
-    raster_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    raster_state_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;// VK_FRONT_FACE_COUNTER_CLOCKWISE;
     raster_state_create_info.depthBiasEnable = VK_FALSE;
     raster_state_create_info.depthBiasConstantFactor = 0;
     raster_state_create_info.depthBiasClamp = 0;

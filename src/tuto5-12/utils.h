@@ -21,7 +21,7 @@ namespace vk {
         VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
     };
 
-    struct buffer
+    struct buffer_t
     {
         VkBuffer buffer;
         VkDeviceMemory memory;
@@ -31,16 +31,16 @@ namespace vk {
     * usage:
     *  create_buffer(my_device, sizeof(struct vertex) * 3, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer);
     */
-    bool create_buffer(context *ctx, uint64_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags desired_memory_flags, buffer *dst);
-    bool create_host_vertex_buffer(context *ctx, uint64_t size, buffer *dst);
-    bool create_resident_vertex_buffer(context *ctx, uint64_t size, buffer *dst);
+    bool create_buffer(context *ctx, uint64_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags desired_memory_flags, buffer_t *dst);
+    bool create_host_vertex_buffer(context *ctx, uint64_t size, buffer_t *dst);
+    bool create_resident_vertex_buffer(context *ctx, uint64_t size, buffer_t *dst);
 
     // sub-section of a buffer
-    struct vertex_buffer
+    struct vertex_buffer_t
     {
         uint32_t offset; // offset inside the buffer
         uint32_t size;   // size in bytes of the data in the buffer
-        buffer buffer;   // ref to the buffer in which the data is
+        buffer_t buffer; // ref to the buffer in which the data is
     };
 }
 
