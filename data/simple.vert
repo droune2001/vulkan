@@ -16,17 +16,24 @@ layout( location = 0 ) out struct vertex_out {
     vec4 vColor;
     vec3 normal;
     vec2 uv;
-    vec3 camera;
+    vec3 to_camera;
+    vec3 to_light;
 } OUT;
 
 void main() 
 {
-    mat4 modelView = UBO.model_matrix * UBO.view_matrix;
+    vec3 light_pos = vec3(1,1,1);
 
-    gl_Position = pos * ( modelView * UBO.proj_matrix );
+    mat4 modelView = UBO.view_matrix * UBO.model_matrix;
+
+    gl_Position = UBO.proj_matrix * modelView * pos;
 
     OUT.vColor = vec4( 0, 0.5, 1.0, 1 );
     OUT.uv = uv;
     OUT.normal = (vec4( normal, 0.0 ) * inverse( modelView )).xyz;
-    OUT.camera = vec3( UBO.view_matrix[3][1], UBO.view_matrix[3][2], UBO.view_matrix[3][3] );
+
+
+    vec3 camera_pos = vec3( -UBO.view_matrix[3][0], -UBO.view_matrix[3][1], -UBO.view_matrix[3][2] );
+    OUT.to_camera = camera_pos - pos.xyz;
+    OUT.to_light = light_pos - pos.xyz;
 }
