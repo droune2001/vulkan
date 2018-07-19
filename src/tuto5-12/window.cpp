@@ -4,7 +4,8 @@
 #include "Renderer.h"
 #include "Shared.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE 1 // clip space z [0..1] instead of [-1..1]
+//#define GLM_FORCE_DEPTH_ZERO_TO_ONE 1 // clip space z [0..1] instead of [-1..1]
+//#define GLM_FORCE_RADIANS 1
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp> // glm::perspective
 #include <glm/gtc/type_ptr.hpp> // glm::value_ptr
@@ -734,30 +735,49 @@ bool Window::InitUniformBuffer()
 {
     VkResult result;
 
-    const float PI = 3.14159265359f;
-    const float TORAD = PI / 180.0f;
-
-    // perspective projection parameters:
-    float fov = 45.0f;
+    float aspect_ratio = _surface_size_x / (float)_surface_size_y;
+    float fov_degrees = 45.0f;
+    float fov_radians = glm::radians(fov_degrees);
     float nearZ = 0.1f;
     float farZ = 1000.0f;
 
-    float aspect_ratio = _surface_size_x / (float)_surface_size_y;
+#if 1
+    glm::mat4 proj = glm::perspective(fov_radians, aspect_ratio, nearZ, farZ);
+    //glm::mat4 proj = glm::orthoLH(-1.0f, 1.0f, -1.0f, 1.0f, 0.1f, 100.0f);
+    proj[1][1] *= -1.0f; // vulkan clip space with Y down.
+
+    glm::mat4 view  = glm::lookAt(glm::vec3(0,0,-10), glm::vec3(0), glm::vec3(0,1,0));
+    glm::mat4 model = glm::mat4(1);
+
+    memcpy(_mvp.m, glm::value_ptr(model), sizeof(model));
+    memcpy(_mvp.v, glm::value_ptr(view), sizeof(view));
+    memcpy(_mvp.p, glm::value_ptr(proj), sizeof(proj));
+
+#else
+
+    const float PI = 3.14159265359f;
+    const float TORAD = PI / 180.0f;
+
     float t = 1.0f / std::tanf(fov * TORAD * 0.5f);
     float nf = nearZ - farZ;
 
-    glm::mat4 proj = glm::perspective(45.0f, aspect_ratio, 0.1f, 1000.0f);
-    proj[1][1] *= -1.0f; // vulkan clip space with Y down.
+    float proj[16] = 
+    { 
+        t / aspect_ratio, 0, 0, 0,
+        0, -t, 0, 0,
+        0, 0, (-nearZ - farZ) / nf, (2 * nearZ*farZ) / nf,
+        0, 0, 1, 0 
+    };
 
-    //float projMatrix[16] = 
-    //{ 
-    //    t / aspect_ratio, 0, 0, 0,
-    //    0, t, 0, 0,
-    //    0, 0, (-nearZ - farZ) / nf, (2 * nearZ*farZ) / nf,
-    //    0, 0, 1, 0 
-    //};
+    float view[16] = 
+    { 
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 10,
+        0, 0, 0, 1 
+    };
 
-    float viewMatrix[16] = 
+    float model[16] = 
     { 
         1, 0, 0, 0,
         0, 1, 0, 0,
@@ -765,18 +785,11 @@ bool Window::InitUniformBuffer()
         0, 0, 0, 1 
     };
 
-    float modelMatrix[16] = 
-    { 
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1 
-    };
+    memcpy(_mvp.m, model, sizeof(model));
+    memcpy(_mvp.v, view, sizeof(view));
+    memcpy(_mvp.p, proj,  sizeof(proj));
 
-    memcpy(_mvp.m, modelMatrix, sizeof(modelMatrix));
-    memcpy(_mvp.v, viewMatrix,  sizeof(viewMatrix));
-    //memcpy(_mvp.p, projMatrix,  sizeof(projMatrix));
-    memcpy(_mvp.p, glm::value_ptr(proj), sizeof(proj));
+#endif
 
     Log("#   Create Matrices Uniform Buffer\n");
     VkBufferCreateInfo uniform_buffer_create_info = {};
@@ -1022,13 +1035,14 @@ bool Window::InitVertexBuffer()
 
     Log("#   Write to Vertex Buffer\n");
     vertex *triangle = (vertex *)mapped;
+    // CCW triangle. pointy end at the top. at z = 0.
     vertex v1 = {
-        -1.0f, -1.0f, 1.0f, 1.0f, // position
+        -1.0f, -1.0f, 0.4f, 1.0f, // position
          0.0f, -1.0f, 0.0f,       // normal
          0.0f,  0.0f              // uv
     };
     vertex v2 = {
-        1.0f, -1.0f, 0.0f, 1.0f,  // position
+        1.0f, -1.0f, -0.4f, 1.0f,  // position
         0.0f, -1.0f, 0.0f,        // normal
         1.0f,  0.0f               // uv
     };
@@ -1518,9 +1532,9 @@ void Window::DeInitGraphicsPipeline()
 
 void Window::set_camera_position(float x, float y, float z)
 {
-    _mvp.v[3]  = x;
-    _mvp.v[7]  = y;
-    _mvp.v[11] = z;
+    _mvp.v[3]  = -x;
+    _mvp.v[7]  = -y;
+    _mvp.v[11] = -z;
 }
 
 void Window::update_matrices_ubo()

@@ -4,13 +4,14 @@ echo Setup Visual Studio 2017 Environment Variables
 
 call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
 
-echo Add Vulkan to environment PATH
+echo Set Vulkan Environment Variables
+set VULKAN_SDK_VERSION=1.1.73.0
+set VULKAN_SDK_DIR=C:\VulkanSDK\%VULKAN_SDK_VERSION%
+set PATH=%VULKAN_SDK_DIR%\Bin;%PATH%
+set VULKAN_PATH=%VULKAN_SDK_DIR%\Bin
 
-set PATH=C:\VulkanSDK\1.1.73.0\Bin;%PATH%
-
-echo Set VULKAN_PATH
-
-set VULKAN_PATH=C:\VulkanSDK\1.1.73.0\Bin
+echo Set Librairies Environment Variables
+set GLM_DIR=C:\Users\Nicolas\home\dev\glm-0.9.9.0
 
 cd C:\Users\Nicolas\home\dev\vulkan
 

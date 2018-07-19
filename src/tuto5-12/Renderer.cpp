@@ -462,6 +462,7 @@ void Renderer::DeInitCommandBuffer()
 
 void Renderer::Draw()
 {
+#if 0
 	// animate camera
 	if (_camera.cameraZ < 1)
 	{
@@ -475,9 +476,12 @@ void Renderer::Draw()
 	}
 
 	_camera.cameraZ += _camera.cameraZDir * 0.01f;
+#else
+    _camera.cameraZ = -10.0f;
+#endif
 
     // Set and upload new matrices
-    _window->set_camera_position(0.0f, 0.0f, _camera.cameraZ);
+    //_window->set_camera_position(0.0f, 0.0f, _camera.cameraZ);
     _window->update_matrices_ubo();
 
 	VkResult result;
@@ -523,7 +527,7 @@ void Renderer::Draw()
 
 		// NOTE: these values are used only if the attachment has the loadOp LOAD_OP_CLEAR
 		std::array<VkClearValue, 2> clear_values = {};
-		clear_values[0].depthStencil.depth = 1.0f; // 0.0f
+        clear_values[0].depthStencil.depth = 1.0f;
 		clear_values[0].depthStencil.stencil = 0;
 		clear_values[1].color.float32[0] = 1.0f; // R // backbuffer is of type B8G8R8A8_UNORM
 		clear_values[1].color.float32[1] = 0.0f; // G
