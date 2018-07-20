@@ -7,6 +7,8 @@
 #include <stdint.h> // uint33_t
 #include <glm/glm.hpp> // glm::vec3
 
+#include <array>
+
 #define MAX_OBJECTS 1024
 class Renderer;
 
@@ -14,6 +16,7 @@ class Scene
 {
 public:
     Scene(Renderer *);
+    ~Scene();
 
     struct vertex_t
     {
@@ -52,8 +55,8 @@ private:
         VkDeviceMemory vertex_buffer_memory = VK_NULL_HANDLE;
     };
 
-    _object_t _objects[MAX_OBJECTS];
-    uint32_t  _nb_objects = 0;
+    std::array<_object_t, MAX_OBJECTS> _objects;
+    uint32_t _nb_objects = 0;
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_

@@ -11,6 +11,23 @@ Scene::Scene(Renderer *r) : _r(r)
 
 }
 
+Scene::~Scene()
+{
+    VkDevice device = _r->GetVulkanDevice();
+
+    // TODO: free buffers for each object
+    for (auto o : _objects)
+    {
+        //Log("#   Free Memory\n");
+        vkFreeMemory(device, o.vertex_buffer_memory, nullptr);
+        vkFreeMemory(device, o.index_buffer_memory, nullptr);
+
+        //Log("#   Destroy Buffer\n");
+        vkDestroyBuffer(device, o.vertex_buffer, nullptr);
+        vkDestroyBuffer(device, o.index_buffer, nullptr);
+    }
+}
+
 bool Scene::add_object(object_description_t od)
 {
     assert(_nb_objects <= MAX_OBJECTS);

@@ -30,7 +30,6 @@ public:
     VkPipeline pipeline(size_t i)                   { return _pipelines[i]; }
     VkPipelineLayout pipeline_layout()              { return _pipeline_layout; }
     VkDescriptorSet *descriptor_set_ptr()           { return &_descriptor_set; }
-    VkBuffer *triangle_vbo_ptr()                    { return &(_triangle_vbo.buffer); }
 
     void set_object_position(float, float, float);
     void set_camera_position(float, float, float);
@@ -72,9 +71,6 @@ private:
 
     bool InitDescriptors();
     void DeInitDescriptors();
-
-    bool InitVertexBuffer();
-    void DeInitVertexBuffer();
 
     bool InitFakeImage();
     void DeInitFakeImage();
@@ -122,20 +118,7 @@ public:
 
     VkRenderPass _render_pass = VK_NULL_HANDLE;
 
-    // ==== OBJECT =========
-    struct vertex
-    {
-        float x, y, z, w;
-        float nx, ny, nz;
-        float u, v;
-    };
 
-    struct vertex_buffer
-    {
-        VkBuffer        buffer = VK_NULL_HANDLE;
-        VkDeviceMemory  memory = VK_NULL_HANDLE;
-    } _triangle_vbo;
-    // =====================
 
     VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
     VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;

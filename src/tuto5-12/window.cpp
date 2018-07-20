@@ -9,6 +9,8 @@
 #include <glm/gtc/matrix_transform.hpp> // glm::perspective
 #include <glm/gtc/type_ptr.hpp> // glm::value_ptr
 
+#include "scene.h"
+
 #include <assert.h>
 #include <sstream>
 #include <array>
@@ -74,9 +76,9 @@ bool Window::Init()
     if (!InitDescriptors())
         return false;
     
-    Log("#  Init Vertex Buffer\n");
-    if (!InitVertexBuffer())
-        return false;
+    //Log("#  Init Vertex Buffer\n");
+    //if (!InitVertexBuffer())
+    //    return false;
 
     Log("#  Init Shaders\n");
     if (!InitShaders())
@@ -99,8 +101,8 @@ Window::~Window()
     Log("#  Destroy Shaders\n");
     DeInitShaders();
 
-    Log("#  Destroy Vertex Buffer\n");
-    DeInitVertexBuffer();
+    //Log("#  Destroy Vertex Buffer\n");
+    //DeInitVertexBuffer();
 
     Log("#  Destroy Descriptors\n");
     DeInitDescriptors();
@@ -942,101 +944,6 @@ void Window::DeInitDescriptors()
     vkDestroyDescriptorSetLayout(device(), _descriptor_set_layout, nullptr);
 }
 
-bool Window::InitVertexBuffer()
-{
-    VkResult result;
-
-    Log("#   Create Vertex Buffer\n");
-    VkBufferCreateInfo vertex_buffer_create_info = {};
-    vertex_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    vertex_buffer_create_info.size = sizeof(struct vertex) * 3; // size in Bytes
-    vertex_buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    vertex_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    result = vkCreateBuffer(device(), &vertex_buffer_create_info, nullptr, &_triangle_vbo.buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#   Get Vertex Buffer Memory Requirements(size and type)\n");
-    VkMemoryRequirements vertex_buffer_memory_requirements = {};
-    vkGetBufferMemoryRequirements(device(), _triangle_vbo.buffer, &vertex_buffer_memory_requirements);
-
-    VkMemoryAllocateInfo vertex_buffer_allocate_info = {};
-    vertex_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    vertex_buffer_allocate_info.allocationSize = vertex_buffer_memory_requirements.size;
-
-    uint32_t vertex_memory_type_bits = vertex_buffer_memory_requirements.memoryTypeBits;
-    VkMemoryPropertyFlags vertex_desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    for (uint32_t i = 0; i < _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypeCount; ++i)
-    {
-        VkMemoryType memory_type = _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypes[i];
-        if (vertex_memory_type_bits & 1)
-        {
-            if ((memory_type.propertyFlags & vertex_desired_memory_flags) == vertex_desired_memory_flags) {
-                vertex_buffer_allocate_info.memoryTypeIndex = i;
-                break;
-            }
-        }
-        vertex_memory_type_bits = vertex_memory_type_bits >> 1;
-    }
-
-    Log("#   Allocate Vertex Buffer Memory\n");
-    result = vkAllocateMemory(device(), &vertex_buffer_allocate_info, nullptr, &_triangle_vbo.memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#   Map Vertex Buffer\n");
-    void *mapped = nullptr;
-    result = vkMapMemory(device(), _triangle_vbo.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#   Write to Vertex Buffer\n");
-    vertex *triangle = (vertex *)mapped;
-    // CCW triangle. pointy end at the top. at z = 0.
-    vertex v1 = {
-        -1.0f, -1.0f, 0.0f, 1.0f, // position
-         -1.0f, -1.0f, 1.0f,       // normal
-         0.0f,  0.0f              // uv
-    };
-    vertex v2 = {
-        1.0f, -1.0f, -0.0f, 1.0f,  // position
-        1.0f, -1.0f, 1.0f,        // normal
-        1.0f,  0.0f               // uv
-    };
-    vertex v3 = {
-        0.0f, 1.0f, 0.0f, 1.0f,  // position
-        0.0f, 1.0f, 1.0f,        // normal
-        0.5f, 1.0f               // uv
-    };
-    triangle[0] = v1;
-    triangle[1] = v2;
-    triangle[2] = v3;
-
-    Log("#   UnMap Vertex Buffer\n");
-    vkUnmapMemory(device(), _triangle_vbo.memory);
-
-    // AFTER having written to it???
-    result = vkBindBufferMemory(device(), _triangle_vbo.buffer, _triangle_vbo.memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    return true;
-}
-
-void Window::DeInitVertexBuffer()
-{
-    Log("#   Free Memory\n");
-    vkFreeMemory(device(), _triangle_vbo.memory, nullptr);
-
-    Log("#   Destroy Buffer\n");
-    vkDestroyBuffer(device(), _triangle_vbo.buffer, nullptr);
-}
-
 bool Window::InitFakeImage()
 {
     struct loaded_image {
@@ -1326,7 +1233,7 @@ bool Window::InitGraphicsPipeline()
 
     VkVertexInputBindingDescription vertex_binding_description = {};
     vertex_binding_description.binding = 0;
-    vertex_binding_description.stride = sizeof(vertex);
+    vertex_binding_description.stride = sizeof(Scene::vertex_t);
     vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     // bind input to location=0, binding=0

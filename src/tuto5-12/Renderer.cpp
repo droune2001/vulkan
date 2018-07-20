@@ -572,16 +572,6 @@ void Renderer::Draw(float dt, Scene *scene)
 			VkRect2D scissor = { 0, 0, surface_size.width, surface_size.height };
 			vkCmdSetScissor(_command_buffer, 0, 1, &scissor);
 
-			VkDeviceSize offsets = {};
-			vkCmdBindVertexBuffers(_command_buffer, 0, 1, _window->triangle_vbo_ptr(), &offsets);
-
-			// DRAW TRIANGLE!!!!!!!!!!!!!!!!!!
-			vkCmdDraw(_command_buffer,
-				3,   // vertex count
-				1,   // instance count
-				0,   // first vertex
-				0); // first instance
-
             scene->draw_all_objects(_command_buffer);
             
 		}

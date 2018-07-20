@@ -101,5 +101,6 @@ bool VulkanApplication::loop()
 void VulkanApplication::clean()
 {
     Log("# App::clean()\n");
+    delete _scene;
     delete _r;
 }
