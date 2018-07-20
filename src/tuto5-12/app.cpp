@@ -5,13 +5,31 @@
 #include "Shared.h" // Log
 #include "Renderer.h"
 #include "window.h"
+#include "Scene.h"
 
 #include <array>
 #include <chrono>
 #include <sstream>
 
+void BaseApplication::run()
+{
+    if (!init()) return;
+    loop();
+    clean();
+}
+
+VulkanApplication::VulkanApplication() : BaseApplication()
+{
+}
+
+VulkanApplication::~VulkanApplication()
+{
+}
+
 bool VulkanApplication::init()
 {
+    Log("# App::init()\n");
+
     Log("#  Create/Init Renderer\n");
     _r = new Renderer();
     if (!_r->Init())
@@ -23,24 +41,19 @@ bool VulkanApplication::init()
     Window *_w = _r->OpenWindow(800, 600, "test");
     if (!_w) return false;
 
+    _scene = new Scene();
+
+    Scene::object_description_t obj_desc = {};
+    _scene->add_object(obj_desc);
+
     return true;
 }
 
-void VulkanApplication::run()
-{
-    Log("# App::init()\n");
-    if (!init())
-        return;
-
-    Log("# App::run()...\n");
-    loop();
-
-    Log("# App::clean()\n");
-    clean();
-}
 
 bool VulkanApplication::loop()
 {
+    Log("# App::run()...\n");
+
     // FPS
     auto timer = std::chrono::steady_clock();
     auto last_time = timer.now();
@@ -74,5 +87,6 @@ bool VulkanApplication::loop()
 
 void VulkanApplication::clean()
 {
+    Log("# App::clean()\n");
     delete _r;
 }
