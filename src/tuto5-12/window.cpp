@@ -133,7 +133,7 @@ Window::~Window()
     Log("#  Destroy OS Window\n");
     DeInitOSWindow();
 
-    Log("  Destroy Vma\n");
+    Log("#  Destroy Vma\n");
     DeInitVma();
 }
 
