@@ -32,6 +32,7 @@ public:
     VkDescriptorSet *descriptor_set_ptr()           { return &_descriptor_set; }
     VkBuffer *triangle_vbo_ptr()                    { return &(_triangle_vbo.buffer); }
 
+    void set_object_position(float, float, float);
     void set_camera_position(float, float, float);
     void update_matrices_ubo();
 
@@ -136,10 +137,10 @@ public:
     } _triangle_vbo;
     // =====================
 
-	VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
+    VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
     VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;
-	VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
-	
+    VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
+
     // ==== MATERIAL =======
     VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
     VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;

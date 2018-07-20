@@ -19,9 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\tuto5-12\app.h" />
     <ClInclude Include="..\src\tuto5-12\build_options.h" />
     <ClInclude Include="..\src\tuto5-12\platform.h" />
     <ClInclude Include="..\src\tuto5-12\Renderer.h" />
+    <ClInclude Include="..\src\tuto5-12\scene.h" />
     <ClInclude Include="..\src\tuto5-12\Shared.h" />
     <ClInclude Include="..\src\tuto5-12\utils.h" />
     <ClInclude Include="..\src\tuto5-12\vk_mem_alloc.h" />
@@ -30,8 +32,10 @@
     <ClInclude Include="..\src\tuto5-12\window.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\tuto5-12\app.cpp" />
     <ClCompile Include="..\src\tuto5-12\main.cpp" />
     <ClCompile Include="..\src\tuto5-12\Renderer.cpp" />
+    <ClCompile Include="..\src\tuto5-12\scene.cpp" />
     <ClCompile Include="..\src\tuto5-12\Shared.cpp" />
     <ClCompile Include="..\src\tuto5-12\utils.cpp" />
     <ClCompile Include="..\src\tuto5-12\vk_mem_alloc_usage.cpp" />

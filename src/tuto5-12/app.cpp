@@ -5,6 +5,7 @@
 #include "Shared.h" // Log
 #include "Renderer.h"
 #include "window.h"
+#include "utils.h"
 #include "Scene.h"
 
 #include <array>
@@ -39,11 +40,18 @@ bool VulkanApplication::init()
 
     Log("#  Creating Window\n");
     Window *_w = _r->OpenWindow(800, 600, "test");
-    if (!_w) return false;
+    if (!_w) 
+        return false;
 
-    _scene = new Scene();
+    _scene = new Scene(_r); // _r.context() ??
 
+    IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
     Scene::object_description_t obj_desc = {};
+    obj_desc.vertexCount = (uint32_t)icosphere.first.size();
+    obj_desc.vertices    = icosphere.first.data();
+    obj_desc.indexCount  = (uint32_t)icosphere.second.size();
+    obj_desc.indices     = icosphere.second.data();
+
     _scene->add_object(obj_desc);
 
     return true;
@@ -57,12 +65,17 @@ bool VulkanApplication::loop()
     // FPS
     auto timer = std::chrono::steady_clock();
     auto last_time = timer.now();
+    auto last_time_for_dt = last_time;
     uint64_t frame_counter = 0;
     uint64_t fps = 0;
 
     while (_r->Run())
     {
         // CPU Logic calculations
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(timer.now() - last_time_for_dt);
+        last_time_for_dt = timer.now();
+        float dt = duration.count() / 1000.0f;
+
         ++frame_counter;
         if (last_time + std::chrono::seconds(1) < timer.now())
         {
@@ -76,7 +89,7 @@ bool VulkanApplication::loop()
         }
 
         // Actual drawing
-        _r->Draw();
+        _r->Draw(dt, _scene);
     }
 
     Log("#   Wait Queue Idle\n");

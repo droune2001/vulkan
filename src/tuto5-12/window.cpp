@@ -5,8 +5,6 @@
 #include "Shared.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE 1 // clip space z [0..1] instead of [-1..1]
-//#define GLM_FORCE_LEFT_HANDED 1
-//#define GLM_FORCE_RADIANS 1
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp> // glm::perspective
 #include <glm/gtc/type_ptr.hpp> // glm::value_ptr
@@ -47,6 +45,10 @@ bool Window::Init()
     Log("#  Init Depth/Stencil\n");
     if (!InitDepthStencilImage())
         return false;
+
+
+
+
 
     Log("#  Init Render Pass\n");
     if (!InitRenderPass())
@@ -1489,11 +1491,18 @@ void Window::DeInitGraphicsPipeline()
     vkDestroyPipelineLayout(device(), _pipeline_layout, nullptr);
 }
 
+void Window::set_object_position(float x, float y, float z)
+{
+    _mvp.m[12]  = x;
+    _mvp.m[13]  = y;
+    _mvp.m[14] = z;
+}
+
 void Window::set_camera_position(float x, float y, float z)
 {
-    _mvp.v[3]  = -x;
-    _mvp.v[7]  = -y;
-    _mvp.v[11] = -z;
+    _mvp.v[12]  = -x;
+    _mvp.v[13]  = -y;
+    _mvp.v[14] = -z;
 }
 
 void Window::update_matrices_ubo()

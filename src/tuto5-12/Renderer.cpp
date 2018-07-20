@@ -4,6 +4,7 @@
 #include "Renderer.h"
 #include "Shared.h"
 #include "window.h"
+#include "scene.h"
 
 #include <cstdlib>
 #include <assert.h>
@@ -460,27 +461,39 @@ void Renderer::DeInitCommandBuffer()
     vkDestroyCommandPool(_device, _command_pool, nullptr);
 }
 
-void Renderer::Draw()
+void Renderer::Draw(float dt, Scene *scene)
 {
+    static float obj_x = 0.0f;
+    static float obj_y = 0.0f;
+    static float obj_z = 0.0f;
+    static float accum = 0.0f; // in seconds
+
+    accum += dt;
+    float speed = 3.0f; // radian/sec
+    float radius = 2.0f;
+    obj_x = radius * std::cos(speed * accum);
+    obj_y = radius * std::sin(speed * accum);
+
 #if 0
-	// animate camera
-	if (_camera.cameraZ < 1)
-	{
+    // animate camera
+    if (_camera.cameraZ < 1)
+    {
         _camera.cameraZ = 1;
         _camera.cameraZDir = 1;
-	}
-	else if (_camera.cameraZ > 10) 
-	{
-		_camera.cameraZ = 10;
-		_camera.cameraZDir = -1;
-	}
-
-	_camera.cameraZ += _camera.cameraZDir * 0.01f;
+    }
+    else if (_camera.cameraZ > 10) 
+    {
+        _camera.cameraZ = 10;
+        _camera.cameraZDir = -1;
+    }
+    
+    _camera.cameraZ += _camera.cameraZDir * 0.01f;
 #else
     _camera.cameraZ = -10.0f;
 #endif
 
     // Set and upload new matrices
+    _window->set_object_position(obj_x, obj_y, obj_z);
     //_window->set_camera_position(0.0f, 0.0f, _camera.cameraZ);
     _window->update_matrices_ubo();
 
@@ -568,6 +581,9 @@ void Renderer::Draw()
 				1,   // instance count
 				0,   // first vertex
 				0); // first instance
+
+            scene->draw_all_objects(_command_buffer);
+            
 		}
 		vkCmdEndRenderPass(_command_buffer);
 

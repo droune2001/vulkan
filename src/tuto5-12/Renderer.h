@@ -3,6 +3,7 @@
 #include <vector>
 
 class Window;
+class Scene;
 
 class Renderer
 {
@@ -10,14 +11,14 @@ public:
     Renderer();
     ~Renderer();
 
-	bool Init();
+    bool Init();
 
     Window *OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
 
     bool Run();
-    
-	void Draw();
-	
+
+    void Draw(float dt, Scene *scene);
+
     const VkInstance GetVulkanInstance() const { return _instance; }
     const VkPhysicalDevice GetVulkanPhysicalDevice() const { return _gpu; }
     const VkDevice GetVulkanDevice() const { return _device; }
@@ -26,7 +27,7 @@ public:
     const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
     const VkPhysicalDeviceMemoryProperties &GetVulkanPhysicalDeviceMemoryProperties() const { return _gpu_memory_properties; }
 
-	VkCommandBuffer &GetVulkanCommandBuffer() { return _command_buffer; }
+    VkCommandBuffer &GetVulkanCommandBuffer() { return _command_buffer; }
 
 private:
     bool InitInstance();

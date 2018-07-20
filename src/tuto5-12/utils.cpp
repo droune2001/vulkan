@@ -61,73 +61,81 @@ namespace vk
         return true;
     }
 
-
-
-    //
-    // ICO SPHERE
-    //
-
-    using Lookup = std::map<std::pair<index_t, index_t>, index_t>;
-
-    index_t vertex_for_edge(
-        Lookup& lookup,
-        VertexList& vertices, 
-        index_t first, index_t second)
-    {
-        Lookup::key_type key(first, second);
-        if (key.first > key.second)
-            std::swap(key.first, key.second);
-
-        auto inserted = lookup.insert({key, vertices.size()});
-        if (inserted.second)
-        {
-            auto& edge0 = vertices[first];
-            auto& edge1 = vertices[second];
-            auto point = glm::normalize(edge0 + edge1);
-            vertices.push_back(point);
-        }
-
-        return inserted.first->second;
-    }
-
-    TriangleList subdivide(
-        VertexList& vertices,
-        TriangleList triangles)
-    {
-        Lookup lookup;
-        TriangleList result;
-
-        for (auto&& each : triangles)
-        {
-            std::array<index_t, 3> mid;
-            for (int edge = 0; edge < 3; ++edge)
-            {
-                mid[edge] = vertex_for_edge(lookup, vertices,
-                    each.vertex[edge], each.vertex[(edge + 1) % 3]);
-            }
-
-            result.push_back({each.vertex[0], mid[0], mid[2]});
-            result.push_back({each.vertex[1], mid[1], mid[0]});
-            result.push_back({each.vertex[2], mid[2], mid[1]});
-            result.push_back({mid[0], mid[1], mid[2]});
-        }
-
-        return result;
-    }
-
-    using IndexedMesh = std::pair<VertexList, TriangleList>;
-
-    IndexedMesh make_icosphere(int subdivisions)
-    {
-        VertexList vertices = icosahedron::vertices;
-        TriangleList triangles = icosahedron::triangles;
-
-        for (int i = 0; i < subdivisions; ++i)
-        {
-            triangles = subdivide(vertices, triangles);
-        }
-
-        return{vertices, triangles};
-    }
-
 } // namespace vk
+
+
+//
+// ICO SPHERE
+//
+
+using Lookup = std::map<std::pair<Scene::index_t, Scene::index_t>, Scene::index_t>;
+
+Scene::index_t vertex_for_edge(
+    Lookup& lookup,
+    VertexList& vertices, 
+    Scene::index_t first, Scene::index_t second)
+{
+    Lookup::key_type key(first, second);
+    if (key.first > key.second)
+        std::swap(key.first, key.second);
+
+    auto inserted = lookup.insert({key, (Scene::index_t)vertices.size()});
+    if (inserted.second)
+    {
+        const glm::vec4& edge0 = vertices[first].p;
+        const glm::vec4& edge1 = vertices[second].p;
+        Scene::vertex_t v = {};
+        v.p = glm::vec4(glm::normalize(glm::vec3(edge0) + glm::vec3(edge1)), 1.0f);
+        v.n = v.p; // meme chose, normale = position model space
+        v.uv = {0.0f, 0.0f}; // TODO: long-lat conversion of pos
+        vertices.push_back(v);
+    }
+
+    return inserted.first->second;
+}
+
+TriangleList subdivide(
+    VertexList& vertices,
+    TriangleList triangles)
+{
+    Lookup lookup;
+    TriangleList result;
+
+    for (auto&& each : triangles)
+    {
+        std::array<Scene::index_t, 3> mid;
+        for (int edge = 0; edge < 3; ++edge)
+        {
+            mid[edge] = vertex_for_edge(lookup, vertices,
+                each.vertex_index[edge], each.vertex_index[(edge + 1) % 3]);
+        }
+
+        result.push_back({each.vertex_index[0], mid[0], mid[2]});
+        result.push_back({each.vertex_index[1], mid[1], mid[0]});
+        result.push_back({each.vertex_index[2], mid[2], mid[1]});
+        result.push_back({mid[0], mid[1], mid[2]});
+    }
+
+    return result;
+}
+
+IndexedMesh make_icosphere(int subdivisions)
+{
+    VertexList vertices = icosahedron::vertices;
+    TriangleList triangles = icosahedron::triangles;
+
+    for (int i = 0; i < subdivisions; ++i)
+    {
+        triangles = subdivide(vertices, triangles);
+    }
+
+    IndexList indices;
+    indices.resize(triangles.size()*3);
+    for (auto t : triangles)
+    {
+        indices.push_back(t.vertex_index[0]);
+        indices.push_back(t.vertex_index[1]);
+        indices.push_back(t.vertex_index[2]);
+    }
+    return{vertices, indices};
+}
