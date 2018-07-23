@@ -62,12 +62,12 @@ public:
     //const VkPhysicalDeviceMemoryProperties &physical_device_memory_properties() const { return _ctx.physical_device_memory_properties; }
     //VkCommandBuffer &GetVulkanCommandBuffer() { return _command_buffer; }
 
-    Renderer();
+    Renderer(Window *w);
     ~Renderer();
 
-    bool InitContext();
-    bool InitWindow();
-
+    // inits vulkan context and window-vulkan specifics
+    bool Init();
+    
     void Draw(float dt, Scene *scene);
    
 
@@ -96,7 +96,7 @@ private:
     vulkan_context _ctx;
     VmaAllocator   _allocator = VK_NULL_HANDLE;
 
-    Window * _window = nullptr; // ref
+    Window * _w = nullptr; // ref
 
     
 

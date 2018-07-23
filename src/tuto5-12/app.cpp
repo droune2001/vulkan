@@ -36,15 +36,13 @@ bool VulkanApplication::init()
     _w = new Window();
     if (!_w->OpenWindow(800, 600, "test"))
         return false;
-#if 0
+
     Log("#  Create Renderer/Init Context\n");
-    _r = new Renderer();
-    if (!_r->InitContext())
+    _r = new Renderer(_w);
+    if (!_r->Init())
         return false;
 
-    Log("#  Init Window Surface\n");
-    if (!_w->InitSurface(_r.context())
-        return false;
+#if 0
 
     Log("#  Init Window Surface\n");
 
@@ -107,7 +105,9 @@ void VulkanApplication::clean()
 {
     Log("# App::clean()\n");
 //    delete _scene;
-//    delete _r;
+
+    Log("#  Destroy Context\n");
+    delete _r;
 
     Log("#  Destroy Window\n");
     _w->DeleteWindow();

@@ -13,82 +13,91 @@
 #include <iostream>
 #include <sstream>
 
-Renderer::Renderer()
+Renderer::Renderer(Window *w) : _w(w)
 {
     
 }
 
 Renderer::~Renderer()
 {
+    // SCENE
+
     //Log("# Destroy Command Buffer\n");
     //DeInitCommandBuffer();
 
-    Log("#  Destroy Vma\n");
+    if (_w)
+    {
+        Log("#   Destroy Vulkan Window Specifics\n");
+        _w->DeInitVulkanWindowSpecifics(&_ctx);
+    }
+
+    Log("#   Destroy Vma\n");
     DeInitVma();
 
-    Log("# Destroy Device\n");
+    Log("#   Destroy Device\n");
     DeInitDevice();
 
-    Log("# Destroy Debug\n");
+    Log("#   Destroy Debug\n");
     DeInitDebug();
 
-    Log("# Destroy Instance\n");
+    Log("#   Destroy Instance\n");
     DeInitInstance();
 }
 
-bool Renderer::InitContext()
+bool Renderer::Init()
 {
     // Manually load the dll, and grab the "vkGetInstanceProcAddr" symbol,
     // vkCreateInstance, and vkEnumerate extensions and layers
-    Log("#  volkInitialize.\n");
+    Log("#   volkInitialize.\n");
     if (volkInitialize() != VK_SUCCESS)
         return false;
 
     // Setup debug callback structure.
-    Log("#  Setup Debug\n");
+    Log("#   Setup Debug\n");
     SetupDebug();
 
     // Fill the names of desired layers
-    Log("#  Setup Layers\n");
+    Log("#   Setup Layers\n");
     SetupLayers();
 
     // Fill the names of the desired extensions.
-    Log("#  Setup Extensions\n");
+    Log("#   Setup Extensions\n");
     SetupExtensions();
 
     // Create the instance
-    Log("#  Init Instance\n");
+    Log("#   Init Instance\n");
     if (!InitInstance())
         return false;
 
     // Loads all the symbols for that instance, beginning with vkCreateDevice.
-    Log("#  Load instance related function ptrs (volkLoadInstance).\n");
+    Log("#   Load instance related function ptrs (volkLoadInstance).\n");
     volkLoadInstance(_ctx.instance);
 
     // Install debug callback
-    Log("#  Install debug callback\n");
+    Log("#   Install debug callback\n");
     if (!InitDebug())
         return false;
 
     // Create device and get rendering queue.
-    Log("#  Init device\n");
+    Log("#   Init device\n");
     if (!InitDevice())
         return false;
 
     // Load all the rest of the symbols, specifically for that device, bypassing
     // the loader dispatch,
-    Log("#  Load device related function ptrs (volkLoadDevice).\n");
+    Log("#   Load device related function ptrs (volkLoadDevice).\n");
     volkLoadDevice(_ctx.device);
 
-    Log("#  Init VMA\n");
+    Log("#   Init VMA\n");
     InitVma();
 
-    return true;
-}
+    Log("#   Init Window Specific Vulkan\n");
+    if (_w)
+    {
+        _w->InitVulkanWindowSpecifics(&_ctx);
+    }
 
-bool Renderer::InitWindow()
-{
-    // Create device and get rendering queue.
+    // SCENE
     //Log("#  Init CommandBuffer\n");
     //if (!InitCommandBuffer())
     //    return false;
@@ -104,7 +113,7 @@ bool Renderer::InitInstance()
     application_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     application_info.apiVersion         = VK_API_VERSION_1_0;//VK_MAKE_VERSION( 1, 1, 73 );
     application_info.applicationVersion = VK_MAKE_VERSION( 0, 0, 4 );
-    application_info.pApplicationName   = "Vulkan Tutorial 4";
+    application_info.pApplicationName   = "Vulkan Renderer";
 
     VkInstanceCreateInfo instance_create_info{};
     instance_create_info.sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -140,7 +149,7 @@ bool Renderer::InitDevice()
 
     // Get all physical devices and choose one (the first here)
     {
-        Log("#   Enumerate Physcal Device\n");
+        Log("#    Enumerate Physical Device\n");
         // Call once to get the number
         uint32_t gpu_count = 0;
         result = vkEnumeratePhysicalDevices(_ctx.instance, &gpu_count, nullptr);
@@ -151,7 +160,7 @@ bool Renderer::InitDevice()
             return false;
         }
 
-        Log(std::string("#  -> found ") + std::to_string(gpu_count) + std::string(" physical devices.\n"));
+        Log(std::string("#    -> found ") + std::to_string(gpu_count) + std::string(" physical devices.\n"));
 
         // Call a second time to get the actual devices
         std::vector<VkPhysicalDevice> gpu_list( gpu_count );
@@ -163,16 +172,16 @@ bool Renderer::InitDevice()
         // Take the first
         _ctx.physical_device = gpu_list[0]; // pas forcement!
 
-        Log("#   Get Physical Device Properties\n");
+        Log("#    Get Physical Device Properties\n");
         vkGetPhysicalDeviceProperties(_ctx.physical_device, &_ctx.physical_device_properties);
 
-        Log("#   GetPhysocal Device Memory Properties\n");
+        Log("#    Get Physical Device Memory Properties\n");
         vkGetPhysicalDeviceMemoryProperties(_ctx.physical_device, &_ctx.physical_device_memory_properties);
     }
 
     // Get the "Queue Family Properties" of the Device
     {
-        Log("#   Get Physical Device Queue Family Properties\n");
+        Log("#    Get Physical Device Queue Family Properties\n");
 
         uint32_t family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, nullptr);
@@ -181,7 +190,7 @@ bool Renderer::InitDevice()
             assert(!"Vulkan ERROR: No Queue family!!");
             return false;
         }
-        Log(std::string("#  -> found ") + std::to_string(family_count) + std::string(" queue families.\n"));
+        Log(std::string("#     -> found ") + std::to_string(family_count) + std::string(" queue families.\n"));
         std::vector<VkQueueFamilyProperties> family_property_list(family_count);
         vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, family_property_list.data());
 
@@ -199,7 +208,7 @@ bool Renderer::InitDevice()
             {
                 if (!found_graphics)
                 {
-                    Log(std::string("#   FOUND Graphics queue: ") + std::to_string(i) + std::string("\n"));
+                    Log(std::string("#     FOUND Graphics queue: ") + std::to_string(i) + std::string("\n"));
                     found_graphics = true;
                     _ctx.graphics.family_index = i;
                 }
@@ -209,7 +218,7 @@ bool Renderer::InitDevice()
             {
                 if (!found_compute)
                 {
-                    Log(std::string("#   FOUND Compute queue: ") + std::to_string(i) + std::string("\n"));
+                    Log(std::string("#     FOUND Compute queue: ") + std::to_string(i) + std::string("\n"));
                     found_compute = true;
                     _ctx.compute.family_index = i;
                 }
@@ -219,7 +228,7 @@ bool Renderer::InitDevice()
             {
                 if (!found_transfer)
                 {
-                    Log(std::string("#   FOUND Transfer queue: ") + std::to_string(i) + std::string("\n"));
+                    Log(std::string("#     FOUND Transfer queue: ") + std::to_string(i) + std::string("\n"));
                     found_transfer = true;
                     _ctx.transfer.family_index = i;
                 }
@@ -229,7 +238,7 @@ bool Renderer::InitDevice()
             {
                 if (!found_present)
                 {
-                    Log(std::string("#   FOUND Present queue: ") + std::to_string(i) + std::string("\n"));
+                    Log(std::string("#     FOUND Present queue: ") + std::to_string(i) + std::string("\n"));
                     found_present = true;
                     _ctx.present.family_index = i;
                 }
@@ -247,7 +256,7 @@ bool Renderer::InitDevice()
 
     // Instance Layer Properties
     {
-        Log("#   Enumerate Instance Layer Properties: (or not)\n");
+        Log("#    Enumerate Instance Layer Properties: (or not)\n");
 
         uint32_t layer_count = 0;
         result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
@@ -276,7 +285,7 @@ bool Renderer::InitDevice()
 
     // Device Layer Properties (deprecated)
     {
-        Log("#   Enumerate Device Layer Properties: (or not)\n");
+        Log("#    Enumerate Device Layer Properties: (or not)\n");
 
         uint32_t layer_count = 0;
         result = vkEnumerateDeviceLayerProperties(_ctx.physical_device, &layer_count, nullptr); // first call = query number
@@ -321,7 +330,7 @@ bool Renderer::InitDevice()
     device_create_info.enabledExtensionCount   = (uint32_t)_ctx.device_extensions.size();
     device_create_info.ppEnabledExtensionNames = _ctx.device_extensions.data();
 
-    Log("#   Create Device\n");
+    Log("#    Create Device\n");
     result = vkCreateDevice(_ctx.physical_device, &device_create_info, nullptr, &_ctx.device);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -329,7 +338,7 @@ bool Renderer::InitDevice()
 
     // get first queue in family (index 0)
     // TODO: get N queues for N threads?
-    Log("#   Get Graphics Queue\n");
+    Log("#    Get Graphics Queue\n");
     vkGetDeviceQueue(_ctx.device, _ctx.graphics.family_index, 0, &_ctx.graphics.queue );
 
     return true;
@@ -603,9 +612,9 @@ void Renderer::Draw(float dt, Scene *scene)
 #endif
 
     // Set and upload new matrices
-    _window->set_object_position(obj_x, obj_y, obj_z);
+    _w->set_object_position(obj_x, obj_y, obj_z);
     //_window->set_camera_position(0.0f, 0.0f, _camera.cameraZ);
-    _window->update_matrices_ubo();
+    _w->update_matrices_ubo();
 
 	VkResult result;
 
@@ -621,7 +630,7 @@ void Renderer::Draw(float dt, Scene *scene)
 	ErrorCheck(result);
 
 	// Begin render (acquire image, wait for queue ready)
-	_window->BeginRender(present_complete_semaphore);
+	_w->BeginRender(present_complete_semaphore);
 
     auto &cmd = _ctx.graphics.command_buffer;
 
@@ -648,7 +657,7 @@ void Renderer::Draw(float dt, Scene *scene)
 
 		VkRect2D render_area = {};
 		render_area.offset = { 0, 0 };
-		render_area.extent = _window->surface_size();
+		render_area.extent = _w->surface_size();
 
 		// NOTE: these values are used only if the attachment has the loadOp LOAD_OP_CLEAR
 		std::array<VkClearValue, 2> clear_values = {};
@@ -661,8 +670,8 @@ void Renderer::Draw(float dt, Scene *scene)
 
 		VkRenderPassBeginInfo render_pass_begin_info = {};
 		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		render_pass_begin_info.renderPass = _window->render_pass();
-		render_pass_begin_info.framebuffer = _window->active_swapchain_framebuffer();
+		render_pass_begin_info.renderPass = _w->render_pass();
+		render_pass_begin_info.framebuffer = _w->active_swapchain_framebuffer();
 		render_pass_begin_info.renderArea = render_area;
 		render_pass_begin_info.clearValueCount = (uint32_t)clear_values.size();
 		render_pass_begin_info.pClearValues = clear_values.data();
@@ -671,12 +680,12 @@ void Renderer::Draw(float dt, Scene *scene)
 		{
 			// TODO: put into window, too many get...
 			// w->BindPipeline(command_buffer)
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline(0));
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _w->pipeline(0));
 
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline_layout(), 0, 1, _window->descriptor_set_ptr(), 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _w->pipeline_layout(), 0, 1, _w->descriptor_set_ptr(), 0, nullptr);
 
 			// take care of dynamic state:
-			VkExtent2D surface_size = _window->surface_size();
+			VkExtent2D surface_size = _w->surface_size();
 
 			VkViewport viewport = { 0, 0, (float)surface_size.width, (float)surface_size.height, 0, 1 };
 			vkCmdSetViewport(cmd, 0, 1, &viewport);
@@ -741,7 +750,7 @@ void Renderer::Draw(float dt, Scene *scene)
 
 	// <------------------------------------------------- Wait on semaphores before presenting
 
-	_window->EndRender({ render_complete_semaphore });
+	_w->EndRender({ render_complete_semaphore });
 
 	vkDestroySemaphore(_ctx.device, render_complete_semaphore, nullptr);
 	vkDestroySemaphore(_ctx.device, present_complete_semaphore, nullptr);

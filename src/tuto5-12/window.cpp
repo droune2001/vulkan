@@ -25,7 +25,7 @@ bool Window::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & ti
     _surface_size_y = size_y;
     _window_name = title;
 
-    Log("#  Init OS Window\n");
+    Log("#   Init OS Window\n");
     InitOSWindow();
 
     return true;
@@ -35,20 +35,19 @@ bool Window::InitVulkanWindowSpecifics(vulkan_context *ctx)
 {
     _ctx = ctx;
 
-
-    Log("#  Init Backbuffer Surface\n");
+    Log("#    Init Backbuffer Surface\n");
     if (!InitSurface())
         return false;
 
-    Log("#  Init SwapChain\n");
+    Log("#    Init SwapChain\n");
     if (!InitSwapChain())
         return false;
 
-    Log("#  InitSwapChain Images\n");
+    Log("#    InitSwapChain Images\n");
     if (!InitSwapChainImages())
         return false;
 
-    Log("#  Init Depth/Stencil\n");
+    Log("#    Init Depth/Stencil\n");
     if (!InitDepthStencilImage())
         return false;
 
@@ -56,6 +55,8 @@ bool Window::InitVulkanWindowSpecifics(vulkan_context *ctx)
 
 
 
+
+#if 0
     Log("#  Init Render Pass\n");
     if (!InitRenderPass())
         return false;
@@ -80,10 +81,6 @@ bool Window::InitVulkanWindowSpecifics(vulkan_context *ctx)
     if (!InitDescriptors())
         return false;
     
-    //Log("#  Init Vertex Buffer\n");
-    //if (!InitVertexBuffer())
-    //    return false;
-
     Log("#  Init Shaders\n");
     if (!InitShaders())
         return false;
@@ -91,7 +88,7 @@ bool Window::InitVulkanWindowSpecifics(vulkan_context *ctx)
     Log("#  Init Graphics Pipeline\n");
     if (!InitGraphicsPipeline())
         return false;
-
+#endif
     return true;
 }
 
@@ -103,6 +100,9 @@ void Window::DeleteWindow()
 
 bool Window::DeInitVulkanWindowSpecifics(vulkan_context *ctx)
 {
+    Log("#  Destroy Depth/Stencil\n");
+    DeInitDepthStencilImage();
+
     Log("#  Destroy SwapChain Images\n");
     DeInitSwapChainImages();
 
@@ -117,6 +117,7 @@ bool Window::DeInitVulkanWindowSpecifics(vulkan_context *ctx)
 
 Window::~Window()
 {
+#if 0
     vkQueueWaitIdle(_ctx->graphics.queue);
 
     Log("#  Destroy Graphics Pipeline\n");
@@ -124,9 +125,6 @@ Window::~Window()
 
     Log("#  Destroy Shaders\n");
     DeInitShaders();
-
-    //Log("#  Destroy Vertex Buffer\n");
-    //DeInitVertexBuffer();
 
     Log("#  Destroy Descriptors\n");
     DeInitDescriptors();
@@ -145,11 +143,7 @@ Window::~Window()
 
     Log("#  Destroy Render Pass\n");
     DeInitRenderPass();
-
-    Log("#  Destroy Depth/Stencil\n");
-    DeInitDepthStencilImage();
-
-    DeInitVulkanWindowSpecifics(_ctx);
+#endif
 }
 
 VkDevice Window::device()
@@ -234,13 +228,13 @@ bool Window::InitSurface()
 {
     VkResult result = VK_SUCCESS;
     
-    Log("#   Init OS Surface\n");
+    Log("#     Init OS Surface\n");
     if (!InitOSSurface()) 
         return false;
 
     auto gpu = _ctx->physical_device;
 
-    Log("#   Test Device supports surface?\n");
+    Log("#     Test Device supports surface?\n");
     VkBool32 supportsPresent;
     result = vkGetPhysicalDeviceSurfaceSupportKHR(gpu, _ctx->graphics.family_index, _surface, &supportsPresent);
     ErrorCheck(result);
@@ -252,7 +246,7 @@ bool Window::InitSurface()
 
     //vkGetPhysicalDeviceSurfaceCapabilities2EXT ???
     //vkGetPhysicalDeviceSurfaceCapabilities2KHR ???
-    Log("#   Get Physical Device Surface Capabilities\n");
+    Log("#     Get Physical Device Surface Capabilities\n");
     result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, _surface, &_surface_caps);
     ErrorCheck(result);
     {
@@ -263,13 +257,13 @@ bool Window::InitSurface()
             _surface_size_y = _surface_caps.currentExtent.height;
 
             std::ostringstream oss;
-            oss << "#    width: " << _surface_size_x << " height: " << _surface_size_y << std::endl;
+            oss << "#      width: " << _surface_size_x << " height: " << _surface_size_y << std::endl;
             Log(oss.str().c_str());
         }
 
         {
             // vkGetPhysicalDeviceSurfaceFormats2KHR ???
-            Log("#   Get Physical Device Surface Formats\n");
+            Log("#      Get Physical Device Surface Formats\n");
             uint32_t surface_formats_count = 0;
             result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, nullptr);
             ErrorCheck(result);
@@ -317,7 +311,7 @@ bool Window::InitSwapChain()
     if (_surface_caps.maxImageCount > 0 && _swapchain_image_count > _surface_caps.maxImageCount) 
         _swapchain_image_count = _surface_caps.maxImageCount;
 
-    Log("#   Get Physical Device Surface Present Modes.\n");
+    Log("#     Get Physical Device Surface Present Modes.\n");
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR; // VK_PRESENT_MODE_FIFO_KHR always available
     {
         uint32_t present_mode_count = 0;
@@ -341,11 +335,11 @@ bool Window::InitSwapChain()
             }
         }
     }
-    Log( (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) ? "#   -> VK_PRESENT_MODE_MAILBOX_KHR\n" : "#   -> VK_PRESENT_MODE_FIFO_KHR\n");
+    Log( (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) ? "#      -> VK_PRESENT_MODE_MAILBOX_KHR\n" : "#   -> VK_PRESENT_MODE_FIFO_KHR\n");
 
     std::ostringstream oss;
-    oss << "#   Create SwapChain:\n"
-        << "#   -> image count: " << _swapchain_image_count << "\n";
+    oss << "#     Create SwapChain:\n"
+        << "#      -> image count: " << _swapchain_image_count << "\n";
     Log(oss.str().c_str());
 
     VkSwapchainCreateInfoKHR swapchain_create_info = {};
@@ -382,7 +376,7 @@ bool Window::InitSwapChainImages()
 {
     auto result = VK_SUCCESS;
 
-    Log("#   Get SwapChain Images\n");
+    Log("#     Get SwapChain Images\n");
     _swapchain_image_count = 0;
     result = vkGetSwapchainImagesKHR(device(), _swapchain, &_swapchain_image_count, nullptr);
     ErrorCheck(result);
@@ -399,7 +393,7 @@ bool Window::InitSwapChainImages()
     for (uint32_t i = 0; i < _swapchain_image_count; ++i)
     {
         std::ostringstream oss;
-        oss << "#   Create SwapChain Image View [" << i << "]\n";
+        oss << "#     Create SwapChain Image View [" << i << "]\n";
         Log(oss.str().c_str());
 
         VkImageViewCreateInfo image_view_create_info = {};
@@ -448,7 +442,7 @@ bool Window::InitDepthStencilImage()
             VK_FORMAT_D16_UNORM
         };
 
-        Log("#   Scan Potential Formats Optimal Tiling... Get Physical Device Format Properties\n");
+        Log("#     Scan Potential Formats Optimal Tiling... Get Physical Device Format Properties\n");
         for (auto f : potential_formats)
         {
             // VkFormatProperties2 ??? 
@@ -476,7 +470,7 @@ bool Window::InitDepthStencilImage()
         }
     }
 
-    Log("#   Create Image\n");
+    Log("#     Create Depth/Stencil Image\n");
     VkImageCreateInfo image_create_info = {};
     image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_create_info.imageType = VK_IMAGE_TYPE_2D;
@@ -500,11 +494,11 @@ bool Window::InitDepthStencilImage()
     if (result != VK_SUCCESS)
         return false;
     
-    Log("#   Get Image Memory Requirements\n");
+    Log("#     Get Image Memory Requirements\n");
     VkMemoryRequirements memory_requirements = {};
     vkGetImageMemoryRequirements(device(), _depth_stencil_image, &memory_requirements);
 
-    Log("#   Find Memory Type Index\n");
+    Log("#     Find Memory Type Index\n");
     auto gpu_memory_properties = _ctx->physical_device_memory_properties;
     uint32_t memory_index = FindMemoryTypeIndex(&gpu_memory_properties, &memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     if (memory_index == UINT32_MAX)
@@ -518,19 +512,19 @@ bool Window::InitDepthStencilImage()
     memory_allocate_info.allocationSize = memory_requirements.size;
     memory_allocate_info.memoryTypeIndex = memory_index;
 
-    Log("#   Allocate Memory\n");
+    Log("#     Allocate Memory\n");
     result = vkAllocateMemory(device(), &memory_allocate_info, nullptr, &_depth_stencil_image_memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#   Bind Image Memory\n");
+    Log("#     Bind Image Memory\n");
     result = vkBindImageMemory(device(), _depth_stencil_image, _depth_stencil_image_memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#   Create Image View\n");
+    Log("#     Create Image View\n");
     VkImageViewCreateInfo image_view_create_info = {};
     image_view_create_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     image_view_create_info.image    = _depth_stencil_image;
