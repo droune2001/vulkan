@@ -29,26 +29,12 @@ public:
     // Present Swapchain Image to queue
     void EndRender( std::vector<VkSemaphore> wait_semaphores );
 
-    VkFramebuffer active_swapchain_framebuffer()    { return _swapchain_framebuffers[_active_swapchain_image_id]; }
-    VkImage active_swapchain_image()                { return _swapchain_images[_active_swapchain_image_id]; }
-    VkExtent2D surface_size()                       { return {_surface_size_x, _surface_size_y}; }
-
-
-
-
-
-
-    VkRenderPass render_pass() { return _render_pass; }
-    VkImage depth_stencil_image() { return _depth_stencil_image; }
-    VkPipeline pipeline(size_t i) { return _pipelines[i]; }
-    VkPipelineLayout pipeline_layout() { return _pipeline_layout; }
-    VkDescriptorSet *descriptor_set_ptr() { return &_descriptor_set; }
-
-
-
-    void set_object_position(float, float, float);
-    void set_camera_position(float, float, float);
-    void update_matrices_ubo();
+    uint32_t swapchain_image_count()            { return _swapchain_image_count; }
+    VkFormat surface_format()                   { return _surface_format.format; }
+    uint32_t active_swapchain_image_id()        { return _active_swapchain_image_id; }
+    VkImage active_swapchain_image()            { return _swapchain_images[_active_swapchain_image_id]; }
+    VkImageView swapchain_image_views(size_t i) { return _swapchain_image_views[i]; }
+    VkExtent2D surface_size()                   { return {_surface_size_x, _surface_size_y}; }
 
 private:
 
@@ -67,36 +53,8 @@ private:
     bool InitSwapChainImages();
     void DeInitSwapChainImages();
 
-
-
-
-
-    bool InitDepthStencilImage();
-    void DeInitDepthStencilImage();
-
-    bool InitRenderPass();
-    void DeInitRenderPass();
-
-    bool InitSwapChainFrameBuffers();
-    void DeInitSwapChainFrameBuffers();
-
     bool InitSynchronizations();
     void DeInitSynchronizations();
-
-    bool InitUniformBuffer();
-    void DeInitUniformBuffer();
-
-    bool InitDescriptors();
-    void DeInitDescriptors();
-
-    bool InitFakeImage();
-    void DeInitFakeImage();
-
-    bool InitShaders();
-    void DeInitShaders();
-
-    bool InitGraphicsPipeline();
-    void DeInitGraphicsPipeline();
 
     VkDevice device();
 
@@ -126,52 +84,4 @@ public:
     uint32_t _active_swapchain_image_id = UINT32_MAX;
     VkFence _swapchain_image_available_fence = VK_NULL_HANDLE;
     // ============================
-    
-
-    std::vector<VkFramebuffer> _swapchain_framebuffers;
-
-    VkImage _depth_stencil_image = {};
-    VkDeviceMemory _depth_stencil_image_memory = VK_NULL_HANDLE;
-    VkImageView _depth_stencil_image_view = VK_NULL_HANDLE;
-    VkFormat _depth_stencil_format = VK_FORMAT_UNDEFINED;
-    bool _stencil_available = false;
-
-    VkRenderPass _render_pass = VK_NULL_HANDLE;
-
-
-
-    VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
-    VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;
-    VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
-
-    // ==== MATERIAL =======
-    VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
-    VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;
-
-    std::array<VkPipeline, 1> _pipelines = {};
-    VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
-    // =====================
-
-
-    
-    struct matrices
-    {
-        float m[16];
-        float v[16];
-        float p[16];
-    } _mvp;
-
-    struct uniform_buffer
-    {
-        VkBuffer buffer = VK_NULL_HANDLE;
-        VkDeviceMemory memory = VK_NULL_HANDLE;
-    } _matrices_ubo;
-
-    struct texture
-    {
-        VkImage         texture_image        = VK_NULL_HANDLE;
-        VkDeviceMemory  texture_image_memory = {};
-        VkImageView     texture_view         = VK_NULL_HANDLE;
-        VkSampler       sampler              = VK_NULL_HANDLE;
-    } _checker_texture;
 };

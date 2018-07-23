@@ -39,14 +39,11 @@ bool VulkanApplication::init()
 
     Log("#  Create Renderer/Init Context\n");
     _r = new Renderer(_w);
-    if (!_r->Init())
+    if (!_r->InitContext())
         return false;
 
-#if 0
-
-    Log("#  Init Window Surface\n");
-
-    _scene = new Scene(_r.context()); // _r.context() ??
+    Log("#  Init Scene\n");
+    _scene = new Scene(_r->context());
 
     IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
     Scene::object_description_t obj_desc = {};
@@ -56,10 +53,11 @@ bool VulkanApplication::init()
     obj_desc.indices     = icosphere.second.data();
 
     _scene->add_object(obj_desc);
-#endif
+
+    _r->AddScene(_scene);
+
     return true;
 }
-
 
 bool VulkanApplication::loop()
 {
@@ -92,11 +90,11 @@ bool VulkanApplication::loop()
         }
 
         // Actual drawing
-//        _r->Draw(dt, _scene);
+        _r->Draw(dt);
     }
 
     Log("#   Wait Queue Idle\n");
-//    vkQueueWaitIdle(_r->GetVulkanQueue());
+    vkQueueWaitIdle(_r->context()->graphics.queue);
 
     return true;
 }
@@ -104,7 +102,9 @@ bool VulkanApplication::loop()
 void VulkanApplication::clean()
 {
     Log("# App::clean()\n");
-//    delete _scene;
+
+    Log("#  Destroy Scene\n");
+    delete _scene;
 
     Log("#  Destroy Context\n");
     delete _r;
@@ -112,6 +112,4 @@ void VulkanApplication::clean()
     Log("#  Destroy Window\n");
     _w->DeleteWindow();
     delete _w;
-
-    
 }

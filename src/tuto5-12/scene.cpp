@@ -16,13 +16,15 @@ Scene::~Scene()
     VkDevice device = _ctx->device;
 
     // TODO: free buffers for each object
-    for (auto o : _objects)
+    for (uint32_t i = 0; i < _nb_objects; ++i)
     {
-        //Log("#   Free Memory\n");
+        auto &o = _objects[i];
+
+        Log("#   Free Memory\n");
         vkFreeMemory(device, o.vertex_buffer_memory, nullptr);
         vkFreeMemory(device, o.index_buffer_memory, nullptr);
 
-        //Log("#   Destroy Buffer\n");
+        Log("#   Destroy Buffer\n");
         vkDestroyBuffer(device, o.vertex_buffer, nullptr);
         vkDestroyBuffer(device, o.index_buffer, nullptr);
     }

@@ -3,6 +3,7 @@
 #include "vk_mem_alloc_usage.h"
 
 #include <vector>
+#include <array>
 
 class Window;
 class Scene;
@@ -43,33 +44,17 @@ struct vulkan_context
 class Renderer
 {
 public:
-    
-    const vulkan_context &context() { return _ctx; };
-    VkCommandBuffer graphics_command_buffer() { return _ctx.graphics.command_buffer; }
-
-    //const VkInstance instance() const { return _ctx.instance; }
-    //const VkPhysicalDevice physical_device() const { return _ctx.physical_device; }
-    //const VkDevice device() const { return _ctx.device; }
-    //const VkQueue graphics_queue() const { return _ctx.graphics_queue; }
-    //const VkQueue compute_queue() const { return _ctx.compute_queue; }
-    //const VkQueue transfer_queue() const { return _ctx.transfer_queue; }
-    //const VkQueue present_queue() const { return _ctx.present_queue; }
-    //const uint32_t graphics_family_index() const { return _ctx.graphics_family_index; }
-    //const uint32_t compute_family_index() const { return _ctx.compute_family_index; }
-    //const uint32_t transfer_family_index() const { return _ctx.transfer_family_index; }
-    //const uint32_t present_family_index() const { return _ctx.present_family_index; }
-    //const VkPhysicalDeviceProperties &physical_device_properties() const { return _ctx.physical_device_properties; }
-    //const VkPhysicalDeviceMemoryProperties &physical_device_memory_properties() const { return _ctx.physical_device_memory_properties; }
-    //VkCommandBuffer &GetVulkanCommandBuffer() { return _command_buffer; }
-
     Renderer(Window *w);
     ~Renderer();
 
-    // inits vulkan context and window-vulkan specifics
-    bool Init();
-    
-    void Draw(float dt, Scene *scene);
-   
+    // Inits vulkan context and window-vulkan specifics
+    bool InitContext();
+    bool InitSceneVulkan();
+    void DeInitSceneVulkan();
+    void AddScene(Scene *scene) { _scenes.push_back(scene); }
+    void Draw(float dt);
+
+    vulkan_context *context() { return &_ctx; };
 
 private:
     bool InitInstance();
@@ -88,8 +73,44 @@ private:
     bool InitVma();
     void DeInitVma();
 
+    //
+    // 
+    //
+
     bool InitCommandBuffer();
     void DeInitCommandBuffer();
+
+    bool InitDepthStencilImage();
+    void DeInitDepthStencilImage();
+
+    bool InitRenderPass();
+    void DeInitRenderPass();
+
+    bool InitSwapChainFrameBuffers();
+    void DeInitSwapChainFrameBuffers();
+
+    bool InitUniformBuffer();
+    void DeInitUniformBuffer();
+
+    bool InitDescriptors();
+    void DeInitDescriptors();
+
+    bool InitFakeImage();
+    void DeInitFakeImage();
+
+    bool InitShaders();
+    void DeInitShaders();
+
+    bool InitGraphicsPipeline();
+    void DeInitGraphicsPipeline();
+
+    //
+    //
+    //
+
+    void set_object_position(float, float, float);
+    void set_camera_position(float, float, float);
+    void update_matrices_ubo();
 
 private:
 
@@ -98,10 +119,53 @@ private:
 
     Window * _w = nullptr; // ref
 
-    
+    VkExtent2D _global_viewport = {512, 512};
+
+    std::vector<Scene*> _scenes;
 
 
+    std::vector<VkFramebuffer> _swapchain_framebuffers;
 
+    VkImage _depth_stencil_image = {};
+    VkDeviceMemory _depth_stencil_image_memory = VK_NULL_HANDLE;
+    VkImageView _depth_stencil_image_view = VK_NULL_HANDLE;
+    VkFormat _depth_stencil_format = VK_FORMAT_UNDEFINED;
+    bool _stencil_available = false;
+
+    VkRenderPass _render_pass = VK_NULL_HANDLE;
+
+    VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
+    VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;
+    VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
+
+    // ==== MATERIAL =======
+    VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
+    VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;
+
+    std::array<VkPipeline, 1> _pipelines = {};
+    VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
+    // =====================
+
+    struct matrices
+    {
+        float m[16];
+        float v[16];
+        float p[16];
+    } _mvp;
+
+    struct uniform_buffer
+    {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+    } _matrices_ubo;
+
+    struct texture
+    {
+        VkImage         texture_image = VK_NULL_HANDLE;
+        VkDeviceMemory  texture_image_memory = {};
+        VkImageView     texture_view = VK_NULL_HANDLE;
+        VkSampler       sampler = VK_NULL_HANDLE;
+    } _checker_texture;
 
 	// "Scene"
     struct camera
