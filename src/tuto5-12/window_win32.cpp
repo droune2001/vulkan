@@ -101,7 +101,7 @@ bool Window::InitOSSurface()
     surface_create_info.hinstance = _win32_instance;
     surface_create_info.hwnd = _win32_window;
     
-    auto result = vkCreateWin32SurfaceKHR(_renderer->GetVulkanInstance(), &surface_create_info, nullptr, &_surface);
+    auto result = vkCreateWin32SurfaceKHR(_ctx->instance, &surface_create_info, nullptr, &_surface);
     ErrorCheck(result);
 
     return (result == VK_SUCCESS);

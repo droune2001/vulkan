@@ -6,14 +6,14 @@
 
 #include <array>
 
-Scene::Scene(Renderer *r) : _r(r)
+Scene::Scene(vulkan_context *c) : _ctx(c)
 {
 
 }
 
 Scene::~Scene()
 {
-    VkDevice device = _r->GetVulkanDevice();
+    VkDevice device = _ctx->device;
 
     // TODO: free buffers for each object
     for (auto o : _objects)
@@ -34,7 +34,7 @@ bool Scene::add_object(object_description_t od)
     _object_t &obj = _objects[_nb_objects++];
     
     VkResult result;
-    VkDevice device = _r->GetVulkanDevice();
+    VkDevice device = _ctx->device;
 
     obj.vertexCount = od.vertexCount;
     obj.indexCount = od.indexCount;
@@ -73,16 +73,16 @@ bool Scene::add_object(object_description_t od)
     memory_allocate_infos[1].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memory_allocate_infos[1].allocationSize = buffer_memory_requirements[1].size;
 
-    for (int m = 0; m < 2; ++m)
+    for (size_t m = 0; m < buffer_memory_requirements.size(); ++m)
     {
         uint32_t memory_type_bits = buffer_memory_requirements[m].memoryTypeBits;
         VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-        for (uint32_t i = 0; i < _r->GetVulkanPhysicalDeviceMemoryProperties().memoryTypeCount; ++i)
+        auto mem_props = _ctx->physical_device_memory_properties;
+        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
         {
-            VkMemoryType memory_type = _r->GetVulkanPhysicalDeviceMemoryProperties().memoryTypes[i];
             if (memory_type_bits & 1)
             {
-                if ((memory_type.propertyFlags & desired_memory_flags) == desired_memory_flags) 
+                if ((mem_props.memoryTypes[i].propertyFlags & desired_memory_flags) == desired_memory_flags)
                 {
                     memory_allocate_infos[m].memoryTypeIndex = i;
                     break;

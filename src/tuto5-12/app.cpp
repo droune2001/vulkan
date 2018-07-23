@@ -1,10 +1,11 @@
-#include "app.h"
-
 #include "build_options.h"
 #include "platform.h"
+
+#include "app.h"
 #include "Shared.h" // Log
-#include "Renderer.h"
 #include "window.h"
+
+#include "Renderer.h"
 #include "utils.h"
 #include "Scene.h"
 
@@ -31,19 +32,23 @@ bool VulkanApplication::init()
 {
     Log("# App::init()\n");
 
-    Log("#  Create/Init Renderer\n");
-    _r = new Renderer();
-    if (!_r->Init())
-        return false;
-
-    // TODO(nfauvet): window class that creates itself with a renderer.
-
     Log("#  Creating Window\n");
-    Window *_w = _r->OpenWindow(800, 600, "test");
-    if (!_w) 
+    _w = new Window();
+    if (!_w->OpenWindow(800, 600, "test"))
+        return false;
+#if 0
+    Log("#  Create Renderer/Init Context\n");
+    _r = new Renderer();
+    if (!_r->InitContext())
         return false;
 
-    _scene = new Scene(_r); // _r.context() ??
+    Log("#  Init Window Surface\n");
+    if (!_w->InitSurface(_r.context())
+        return false;
+
+    Log("#  Init Window Surface\n");
+
+    _scene = new Scene(_r.context()); // _r.context() ??
 
     IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
     Scene::object_description_t obj_desc = {};
@@ -53,7 +58,7 @@ bool VulkanApplication::init()
     obj_desc.indices     = icosphere.second.data();
 
     _scene->add_object(obj_desc);
-
+#endif
     return true;
 }
 
@@ -69,7 +74,7 @@ bool VulkanApplication::loop()
     uint64_t frame_counter = 0;
     uint64_t fps = 0;
 
-    while (_r->Run())
+    while (_w->Update())
     {
         // CPU Logic calculations
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(timer.now() - last_time_for_dt);
@@ -89,11 +94,11 @@ bool VulkanApplication::loop()
         }
 
         // Actual drawing
-        _r->Draw(dt, _scene);
+//        _r->Draw(dt, _scene);
     }
 
     Log("#   Wait Queue Idle\n");
-    vkQueueWaitIdle(_r->GetVulkanQueue());
+//    vkQueueWaitIdle(_r->GetVulkanQueue());
 
     return true;
 }
@@ -101,6 +106,12 @@ bool VulkanApplication::loop()
 void VulkanApplication::clean()
 {
     Log("# App::clean()\n");
-    delete _scene;
-    delete _r;
+//    delete _scene;
+//    delete _r;
+
+    Log("#  Destroy Window\n");
+    _w->DeleteWindow();
+    delete _w;
+
+    
 }

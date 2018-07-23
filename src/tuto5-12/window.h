@@ -4,32 +4,47 @@
 #include <vector>
 #include <array>
 
-#include "vk_mem_alloc_usage.h"
-
-class Renderer;
+struct vulkan_context;
 
 class Window
 {
 public:
-    Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::string & title);
+    Window();
     ~Window();
 
-    bool Init();
-    void Close();
+    // creates an os specific window.
+    bool OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
+    // deletes the os specific window.
+    void DeleteWindow();
+    // init the window specific vulkan parts (swapchain surface/surface views)
+    bool InitVulkanWindowSpecifics(vulkan_context *c);
+    // releases the window specific vulkan parts (swapchain surface/surface views)
+    bool DeInitVulkanWindowSpecifics(vulkan_context *c);
+    // polls window events
     bool Update();
-    
-    // can be put elsewhere. here because the window has access to the images/depth
+    // closes the window and frees vulkan resources
+    void Close();
+    // Acquire Next Swapchain Image
     void BeginRender(VkSemaphore wait_semaphore);
+    // Present Swapchain Image to queue
     void EndRender( std::vector<VkSemaphore> wait_semaphores );
 
-    VkRenderPass render_pass()                      { return _render_pass; }
     VkFramebuffer active_swapchain_framebuffer()    { return _swapchain_framebuffers[_active_swapchain_image_id]; }
     VkImage active_swapchain_image()                { return _swapchain_images[_active_swapchain_image_id]; }
     VkExtent2D surface_size()                       { return {_surface_size_x, _surface_size_y}; }
-    VkImage depth_stencil_image()                   { return _depth_stencil_image; }
-    VkPipeline pipeline(size_t i)                   { return _pipelines[i]; }
-    VkPipelineLayout pipeline_layout()              { return _pipeline_layout; }
-    VkDescriptorSet *descriptor_set_ptr()           { return &_descriptor_set; }
+
+
+
+
+
+
+    VkRenderPass render_pass() { return _render_pass; }
+    VkImage depth_stencil_image() { return _depth_stencil_image; }
+    VkPipeline pipeline(size_t i) { return _pipelines[i]; }
+    VkPipelineLayout pipeline_layout() { return _pipeline_layout; }
+    VkDescriptorSet *descriptor_set_ptr() { return &_descriptor_set; }
+
+
 
     void set_object_position(float, float, float);
     void set_camera_position(float, float, float);
@@ -37,9 +52,7 @@ public:
 
 private:
 
-    bool InitVma();
-    void DeInitVma();
-
+    
     void InitOSWindow();
     void DeInitOSWindow();
     void UpdateOSWindow();
@@ -53,6 +66,10 @@ private:
 
     bool InitSwapChainImages();
     void DeInitSwapChainImages();
+
+
+
+
 
     bool InitDepthStencilImage();
     void DeInitDepthStencilImage();
@@ -85,16 +102,18 @@ private:
 
 public:
 
-    // ==== APPLICATION/MAIN ======
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+    HWND _win32_window = 0;
+    HINSTANCE _win32_instance = 0;
+    std::string _win32_class_name = {};
+    static uint64_t _win32_class_id_counter;
+#endif
+
     bool _window_should_run = true;
-    // ============================
-
-    VmaAllocator _allocator = VK_NULL_HANDLE;
-
-    Renderer * _renderer = nullptr;
-    std::string _window_name;
+    vulkan_context * _ctx = nullptr;
     
     // ==== WSI/WINDOW ============
+    std::string _window_name;
     uint32_t _surface_size_x = 512;
     uint32_t _surface_size_y = 512;
     uint32_t _swapchain_image_count = 2;
@@ -104,11 +123,12 @@ public:
     VkSwapchainKHR _swapchain = VK_NULL_HANDLE;
     std::vector<VkImage> _swapchain_images;
     std::vector<VkImageView> _swapchain_image_views;
-    std::vector<VkFramebuffer> _swapchain_framebuffers;
     uint32_t _active_swapchain_image_id = UINT32_MAX;
     VkFence _swapchain_image_available_fence = VK_NULL_HANDLE;
     // ============================
     
+
+    std::vector<VkFramebuffer> _swapchain_framebuffers;
 
     VkImage _depth_stencil_image = {};
     VkDeviceMemory _depth_stencil_image_memory = VK_NULL_HANDLE;
@@ -154,13 +174,4 @@ public:
         VkImageView     texture_view         = VK_NULL_HANDLE;
         VkSampler       sampler              = VK_NULL_HANDLE;
     } _checker_texture;
-
-public:
-
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-    HWND _win32_window = 0;
-    HINSTANCE _win32_instance = 0;
-    std::string _win32_class_name = {};
-    static uint64_t _win32_class_id_counter;
-#endif
 };

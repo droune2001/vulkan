@@ -40,9 +40,8 @@ private:
     // wsi_t     *_wsi = nullptr;
 
     Renderer * _r = nullptr;
-    Window   *_w = nullptr;
-
-    Scene *_scene = nullptr;
+    Window   * _w = nullptr;
+    Scene    * _scene = nullptr;
 };
 
 #endif //

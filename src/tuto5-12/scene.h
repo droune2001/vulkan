@@ -1,21 +1,18 @@
 #ifndef _VULKAN_SCENE_2018_07_20_H_
 #define _VULKAN_SCENE_2018_07_20_H_
 
-//#include "build_options.h"
-//#include "platform.h"
-
 #include <stdint.h> // uint33_t
 #include <glm/glm.hpp> // glm::vec3
 
 #include <array>
 
 #define MAX_OBJECTS 1024
-class Renderer;
+struct vulkan_context;
 
 class Scene
 {
 public:
-    Scene(Renderer *);
+    Scene(vulkan_context *);
     ~Scene();
 
     struct vertex_t
@@ -42,7 +39,7 @@ public:
 
 private:
 
-    Renderer *_r = nullptr;
+    vulkan_context *_ctx = nullptr;
 
     struct _object_t
     {

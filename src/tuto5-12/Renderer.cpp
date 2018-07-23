@@ -20,11 +20,11 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
-    Log("# Destroy Window\n");
-    delete _window;
+    //Log("# Destroy Command Buffer\n");
+    //DeInitCommandBuffer();
 
-    Log("# Destroy Command Buffer\n");
-    DeInitCommandBuffer();
+    Log("#  Destroy Vma\n");
+    DeInitVma();
 
     Log("# Destroy Device\n");
     DeInitDevice();
@@ -36,19 +36,7 @@ Renderer::~Renderer()
     DeInitInstance();
 }
 
-Window *Renderer::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
-{
-    _window = new Window(this, size_x, size_y, title);
-    Log("#  Init Window.\n");
-    return _window->Init() ? _window : nullptr;
-}
-
-bool Renderer::Run()
-{
-    return _window ? _window->Update() : true;
-}
-
-bool Renderer::Init()
+bool Renderer::InitContext()
 {
     // Manually load the dll, and grab the "vkGetInstanceProcAddr" symbol,
     // vkCreateInstance, and vkEnumerate extensions and layers
@@ -75,7 +63,7 @@ bool Renderer::Init()
 
     // Loads all the symbols for that instance, beginning with vkCreateDevice.
     Log("#  Load instance related function ptrs (volkLoadInstance).\n");
-    volkLoadInstance(_instance);
+    volkLoadInstance(_ctx.instance);
 
     // Install debug callback
     Log("#  Install debug callback\n");
@@ -90,18 +78,28 @@ bool Renderer::Init()
     // Load all the rest of the symbols, specifically for that device, bypassing
     // the loader dispatch,
     Log("#  Load device related function ptrs (volkLoadDevice).\n");
-    volkLoadDevice(_device);
+    volkLoadDevice(_ctx.device);
 
+    Log("#  Init VMA\n");
+    InitVma();
+
+    return true;
+}
+
+bool Renderer::InitWindow()
+{
     // Create device and get rendering queue.
-    Log("#  Init CommandBuffer\n");
-    if (!InitCommandBuffer())
-        return false;
+    //Log("#  Init CommandBuffer\n");
+    //if (!InitCommandBuffer())
+    //    return false;
 
     return true;
 }
 
 bool Renderer::InitInstance()
 {
+    VkResult result;
+
     VkApplicationInfo application_info{};
     application_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     application_info.apiVersion         = VK_API_VERSION_1_0;//VK_MAKE_VERSION( 1, 1, 73 );
@@ -111,28 +109,28 @@ bool Renderer::InitInstance()
     VkInstanceCreateInfo instance_create_info{};
     instance_create_info.sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_create_info.pApplicationInfo           = &application_info;
-    instance_create_info.enabledLayerCount          = (uint32_t)_instance_layers.size();
-    instance_create_info.ppEnabledLayerNames        = _instance_layers.data();
-    instance_create_info.enabledExtensionCount      = (uint32_t)_instance_extensions.size();
-    instance_create_info.ppEnabledExtensionNames    = _instance_extensions.data();
-    instance_create_info.pNext                      = &debug_callback_create_info; // put it here to have debug info for the vkCreateInstance function, even if we have not given a debug callback yet.
-    auto err = vkCreateInstance( 
-        &instance_create_info,
-        nullptr, // no custom allocator
-        &_instance );
+    instance_create_info.enabledLayerCount          = (uint32_t)_ctx.instance_layers.size();
+    instance_create_info.ppEnabledLayerNames        = _ctx.instance_layers.data();
+    instance_create_info.enabledExtensionCount      = (uint32_t)_ctx.instance_extensions.size();
+    instance_create_info.ppEnabledExtensionNames    = _ctx.instance_extensions.data();
+    instance_create_info.pNext                      = &_ctx.debug_callback_create_info; // put it here to have debug info for the vkCreateInstance function, even if we have not given a debug callback yet.
+
+    result = vkCreateInstance(&instance_create_info, nullptr, &_ctx.instance );
 
     // 0 = OK
     // positive error code = partial succes
     // negative = failure
-    ErrorCheck( err );
+    ErrorCheck( result );
+    if (result != VK_SUCCESS)
+        return false;
 
-    return (VK_SUCCESS == err);
+    return true;
 }
 
 void Renderer::DeInitInstance()
 {
-    vkDestroyInstance( _instance, nullptr );
-    _instance = nullptr;
+    vkDestroyInstance( _ctx.instance, nullptr );
+    _ctx.instance = nullptr;
 }
 
 // NOTE(nfauvet): a device in Vulkan is like the context in OpenGL
@@ -145,7 +143,7 @@ bool Renderer::InitDevice()
         Log("#   Enumerate Physcal Device\n");
         // Call once to get the number
         uint32_t gpu_count = 0;
-        result = vkEnumeratePhysicalDevices(_instance, &gpu_count, nullptr);
+        result = vkEnumeratePhysicalDevices(_ctx.instance, &gpu_count, nullptr);
         ErrorCheck(result);
         if (gpu_count == 0)
         {
@@ -153,19 +151,23 @@ bool Renderer::InitDevice()
             return false;
         }
 
+        Log(std::string("#  -> found ") + std::to_string(gpu_count) + std::string(" physical devices.\n"));
+
         // Call a second time to get the actual devices
         std::vector<VkPhysicalDevice> gpu_list( gpu_count );
-        result = vkEnumeratePhysicalDevices(_instance, &gpu_count, gpu_list.data());
+        result = vkEnumeratePhysicalDevices(_ctx.instance, &gpu_count, gpu_list.data());
         ErrorCheck(result); // if it has passed the first time, it wont fail the second.
-        
+        if (result != VK_SUCCESS)
+            return false;
+
         // Take the first
-        _gpu = gpu_list[0];
+        _ctx.physical_device = gpu_list[0]; // pas forcement!
 
         Log("#   Get Physical Device Properties\n");
-        vkGetPhysicalDeviceProperties(_gpu, &_gpu_properties);
+        vkGetPhysicalDeviceProperties(_ctx.physical_device, &_ctx.physical_device_properties);
 
         Log("#   GetPhysocal Device Memory Properties\n");
-        vkGetPhysicalDeviceMemoryProperties(_gpu, &_gpu_memory_properties);
+        vkGetPhysicalDeviceMemoryProperties(_ctx.physical_device, &_ctx.physical_device_memory_properties);
     }
 
     // Get the "Queue Family Properties" of the Device
@@ -173,34 +175,70 @@ bool Renderer::InitDevice()
         Log("#   Get Physical Device Queue Family Properties\n");
 
         uint32_t family_count = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(_gpu, &family_count, nullptr);
+        vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, nullptr);
         if (family_count == 0)
         {
             assert(!"Vulkan ERROR: No Queue family!!");
             return false;
         }
+        Log(std::string("#  -> found ") + std::to_string(family_count) + std::string(" queue families.\n"));
         std::vector<VkQueueFamilyProperties> family_property_list(family_count);
-        vkGetPhysicalDeviceQueueFamilyProperties(_gpu, &family_count, family_property_list.data());
+        vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, family_property_list.data());
 
         // Look for a queue family supporting graphics operations.
-        bool found = false;
+        bool found_graphics = false;
+        bool found_compute = false; 
+        bool found_transfer = false; 
+        bool found_present = false;
         for ( uint32_t i = 0; i < family_count; ++i )
         {
-            // to know if support for presentation on windows desktop,
-            // even not knowing about the surface.
-            //VkBool32 supportsPresentation = VK_FALSE;
-            //vkGetPhysicalDeviceWin32PresentationSupportKHR(_gpu, i);
-
+            // to know if support for presentation on windows desktop, even not knowing about the surface.
+            VkBool32 supportsPresentation = vkGetPhysicalDeviceWin32PresentationSupportKHR(_ctx.physical_device, i);
+            
             if ( family_property_list[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
             {
-                Log("#   FOUND queue.\n");
-                found = true;
-                _graphics_family_index = i;
-                break;
+                if (!found_graphics)
+                {
+                    Log(std::string("#   FOUND Graphics queue: ") + std::to_string(i) + std::string("\n"));
+                    found_graphics = true;
+                    _ctx.graphics.family_index = i;
+                }
+            }
+
+            if (family_property_list[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
+            {
+                if (!found_compute)
+                {
+                    Log(std::string("#   FOUND Compute queue: ") + std::to_string(i) + std::string("\n"));
+                    found_compute = true;
+                    _ctx.compute.family_index = i;
+                }
+            }
+
+            if (family_property_list[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
+            {
+                if (!found_transfer)
+                {
+                    Log(std::string("#   FOUND Transfer queue: ") + std::to_string(i) + std::string("\n"));
+                    found_transfer = true;
+                    _ctx.transfer.family_index = i;
+                }
+            }
+
+            if (supportsPresentation)
+            {
+                if (!found_present)
+                {
+                    Log(std::string("#   FOUND Present queue: ") + std::to_string(i) + std::string("\n"));
+                    found_present = true;
+                    _ctx.present.family_index = i;
+                }
             }
         }
 
-        if ( !found )
+        // TODO: faire un truc intelligent pour fusionner les queue, ou le contraire,
+        // s'assurer qu'elles sont differentes pour faire les choses en parallele.
+        if ( !found_graphics )
         {
             assert( !"Vulkan ERROR: Queue family supporting graphics not found." );
             return false;
@@ -214,20 +252,25 @@ bool Renderer::InitDevice()
         uint32_t layer_count = 0;
         result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
         ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
         result = vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data()); // second call with allocated array
         ErrorCheck(result);
-
-        //Log("Instance layers: \n");
-        //for ( auto &i : layer_property_list )
-        //{
-        //    std::ostringstream oss;
-        //    oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-        //    std::string oss_str = oss.str();
-        //    Log(oss_str.c_str());
-        //}
-        //Log("\n");
+        if (result != VK_SUCCESS)
+            return false;
+#if 0
+        Log("Instance layers: \n");
+        for ( auto &i : layer_property_list )
+        {
+            std::ostringstream oss;
+            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
+            std::string oss_str = oss.str();
+            Log(oss_str.c_str());
+        }
+        Log("\n");
+#endif
     }
 
 
@@ -236,28 +279,35 @@ bool Renderer::InitDevice()
         Log("#   Enumerate Device Layer Properties: (or not)\n");
 
         uint32_t layer_count = 0;
-        result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, nullptr); // first call = query number
+        result = vkEnumerateDeviceLayerProperties(_ctx.physical_device, &layer_count, nullptr); // first call = query number
         ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
 
         std::vector<VkLayerProperties> layer_property_list( layer_count );
-        result = vkEnumerateDeviceLayerProperties(_gpu, &layer_count, layer_property_list.data()); // second call with allocated array
+        result = vkEnumerateDeviceLayerProperties(_ctx.physical_device, &layer_count, layer_property_list.data()); // second call with allocated array
         ErrorCheck(result);
-
-        //Log("Device layers: (deprecated)\n");
-        //for ( auto &i : layer_property_list )
-        //{
-        //    std::ostringstream oss;
-        //    oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-        //    std::string oss_str = oss.str();
-        //    Log(oss_str.c_str());
-        //}
-        //Log("\n");
+        if (result != VK_SUCCESS)
+            return false;
+#if 0
+        Log("Device layers: (deprecated)\n");
+        for ( auto &i : layer_property_list )
+        {
+            std::ostringstream oss;
+            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
+            std::string oss_str = oss.str();
+            Log(oss_str.c_str());
+        }
+        Log("\n");
+#endif
     }
+
+    // TODO: create as many queues as needed for compute, tranfer, present and graphics.
 
     float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
     VkDeviceQueueCreateInfo device_queue_create_info = {};
     device_queue_create_info.sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    device_queue_create_info.queueFamilyIndex   = _graphics_family_index;
+    device_queue_create_info.queueFamilyIndex   = _ctx.graphics.family_index;
     device_queue_create_info.queueCount         = 1;
     device_queue_create_info.pQueuePriorities   = queue_priorities;
 
@@ -266,26 +316,29 @@ bool Renderer::InitDevice()
     device_create_info.sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     device_create_info.queueCreateInfoCount = 1;
     device_create_info.pQueueCreateInfos    = &device_queue_create_info;
-    //device_create_info.enabledLayerCount = _device_layers.size(); // deprecated
-    //device_create_info.ppEnabledLayerNames = _device_layers.data(); // deprecated
-    device_create_info.enabledExtensionCount   = (uint32_t)_device_extensions.size();
-    device_create_info.ppEnabledExtensionNames = _device_extensions.data();
+    //device_create_info.enabledLayerCount = _ctx.device_layers.size(); // deprecated
+    //device_create_info.ppEnabledLayerNames = _ctx.device_layers.data(); // deprecated
+    device_create_info.enabledExtensionCount   = (uint32_t)_ctx.device_extensions.size();
+    device_create_info.ppEnabledExtensionNames = _ctx.device_extensions.data();
 
     Log("#   Create Device\n");
-    result = vkCreateDevice(_gpu, &device_create_info, nullptr, &_device);
+    result = vkCreateDevice(_ctx.physical_device, &device_create_info, nullptr, &_ctx.device);
     ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
     // get first queue in family (index 0)
-    Log("#   Get Device Queue\n");
-    vkGetDeviceQueue(_device, _graphics_family_index, 0, &_queue );
+    // TODO: get N queues for N threads?
+    Log("#   Get Graphics Queue\n");
+    vkGetDeviceQueue(_ctx.device, _ctx.graphics.family_index, 0, &_ctx.graphics.queue );
 
-    return (VK_SUCCESS == result);
+    return true;
 }
 
 void Renderer::DeInitDevice()
 {
-    vkDestroyDevice( _device, nullptr );
-    _device = nullptr;
+    vkDestroyDevice( _ctx.device, nullptr );
+    _ctx.device = nullptr;
 }
 
 #if BUILD_ENABLE_VULKAN_DEBUG
@@ -342,40 +395,40 @@ VulkanDebugCallback(
 
 void Renderer::SetupLayers()
 {
-    //_instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
-    //_instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
-    _instance_layers.push_back("VK_LAYER_LUNARG_core_validation");
-    //_instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
-    //_instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
-    _instance_layers.push_back("VK_LAYER_LUNARG_object_tracker");
-    _instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation");
-    //_instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
-    _instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
-    //_instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
-    _instance_layers.push_back("VK_LAYER_GOOGLE_threading");
-    _instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects");
-    //_instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
-    //_instance_layers.push_back("VK_LAYER_NV_optimus" );
-    //_instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );
-    //_instance_layers.push_back("VK_LAYER_VALVE_steam_overlay" );
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
+    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_core_validation");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
+    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_object_tracker");
+    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
+    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
+    _ctx.instance_layers.push_back("VK_LAYER_GOOGLE_threading");
+    _ctx.instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
+    //_ctx.instance_layers.push_back("VK_LAYER_NV_optimus" );
+    //_ctx.instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );
+    //_ctx.instance_layers.push_back("VK_LAYER_VALVE_steam_overlay" );
 
     // DEPRECATED
-    //_device_layers.push_back("VK_LAYER_NV_optimus"); // | NVIDIA Optimus layer
-    //_device_layers.push_back("VK_LAYER_LUNARG_core_validation"); // | LunarG Validation Layer
-    //_device_layers.push_back("VK_LAYER_LUNARG_object_tracker"); // | LunarG Validation Layer
-    //_device_layers.push_back("VK_LAYER_LUNARG_parameter_validation"); // | LunarG Validation Layer
-    //_device_layers.push_back("VK_LAYER_LUNARG_standard_validation"); // | LunarG Standard Validation
-    //_device_layers.push_back("VK_LAYER_GOOGLE_threading"); // | Google Validation Layer
-    //_device_layers.push_back("VK_LAYER_GOOGLE_unique_objects"); // | Google Validation Layer
+    //_ctx.device_layers.push_back("VK_LAYER_NV_optimus"); // | NVIDIA Optimus layer
+    //_ctx.device_layers.push_back("VK_LAYER_LUNARG_core_validation"); // | LunarG Validation Layer
+    //_ctx.device_layers.push_back("VK_LAYER_LUNARG_object_tracker"); // | LunarG Validation Layer
+    //_ctx.device_layers.push_back("VK_LAYER_LUNARG_parameter_validation"); // | LunarG Validation Layer
+    //_ctx.device_layers.push_back("VK_LAYER_LUNARG_standard_validation"); // | LunarG Standard Validation
+    //_ctx.device_layers.push_back("VK_LAYER_GOOGLE_threading"); // | Google Validation Layer
+    //_ctx.device_layers.push_back("VK_LAYER_GOOGLE_unique_objects"); // | Google Validation Layer
 }
 
 void Renderer::SetupExtensions()
 {
-    _instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-    _instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-    _instance_extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+    _ctx.instance_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    _ctx.instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    _ctx.instance_extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 
-    _device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    _ctx.device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
 void Renderer::SetupDebug()
@@ -383,9 +436,9 @@ void Renderer::SetupDebug()
     // moved as a member of class and created here to be able to pass it to instance_create_info
     // and be able to debug the VkCreateInstance function.
     //VkDebugReportCallbackCreateInfoEXT debug_callback_create_info{};
-    debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-    debug_callback_create_info.pfnCallback = &VulkanDebugCallback;
-    debug_callback_create_info.flags =
+    _ctx.debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+    _ctx.debug_callback_create_info.pfnCallback = &VulkanDebugCallback;
+    _ctx.debug_callback_create_info.flags =
         //VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
         VK_DEBUG_REPORT_WARNING_BIT_EXT |
         VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT |
@@ -396,16 +449,18 @@ void Renderer::SetupDebug()
 
 bool Renderer::InitDebug()
 {
-    auto result = vkCreateDebugReportCallbackEXT(_instance, &debug_callback_create_info, nullptr, &_debug_report);
+    auto result = vkCreateDebugReportCallbackEXT(_ctx.instance, &_ctx.debug_callback_create_info, nullptr, &_ctx.debug_report);
     ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
-    return (result == VK_SUCCESS);
+    return true;
 }
 
 void Renderer::DeInitDebug()
 {
-    vkDestroyDebugReportCallbackEXT( _instance, _debug_report, nullptr );
-    _debug_report = nullptr;
+    vkDestroyDebugReportCallbackEXT( _ctx.instance, _ctx.debug_report, nullptr );
+    _ctx.debug_report = nullptr;
 }
 
 #else
@@ -416,38 +471,65 @@ void Renderer::DeInitDebug() {}
 
 #endif // BUILD_ENABLE_VULKAN_DEBUG
 
+bool Renderer::InitVma()
+{
+    VmaVulkanFunctions vulkan_functions = {};
+    vulkan_functions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
+    vulkan_functions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
+    vulkan_functions.vkAllocateMemory = vkAllocateMemory;
+    vulkan_functions.vkFreeMemory = vkFreeMemory;
+    vulkan_functions.vkMapMemory = vkMapMemory;
+    vulkan_functions.vkUnmapMemory = vkUnmapMemory;
+    vulkan_functions.vkBindBufferMemory = vkBindBufferMemory;
+    vulkan_functions.vkBindImageMemory = vkBindImageMemory;
+    vulkan_functions.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
+    vulkan_functions.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
+    vulkan_functions.vkCreateBuffer = vkCreateBuffer;
+    vulkan_functions.vkDestroyBuffer = vkDestroyBuffer;
+    vulkan_functions.vkCreateImage = vkCreateImage;
+    vulkan_functions.vkDestroyImage = vkDestroyImage;
+    vulkan_functions.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR;
+    vulkan_functions.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR;
 
+    VmaAllocatorCreateInfo allocator_info = {};
+    allocator_info.physicalDevice = _ctx.physical_device;
+    allocator_info.device = _ctx.device;
+    allocator_info.pVulkanFunctions = &vulkan_functions;
 
+    VkResult result = vmaCreateAllocator(&allocator_info, &_allocator);
+    return(result == VK_SUCCESS);
+}
 
-//
-// SCENE
-//
+void Renderer::DeInitVma()
+{
+    vmaDestroyAllocator(_allocator);
+}
 
 bool Renderer::InitCommandBuffer()
 {
     VkResult result;
 
-    Log("#  Create Command Pool\n");
+    Log("#  Create Graphics Command Pool\n");
     VkCommandPoolCreateInfo pool_create_info = {};
     pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    pool_create_info.queueFamilyIndex = _graphics_family_index;
+    pool_create_info.queueFamilyIndex = _ctx.graphics.family_index;
     pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | // commands will be short lived, might be reset of freed often.
         VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // we are going to reset
 
-    result = vkCreateCommandPool(_device, &pool_create_info, nullptr, &_command_pool);
+    result = vkCreateCommandPool(_ctx.device, &pool_create_info, nullptr, &_ctx.graphics.command_pool);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#  Allocate Command Buffer\n");
+    Log("#  Allocate 1 Graphics Command Buffer\n");
 
     VkCommandBufferAllocateInfo command_buffer_allocate_info{};
     command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.commandPool = _command_pool;
+    command_buffer_allocate_info.commandPool = _ctx.graphics.command_pool;
     command_buffer_allocate_info.commandBufferCount = 1;
     command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
 
-    result = vkAllocateCommandBuffers(_device, &command_buffer_allocate_info, &_command_buffer);
+    result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, &_ctx.graphics.command_buffer);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -457,9 +539,37 @@ bool Renderer::InitCommandBuffer()
 
 void Renderer::DeInitCommandBuffer()
 {
-    Log("#  Destroy Command Pool\n");
-    vkDestroyCommandPool(_device, _command_pool, nullptr);
+    Log("#  Destroy Graphics Command Pool\n");
+    vkDestroyCommandPool(_ctx.device, _ctx.graphics.command_pool, nullptr);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
+// SCENE
+//
+
+
 
 void Renderer::Draw(float dt, Scene *scene)
 {
@@ -505,19 +615,21 @@ void Renderer::Draw(float dt, Scene *scene)
 	VkSemaphore present_complete_semaphore = VK_NULL_HANDLE;
 	VkSemaphoreCreateInfo semaphore_create_info = {};
 	semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	result = vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &render_complete_semaphore);
+	result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &render_complete_semaphore);
 	ErrorCheck(result);
-	result = vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &present_complete_semaphore);
+	result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &present_complete_semaphore);
 	ErrorCheck(result);
 
 	// Begin render (acquire image, wait for queue ready)
 	_window->BeginRender(present_complete_semaphore);
 
+    auto &cmd = _ctx.graphics.command_buffer;
+
 	// Record command buffer
 	VkCommandBufferBeginInfo begin_info = {};
 	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	result = vkBeginCommandBuffer(_command_buffer, &begin_info);
+	result = vkBeginCommandBuffer(cmd, &begin_info);
 	ErrorCheck(result);
 	{
         // barrier for reading from uniform buffer after all writing is done:
@@ -526,7 +638,7 @@ void Renderer::Draw(float dt, Scene *scene)
         uniform_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT; // the vkFlushMappedMemoryRanges is a "host" command.
         uniform_memory_barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
 
-        vkCmdPipelineBarrier(_command_buffer,
+        vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_HOST_BIT,
             VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,//VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             0,
@@ -555,27 +667,27 @@ void Renderer::Draw(float dt, Scene *scene)
 		render_pass_begin_info.clearValueCount = (uint32_t)clear_values.size();
 		render_pass_begin_info.pClearValues = clear_values.data();
 
-		vkCmdBeginRenderPass(_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 		{
 			// TODO: put into window, too many get...
 			// w->BindPipeline(command_buffer)
-			vkCmdBindPipeline(_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline(0));
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline(0));
 
-			vkCmdBindDescriptorSets(_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline_layout(), 0, 1, _window->descriptor_set_ptr(), 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _window->pipeline_layout(), 0, 1, _window->descriptor_set_ptr(), 0, nullptr);
 
 			// take care of dynamic state:
 			VkExtent2D surface_size = _window->surface_size();
 
 			VkViewport viewport = { 0, 0, (float)surface_size.width, (float)surface_size.height, 0, 1 };
-			vkCmdSetViewport(_command_buffer, 0, 1, &viewport);
+			vkCmdSetViewport(cmd, 0, 1, &viewport);
 
 			VkRect2D scissor = { 0, 0, surface_size.width, surface_size.height };
-			vkCmdSetScissor(_command_buffer, 0, 1, &scissor);
+			vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-            scene->draw_all_objects(_command_buffer);
+            scene->draw_all_objects(cmd);
             
 		}
-		vkCmdEndRenderPass(_command_buffer);
+		vkCmdEndRenderPass(cmd);
 
 #if 0 // NO NEED to transition at the end, if already specified in the render pass.
 		// Transition color from OPTIMAL to PRESENT
@@ -599,13 +711,13 @@ void Renderer::Draw(float dt, Scene *scene)
 			1, &pre_present_layout_transition_barrier);
 #endif
 	}
-	result = vkEndCommandBuffer(_command_buffer); // compiles the command buffer
+	result = vkEndCommandBuffer(cmd); // compiles the command buffer
 	ErrorCheck(result);
 
 	VkFence render_fence = {};
 	VkFenceCreateInfo fence_create_info = {};
 	fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	vkCreateFence(_device, &fence_create_info, nullptr, &render_fence);
+	vkCreateFence(_ctx.device, &fence_create_info, nullptr, &render_fence);
 
 	// Submit command buffer
 	VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT ??
@@ -615,22 +727,22 @@ void Renderer::Draw(float dt, Scene *scene)
 	submit_info.pWaitSemaphores = &present_complete_semaphore;
 	submit_info.pWaitDstStageMask = wait_stage_mask;
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &_command_buffer;
+	submit_info.pCommandBuffers = &cmd;
 	submit_info.signalSemaphoreCount = 1; // signals this semaphore when the render is complete GPU side.
 	submit_info.pSignalSemaphores = &render_complete_semaphore;
 
-	result = vkQueueSubmit(_queue, 1, &submit_info, render_fence);
+	result = vkQueueSubmit(_ctx.graphics.queue, 1, &submit_info, render_fence);
 	ErrorCheck(result);
 
 	// <------------------------------------------------- Wait on Fence
 
-	vkWaitForFences(_device, 1, &render_fence, VK_TRUE, UINT64_MAX);
-	vkDestroyFence(_device, render_fence, nullptr);
+	vkWaitForFences(_ctx.device, 1, &render_fence, VK_TRUE, UINT64_MAX);
+	vkDestroyFence(_ctx.device, render_fence, nullptr);
 
 	// <------------------------------------------------- Wait on semaphores before presenting
 
 	_window->EndRender({ render_complete_semaphore });
 
-	vkDestroySemaphore(_device, render_complete_semaphore, nullptr);
-	vkDestroySemaphore(_device, present_complete_semaphore, nullptr);
+	vkDestroySemaphore(_ctx.device, render_complete_semaphore, nullptr);
+	vkDestroySemaphore(_ctx.device, present_complete_semaphore, nullptr);
 }

@@ -15,22 +15,26 @@
 #include <sstream>
 #include <array>
 
-Window::Window(Renderer *renderer, uint32_t size_x, uint32_t size_y, const std::string & title)
-:    _renderer(renderer),
-    _surface_size_x(size_x),
-    _surface_size_y(size_y),
-    _window_name(title)
+Window::Window()
 {
 }
 
-bool Window::Init()
+bool Window::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
 {
-    Log("#  Init VMA\n");
-    if (!InitVma())
-        return false;
+    _surface_size_x = size_x;
+    _surface_size_y = size_y;
+    _window_name = title;
 
     Log("#  Init OS Window\n");
     InitOSWindow();
+
+    return true;
+}
+
+bool Window::InitVulkanWindowSpecifics(vulkan_context *ctx)
+{
+    _ctx = ctx;
+
 
     Log("#  Init Backbuffer Surface\n");
     if (!InitSurface())
@@ -91,9 +95,29 @@ bool Window::Init()
     return true;
 }
 
+void Window::DeleteWindow()
+{
+    Log("#  Destroy OS Window\n");
+    DeInitOSWindow();
+}
+
+bool Window::DeInitVulkanWindowSpecifics(vulkan_context *ctx)
+{
+    Log("#  Destroy SwapChain Images\n");
+    DeInitSwapChainImages();
+
+    Log("#  Destroy SwapChain\n");
+    DeInitSwapChain();
+
+    Log("#  Destroy Backbuffer Surface\n");
+    DeInitSurface();
+
+    return true;
+}
+
 Window::~Window()
 {
-    vkQueueWaitIdle(_renderer->GetVulkanQueue());
+    vkQueueWaitIdle(_ctx->graphics.queue);
 
     Log("#  Destroy Graphics Pipeline\n");
     DeInitGraphicsPipeline();
@@ -125,25 +149,12 @@ Window::~Window()
     Log("#  Destroy Depth/Stencil\n");
     DeInitDepthStencilImage();
 
-    Log("#  Destroy SwapChain Images\n");
-    DeInitSwapChainImages();
-
-    Log("#  Destroy SwapChain\n");
-    DeInitSwapChain();
-
-    Log("#  Destroy Backbuffer Surface\n");
-    DeInitSurface();
-
-    Log("#  Destroy OS Window\n");
-    DeInitOSWindow();
-
-    Log("#  Destroy Vma\n");
-    DeInitVma();
+    DeInitVulkanWindowSpecifics(_ctx);
 }
 
 VkDevice Window::device()
 { 
-    return _renderer->GetVulkanDevice(); 
+    return _ctx->device;
 }
 
 void Window::Close()
@@ -191,7 +202,7 @@ void Window::BeginRender(VkSemaphore wait_semaphore)
 
     // <------------------------------------------------- WAIT for queue
 
-    result = vkQueueWaitIdle(_renderer->GetVulkanQueue());
+    result = vkQueueWaitIdle(_ctx->graphics.queue);
     ErrorCheck(result);
 }
 
@@ -212,45 +223,12 @@ void Window::EndRender(std::vector<VkSemaphore> wait_semaphores)
     present_info.pImageIndices      = &_active_swapchain_image_id; // of size swapchainCount, indices into each swapchain
     present_info.pResults           = &present_result; // result for every swapchain
 
-    result = vkQueuePresentKHR(_renderer->GetVulkanQueue(), &present_info);
+    result = vkQueuePresentKHR(_ctx->graphics.queue, &present_info);
     ErrorCheck(result);
     ErrorCheck(present_result);
 }
 
-bool Window::InitVma()
-{
-    VmaVulkanFunctions vulkan_functions = {};
-    vulkan_functions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
-    vulkan_functions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
-    vulkan_functions.vkAllocateMemory = vkAllocateMemory;
-    vulkan_functions.vkFreeMemory = vkFreeMemory;
-    vulkan_functions.vkMapMemory = vkMapMemory;
-    vulkan_functions.vkUnmapMemory = vkUnmapMemory;
-    vulkan_functions.vkBindBufferMemory = vkBindBufferMemory;
-    vulkan_functions.vkBindImageMemory = vkBindImageMemory;
-    vulkan_functions.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
-    vulkan_functions.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
-    vulkan_functions.vkCreateBuffer = vkCreateBuffer;
-    vulkan_functions.vkDestroyBuffer = vkDestroyBuffer;
-    vulkan_functions.vkCreateImage = vkCreateImage;
-    vulkan_functions.vkDestroyImage = vkDestroyImage;
-    vulkan_functions.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR;
-    vulkan_functions.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR;
 
-    VmaAllocatorCreateInfo allocator_info = {};
-    allocator_info.physicalDevice = _renderer->GetVulkanPhysicalDevice();
-    allocator_info.device = _renderer->GetVulkanDevice();
-    allocator_info.pVulkanFunctions = &vulkan_functions;
-
-    VkResult result = vmaCreateAllocator(&allocator_info, &_allocator);
-    return( result == VK_SUCCESS );
-    return true;
-}
-
-void Window::DeInitVma()
-{
-    vmaDestroyAllocator(_allocator);
-}
 
 bool Window::InitSurface()
 {
@@ -260,11 +238,11 @@ bool Window::InitSurface()
     if (!InitOSSurface()) 
         return false;
 
-    auto gpu = _renderer->GetVulkanPhysicalDevice();
+    auto gpu = _ctx->physical_device;
 
     Log("#   Test Device supports surface?\n");
     VkBool32 supportsPresent;
-    result = vkGetPhysicalDeviceSurfaceSupportKHR(gpu, _renderer->GetVulkanGraphicsQueueFamilyIndex(), _surface, &supportsPresent);
+    result = vkGetPhysicalDeviceSurfaceSupportKHR(gpu, _ctx->graphics.family_index, _surface, &supportsPresent);
     ErrorCheck(result);
     if ((result != VK_SUCCESS) || !supportsPresent)
     {
@@ -325,7 +303,7 @@ bool Window::InitSurface()
 
 void Window::DeInitSurface()
 {
-    vkDestroySurfaceKHR(_renderer->GetVulkanInstance(), _surface, nullptr);
+    vkDestroySurfaceKHR(_ctx->instance, _surface, nullptr);
 }
 
 bool Window::InitSwapChain()
@@ -343,13 +321,13 @@ bool Window::InitSwapChain()
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR; // VK_PRESENT_MODE_FIFO_KHR always available
     {
         uint32_t present_mode_count = 0;
-        result = vkGetPhysicalDeviceSurfacePresentModesKHR(_renderer->GetVulkanPhysicalDevice(), _surface, &present_mode_count, nullptr);
+        result = vkGetPhysicalDeviceSurfacePresentModesKHR(_ctx->physical_device, _surface, &present_mode_count, nullptr);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
 
         std::vector<VkPresentModeKHR> present_modes(present_mode_count);
-        result = vkGetPhysicalDeviceSurfacePresentModesKHR(_renderer->GetVulkanPhysicalDevice(), _surface, &present_mode_count, present_modes.data());
+        result = vkGetPhysicalDeviceSurfacePresentModesKHR(_ctx->physical_device, _surface, &present_mode_count, present_modes.data());
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
@@ -476,7 +454,7 @@ bool Window::InitDepthStencilImage()
             // VkFormatProperties2 ??? 
             VkFormatProperties format_properties = {};
             // vkGetPhysicalDeviceFormatProperties2 ???
-            vkGetPhysicalDeviceFormatProperties(_renderer->GetVulkanPhysicalDevice(), f, &format_properties);
+            vkGetPhysicalDeviceFormatProperties(_ctx->physical_device, f, &format_properties);
             if (format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
             {
                 _depth_stencil_format = f;
@@ -527,7 +505,7 @@ bool Window::InitDepthStencilImage()
     vkGetImageMemoryRequirements(device(), _depth_stencil_image, &memory_requirements);
 
     Log("#   Find Memory Type Index\n");
-    auto gpu_memory_properties = _renderer->GetVulkanPhysicalDeviceMemoryProperties();
+    auto gpu_memory_properties = _ctx->physical_device_memory_properties;
     uint32_t memory_index = FindMemoryTypeIndex(&gpu_memory_properties, &memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     if (memory_index == UINT32_MAX)
     {
@@ -776,9 +754,10 @@ bool Window::InitUniformBuffer()
 
     uint32_t uniform_memory_type_bits = uniform_buffer_memory_requirements.memoryTypeBits;
     VkMemoryPropertyFlags uniform_desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    for (uint32_t i = 0; i < _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypeCount; ++i)
+    auto mem_props = _ctx->physical_device_memory_properties;
+    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
     {
-        VkMemoryType memory_type = _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypes[i];
+        VkMemoryType memory_type = mem_props.memoryTypes[i];
         if (uniform_memory_type_bits & 1)
         {
             if ((memory_type.propertyFlags & uniform_desired_memory_flags) == uniform_desired_memory_flags) {
@@ -1004,9 +983,11 @@ bool Window::InitFakeImage()
     uint32_t texture_memory_type_bits = texture_memory_requirements.memoryTypeBits;
     VkMemoryPropertyFlags tDesiredMemoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     for (uint32_t i = 0; i < 32; ++i) {
-        VkMemoryType memory_type = _renderer->GetVulkanPhysicalDeviceMemoryProperties().memoryTypes[i];
-        if (texture_memory_type_bits & 1) {
-            if ((memory_type.propertyFlags & tDesiredMemoryFlags) == tDesiredMemoryFlags) {
+        VkMemoryType memory_type = _ctx->physical_device_memory_properties.memoryTypes[i];
+        if (texture_memory_type_bits & 1) 
+        {
+            if ((memory_type.propertyFlags & tDesiredMemoryFlags) == tDesiredMemoryFlags) 
+            {
                 texture_image_allocate_info.memoryTypeIndex = i;
                 break;
             }
@@ -1055,7 +1036,9 @@ bool Window::InitFakeImage()
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(_renderer->GetVulkanCommandBuffer(), &begin_info);
+    auto &cmd = _ctx->graphics.command_buffer;
+
+    vkBeginCommandBuffer(cmd, &begin_info);
 
     VkImageMemoryBarrier layout_transition_barrier = {};
     layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1068,7 +1051,7 @@ bool Window::InitFakeImage()
     layout_transition_barrier.image = _checker_texture.texture_image;
     layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
-    vkCmdPipelineBarrier(_renderer->GetVulkanCommandBuffer(),
+    vkCmdPipelineBarrier(cmd,
         VK_PIPELINE_STAGE_HOST_BIT, //VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,//VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         0,
@@ -1076,7 +1059,7 @@ bool Window::InitFakeImage()
         0, nullptr,
         1, &layout_transition_barrier);
 
-    vkEndCommandBuffer(_renderer->GetVulkanCommandBuffer());
+    vkEndCommandBuffer(cmd);
 
     VkPipelineStageFlags waitStageMask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkSubmitInfo submit_info = {};
@@ -1085,14 +1068,14 @@ bool Window::InitFakeImage()
     submit_info.pWaitSemaphores = nullptr;
     submit_info.pWaitDstStageMask = waitStageMask;
     submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &_renderer->GetVulkanCommandBuffer();
+    submit_info.pCommandBuffers = &cmd;
     submit_info.signalSemaphoreCount = 0;
     submit_info.pSignalSemaphores = nullptr;
-    result = vkQueueSubmit(_renderer->GetVulkanQueue(), 1, &submit_info, submit_fence);
+    result = vkQueueSubmit(_ctx->graphics.queue, 1, &submit_info, submit_fence);
 
     vkWaitForFences(device(), 1, &submit_fence, VK_TRUE, UINT64_MAX);
     vkResetFences(device(), 1, &submit_fence);
-    vkResetCommandBuffer(_renderer->GetVulkanCommandBuffer(), 0);
+    vkResetCommandBuffer(cmd, 0);
 
     vkDestroyFence(device(), submit_fence, nullptr);
 

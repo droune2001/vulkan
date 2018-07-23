@@ -10,7 +10,7 @@ namespace vk
         return create_buffer(ctx, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, dst);
     }
 
-    bool create_resident_host_vertex_buffer(context *ctx, uint64_t size, buffer_t *dst)
+    bool create_resident_vertex_buffer(context *ctx, uint64_t size, buffer_t *dst)
     {
         return create_buffer(ctx, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, dst);
     }

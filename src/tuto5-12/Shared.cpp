@@ -88,6 +88,11 @@ void Log(const char *text)
     ::OutputDebugStringA(text);
 }
 
+void Log(const std::string &str)
+{
+    const char *cstr = str.c_str();
+    Log(cstr);
+}
 
 uint32_t FindMemoryTypeIndex(
     const VkPhysicalDeviceMemoryProperties *gpu_memory_properties,

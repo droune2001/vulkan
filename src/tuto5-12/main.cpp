@@ -1,7 +1,7 @@
-#include "app.h"
-
 #include "build_options.h"
 #include "platform.h"
+
+#include "app.h"
 #include "Shared.h" // Log
 
 #include <cstdio> // getchar

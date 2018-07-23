@@ -1,33 +1,75 @@
 #pragma once
 
+#include "vk_mem_alloc_usage.h"
+
 #include <vector>
 
 class Window;
 class Scene;
 
+struct vulkan_queue
+{
+    VkQueue         queue = VK_NULL_HANDLE;
+    uint32_t        family_index = 0;
+    VkCommandPool   command_pool = VK_NULL_HANDLE;
+    VkCommandBuffer command_buffer = VK_NULL_HANDLE; // maybe many
+};
+
+struct vulkan_context
+{
+    VkInstance       instance = VK_NULL_HANDLE; // ou nullptr, selon la version de vulkan
+    VkPhysicalDevice physical_device = VK_NULL_HANDLE;
+    VkDevice         device = VK_NULL_HANDLE;
+    
+    VkPhysicalDeviceProperties       physical_device_properties = {};
+    VkPhysicalDeviceMemoryProperties physical_device_memory_properties = {};
+
+    vulkan_queue graphics = {};
+    vulkan_queue compute  = {};
+    vulkan_queue transfer = {};
+    vulkan_queue present  = {};
+
+    std::vector< const char * > instance_layers;
+    std::vector< const char * > instance_extensions;
+    std::vector< const char * > device_layers; // deprecated
+    std::vector< const char * > device_extensions;
+
+    VkDebugReportCallbackEXT    debug_report = VK_NULL_HANDLE;
+
+    // keep it in here to be able to give it to VkCreateInstance
+    VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
+};
+
 class Renderer
 {
 public:
+    
+    const vulkan_context &context() { return _ctx; };
+    VkCommandBuffer graphics_command_buffer() { return _ctx.graphics.command_buffer; }
+
+    //const VkInstance instance() const { return _ctx.instance; }
+    //const VkPhysicalDevice physical_device() const { return _ctx.physical_device; }
+    //const VkDevice device() const { return _ctx.device; }
+    //const VkQueue graphics_queue() const { return _ctx.graphics_queue; }
+    //const VkQueue compute_queue() const { return _ctx.compute_queue; }
+    //const VkQueue transfer_queue() const { return _ctx.transfer_queue; }
+    //const VkQueue present_queue() const { return _ctx.present_queue; }
+    //const uint32_t graphics_family_index() const { return _ctx.graphics_family_index; }
+    //const uint32_t compute_family_index() const { return _ctx.compute_family_index; }
+    //const uint32_t transfer_family_index() const { return _ctx.transfer_family_index; }
+    //const uint32_t present_family_index() const { return _ctx.present_family_index; }
+    //const VkPhysicalDeviceProperties &physical_device_properties() const { return _ctx.physical_device_properties; }
+    //const VkPhysicalDeviceMemoryProperties &physical_device_memory_properties() const { return _ctx.physical_device_memory_properties; }
+    //VkCommandBuffer &GetVulkanCommandBuffer() { return _command_buffer; }
+
     Renderer();
     ~Renderer();
 
-    bool Init();
-
-    Window *OpenWindow(uint32_t size_x, uint32_t size_y, const std::string &title);
-
-    bool Run();
+    bool InitContext();
+    bool InitWindow();
 
     void Draw(float dt, Scene *scene);
-
-    const VkInstance GetVulkanInstance() const { return _instance; }
-    const VkPhysicalDevice GetVulkanPhysicalDevice() const { return _gpu; }
-    const VkDevice GetVulkanDevice() const { return _device; }
-    const VkQueue GetVulkanQueue() const { return _queue; }
-    const uint32_t GetVulkanGraphicsQueueFamilyIndex() const { return _graphics_family_index; }
-    const VkPhysicalDeviceProperties &GetVulkanPhysicalDeviceProperties() const { return _gpu_properties; }
-    const VkPhysicalDeviceMemoryProperties &GetVulkanPhysicalDeviceMemoryProperties() const { return _gpu_memory_properties; }
-
-    VkCommandBuffer &GetVulkanCommandBuffer() { return _command_buffer; }
+   
 
 private:
     bool InitInstance();
@@ -41,39 +83,27 @@ private:
     void DeInitDebug();
 
     void SetupLayers();
-
     void SetupExtensions();
+
+    bool InitVma();
+    void DeInitVma();
 
     bool InitCommandBuffer();
     void DeInitCommandBuffer();
 
 private:
 
-    Window * _window = nullptr;
+    vulkan_context _ctx;
+    VmaAllocator   _allocator = VK_NULL_HANDLE;
 
-    VkInstance       _instance = VK_NULL_HANDLE; // ou nullptr, selon la version de vulkan
-    VkPhysicalDevice _gpu = VK_NULL_HANDLE;
-    VkDevice         _device = VK_NULL_HANDLE;
-    VkQueue          _queue = VK_NULL_HANDLE;
-    VkPhysicalDeviceProperties _gpu_properties = {};
-    VkPhysicalDeviceMemoryProperties _gpu_memory_properties = {};
+    Window * _window = nullptr; // ref
 
-    uint32_t _graphics_family_index = 0;
+    
 
-    std::vector< const char * > _instance_layers;
-    std::vector< const char * > _instance_extensions;
-    std::vector< const char * > _device_layers; // deprecated
-    std::vector< const char * > _device_extensions; // deprecated
 
-    VkDebugReportCallbackEXT    _debug_report = VK_NULL_HANDLE;
 
-    // keep it in here to be able to give it to VkCreateInstance
-    VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
 
 	// "Scene"
-	VkCommandPool _command_pool = VK_NULL_HANDLE;
-	VkCommandBuffer _command_buffer = VK_NULL_HANDLE;
-
     struct camera
     {
         float cameraZ = 10.0f;

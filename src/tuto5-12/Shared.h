@@ -17,6 +17,7 @@ void _ErrorCheck( VkResult result );
 #endif
 
 void Log(const char *text);
+void Log(const std::string &str);
 
 uint32_t FindMemoryTypeIndex(
     const VkPhysicalDeviceMemoryProperties *gpu_memory_properties, 
