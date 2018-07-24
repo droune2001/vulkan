@@ -241,199 +241,38 @@ bool Renderer::InitDevice()
 {
     VkResult result = VK_SUCCESS;
 
-    // Get all physical devices and choose one (the first here)
-    {
-        Log("#    Enumerate Physical Device\n");
-        // Call once to get the number
-        uint32_t gpu_count = 0;
-        result = vkEnumeratePhysicalDevices(_ctx.instance, &gpu_count, nullptr);
-        ErrorCheck(result);
-        if (gpu_count == 0)
-        {
-            assert(!"Vulkan ERROR: No GPU found.");
-            return false;
-        }
-
-        Log(std::string("#    -> found ") + std::to_string(gpu_count) + std::string(" physical devices.\n"));
-
-        // Call a second time to get the actual devices
-        std::vector<VkPhysicalDevice> gpu_list( gpu_count );
-        result = vkEnumeratePhysicalDevices(_ctx.instance, &gpu_count, gpu_list.data());
-        ErrorCheck(result); // if it has passed the first time, it wont fail the second.
-        if (result != VK_SUCCESS)
-            return false;
-
-        // Take the first
-        _ctx.physical_device = gpu_list[0]; // pas forcement!
-
-        Log("#    Get Physical Device Properties\n");
-        vkGetPhysicalDeviceProperties(_ctx.physical_device, &_ctx.physical_device_properties);
-
-        Log("#    Get Physical Device Memory Properties\n");
-        vkGetPhysicalDeviceMemoryProperties(_ctx.physical_device, &_ctx.physical_device_memory_properties);
-    }
+    // Get all physical devices and choose one
+    Log("#    Choose Physical Device\n");
+    if (!ChoosePhysicalDevice())
+        return false;
+    
 
     // Get the "Queue Family Properties" of the Device
-    {
-        Log("#    Get Physical Device Queue Family Properties\n");
-
-        uint32_t family_count = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, nullptr);
-        if (family_count == 0)
-        {
-            assert(!"Vulkan ERROR: No Queue family!!");
-            return false;
-        }
-        Log(std::string("#     -> found ") + std::to_string(family_count) + std::string(" queue families.\n"));
-        std::vector<VkQueueFamilyProperties> family_property_list(family_count);
-        vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, family_property_list.data());
-
-        // Look for a queue family supporting graphics operations.
-        bool found_graphics = false;
-        bool found_compute = false; 
-        bool found_transfer = false; 
-        bool found_present = false;
-        for ( uint32_t i = 0; i < family_count; ++i )
-        {
-            // to know if support for presentation on windows desktop, even not knowing about the surface.
-            VkBool32 supportsPresentation = vkGetPhysicalDeviceWin32PresentationSupportKHR(_ctx.physical_device, i);
-            
-            if ( family_property_list[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
-            {
-                if (!found_graphics)
-                {
-                    Log(std::string("#     FOUND Graphics queue: ") + std::to_string(i) + std::string("\n"));
-                    found_graphics = true;
-                    _ctx.graphics.family_index = i;
-                }
-            }
-
-            if (family_property_list[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
-            {
-                if (!found_compute)
-                {
-                    Log(std::string("#     FOUND Compute queue: ") + std::to_string(i) + std::string("\n"));
-                    found_compute = true;
-                    _ctx.compute.family_index = i;
-                }
-            }
-
-            if (family_property_list[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
-            {
-                if (!found_transfer)
-                {
-                    Log(std::string("#     FOUND Transfer queue: ") + std::to_string(i) + std::string("\n"));
-                    found_transfer = true;
-                    _ctx.transfer.family_index = i;
-                }
-            }
-
-            if (supportsPresentation)
-            {
-                if (!found_present)
-                {
-                    Log(std::string("#     FOUND Present queue: ") + std::to_string(i) + std::string("\n"));
-                    found_present = true;
-                    _ctx.present.family_index = i;
-                }
-            }
-        }
-
-        // TODO: faire un truc intelligent pour fusionner les queue, ou le contraire,
-        // s'assurer qu'elles sont differentes pour faire les choses en parallele.
-        if ( !found_graphics )
-        {
-            assert( !"Vulkan ERROR: Queue family supporting graphics not found." );
-            return false;
-        }
-    }
-
-    // Instance Layer Properties
-    {
-        Log("#    Enumerate Instance Layer Properties: (or not)\n");
-
-        uint32_t layer_count = 0;
-        result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
-        ErrorCheck(result);
-        if (result != VK_SUCCESS)
-            return false;
-
-        std::vector<VkLayerProperties> layer_property_list( layer_count );
-        result = vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data()); // second call with allocated array
-        ErrorCheck(result);
-        if (result != VK_SUCCESS)
-            return false;
-#if 0
-        Log("Instance layers: \n");
-        for ( auto &i : layer_property_list )
-        {
-            std::ostringstream oss;
-            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-            std::string oss_str = oss.str();
-            Log(oss_str.c_str());
-        }
-        Log("\n");
-#endif
-    }
-
-
-    // Device Layer Properties (deprecated)
-    {
-        Log("#    Enumerate Device Layer Properties: (or not)\n");
-
-        uint32_t layer_count = 0;
-        result = vkEnumerateDeviceLayerProperties(_ctx.physical_device, &layer_count, nullptr); // first call = query number
-        ErrorCheck(result);
-        if (result != VK_SUCCESS)
-            return false;
-
-        std::vector<VkLayerProperties> layer_property_list( layer_count );
-        result = vkEnumerateDeviceLayerProperties(_ctx.physical_device, &layer_count, layer_property_list.data()); // second call with allocated array
-        ErrorCheck(result);
-        if (result != VK_SUCCESS)
-            return false;
-#if 0
-        Log("Device layers: (deprecated)\n");
-        for ( auto &i : layer_property_list )
-        {
-            std::ostringstream oss;
-            oss << "#    " << i.layerName << "\t\t | " << i.description << std::endl;
-            std::string oss_str = oss.str();
-            Log(oss_str.c_str());
-        }
-        Log("\n");
-#endif
-    }
-
-    // TODO: create as many queues as needed for compute, tranfer, present and graphics.
-
-    float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
-    VkDeviceQueueCreateInfo device_queue_create_info = {};
-    device_queue_create_info.sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    device_queue_create_info.queueFamilyIndex   = _ctx.graphics.family_index;
-    device_queue_create_info.queueCount         = 1;
-    device_queue_create_info.pQueuePriorities   = queue_priorities;
-
-    // Create a logical "device" associated with the physical "device"
-    VkDeviceCreateInfo device_create_info = {};
-    device_create_info.sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_create_info.queueCreateInfoCount = 1;
-    device_create_info.pQueueCreateInfos    = &device_queue_create_info;
-    //device_create_info.enabledLayerCount = _ctx.device_layers.size(); // deprecated
-    //device_create_info.ppEnabledLayerNames = _ctx.device_layers.data(); // deprecated
-    device_create_info.enabledExtensionCount   = (uint32_t)_ctx.device_extensions.size();
-    device_create_info.ppEnabledExtensionNames = _ctx.device_extensions.data();
-
-    Log("#    Create Device\n");
-    result = vkCreateDevice(_ctx.physical_device, &device_create_info, nullptr, &_ctx.device);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
+    Log("#    Get Physical Device Queue Family Properties\n");
+    if (!SelectQueueFamilyIndices())
         return false;
+    
+    if (_ctx.graphics.family_index == UINT32_MAX)
+    {
+        assert(!"Vulkan ERROR: Queue family supporting graphics not found.");
+        return false;
+    }
 
-    // get first queue in family (index 0)
-    // TODO: get N queues for N threads?
-    Log("#    Get Graphics Queue\n");
-    vkGetDeviceQueue(_ctx.device, _ctx.graphics.family_index, 0, &_ctx.graphics.queue );
+#if EXTRA_VERBOSE == 1
+    // Instance/Device Layer Properties
+    Log("#    Enumerate Instance Layer Properties:\n");
+    EnumerateInstanceLayers();
+
+    Log("#    Enumerate Device Layer Properties:\n");
+    EnumerateDeviceLayers();
+
+    Log("#    Enumerate Device Extensions Properties:\n");
+    EnumerateDeviceExtensions();
+#endif
+
+    Log("#    Create Logical Device\n");
+    if (!CreateLogicalDevice())
+        return false;
 
     return true;
 }
@@ -442,6 +281,333 @@ void Renderer::DeInitDevice()
 {
     vkDestroyDevice( _ctx.device, nullptr );
     _ctx.device = nullptr;
+}
+
+bool Renderer::ChoosePhysicalDevice()
+{
+    VkResult result;
+
+    Log("#     Enumerate Physical Device\n");
+    // Call once to get the number
+    uint32_t gpu_count = 0;
+    result = vkEnumeratePhysicalDevices(_ctx.instance, &gpu_count, nullptr);
+    ErrorCheck(result);
+    if (gpu_count == 0)
+    {
+        assert(!"Vulkan ERROR: No GPU found.");
+        return false;
+    }
+
+    Log(std::string("#     -> found ") + std::to_string(gpu_count) + std::string(" physical devices.\n"));
+
+    // Call a second time to get the actual devices
+    std::vector<VkPhysicalDevice> gpu_list(gpu_count);
+    result = vkEnumeratePhysicalDevices(_ctx.instance, &gpu_count, gpu_list.data());
+    ErrorCheck(result); // if it has passed the first time, it wont fail the second.
+    if (result != VK_SUCCESS)
+        return false;
+
+    for (const auto &dev : gpu_list)
+    {
+        if (IsDeviceSuitable(dev))
+        {
+            Log("#     Found a suitable device.\n");
+            _ctx.physical_device = dev;
+
+            Log("#      Get Physical Device Properties\n");
+            vkGetPhysicalDeviceProperties(_ctx.physical_device, &_ctx.physical_device_properties);
+
+            Log("#      Get Physical Device Memory Properties\n");
+            vkGetPhysicalDeviceMemoryProperties(_ctx.physical_device, &_ctx.physical_device_memory_properties);
+            break;
+        }
+    }
+    if (_ctx.physical_device == VK_NULL_HANDLE)
+    {
+        assert(!"Could not find a suitable physical device.");
+        return false;
+    }
+
+    return true;
+}
+
+bool Renderer::IsDeviceSuitable(VkPhysicalDevice dev)
+{
+    VkPhysicalDeviceProperties physical_device_properties = {};
+    vkGetPhysicalDeviceProperties(dev, &physical_device_properties);
+
+    VkPhysicalDeviceFeatures physical_device_features = {};
+    vkGetPhysicalDeviceFeatures(dev, &physical_device_features);
+
+#if EXTRA_VERBOSE == 1
+
+    Log("Properties: \n");
+
+    Log(std::string("   apiVersion ") + std::to_string(physical_device_properties.apiVersion) + "\n");
+    Log(std::string("   driverVersion ") + std::to_string(physical_device_properties.driverVersion) + "\n");
+    Log(std::string("   vendorID ") + std::to_string(physical_device_properties.vendorID) + "\n");
+    Log(std::string("   deviceID ") + std::to_string(physical_device_properties.deviceID) + "\n");
+    Log(std::string("   deviceType ") + std::to_string(physical_device_properties.deviceType) + "\n");
+    Log(std::string("   deviceName ") + std::string(&physical_device_properties.deviceName[0]) + "\n");
+    //uint8_t                             physical_device_properties.pipelineCacheUUID;
+    //VkPhysicalDeviceLimits              physical_device_properties.limits;
+    //VkPhysicalDeviceSparseProperties    physical_device_properties.sparseProperties;
+
+    Log("Features: \n");
+
+    Log(std::string("   robustBufferAccess ") + std::to_string(physical_device_features.robustBufferAccess) + "\n");
+    Log(std::string("   fullDrawIndexUint32 ") + std::to_string(physical_device_features.fullDrawIndexUint32) + "\n");
+    Log(std::string("   imageCubeArray ") + std::to_string(physical_device_features.imageCubeArray) + "\n");
+    Log(std::string("   independentBlend ") + std::to_string(physical_device_features.independentBlend) + "\n");
+    Log(std::string("   geometryShader ") + std::to_string(physical_device_features.geometryShader) + "\n");
+    Log(std::string("   tessellationShader ") + std::to_string(physical_device_features.tessellationShader) + "\n");
+    Log(std::string("   sampleRateShading ") + std::to_string(physical_device_features.sampleRateShading) + "\n");
+    Log(std::string("   dualSrcBlend ") + std::to_string(physical_device_features.dualSrcBlend) + "\n");
+    Log(std::string("   logicOp ") + std::to_string(physical_device_features.logicOp) + "\n");
+    Log(std::string("   multiDrawIndirect ") + std::to_string(physical_device_features.multiDrawIndirect) + "\n");
+    Log(std::string("   drawIndirectFirstInstance ") + std::to_string(physical_device_features.drawIndirectFirstInstance) + "\n");
+    Log(std::string("   depthClamp ") + std::to_string(physical_device_features.depthClamp) + "\n");
+    Log(std::string("   depthBiasClamp ") + std::to_string(physical_device_features.depthBiasClamp) + "\n");
+    Log(std::string("   fillModeNonSolid ") + std::to_string(physical_device_features.fillModeNonSolid) + "\n");
+    Log(std::string("   depthBounds ") + std::to_string(physical_device_features.depthBounds) + "\n");
+    Log(std::string("   wideLines ") + std::to_string(physical_device_features.wideLines) + "\n");
+    Log(std::string("   largePoints ") + std::to_string(physical_device_features.largePoints) + "\n");
+    Log(std::string("   alphaToOne ") + std::to_string(physical_device_features.alphaToOne) + "\n");
+    Log(std::string("   multiViewport ") + std::to_string(physical_device_features.multiViewport) + "\n");
+    Log(std::string("   samplerAnisotropy ") + std::to_string(physical_device_features.samplerAnisotropy) + "\n");
+    Log(std::string("   textureCompressionETC2 ") + std::to_string(physical_device_features.textureCompressionETC2) + "\n");
+    Log(std::string("   textureCompressionASTC_LDR ") + std::to_string(physical_device_features.textureCompressionASTC_LDR) + "\n");
+    Log(std::string("   textureCompressionBC ") + std::to_string(physical_device_features.textureCompressionBC) + "\n");
+    Log(std::string("   occlusionQueryPrecise ") + std::to_string(physical_device_features.occlusionQueryPrecise) + "\n");
+    Log(std::string("   pipelineStatisticsQuery ") + std::to_string(physical_device_features.pipelineStatisticsQuery) + "\n");
+    Log(std::string("   vertexPipelineStoresAndAtomics ") + std::to_string(physical_device_features.vertexPipelineStoresAndAtomics) + "\n");
+    Log(std::string("   fragmentStoresAndAtomics ") + std::to_string(physical_device_features.fragmentStoresAndAtomics) + "\n");
+    Log(std::string("   shaderTessellationAndGeometryPointSize ") + std::to_string(physical_device_features.shaderTessellationAndGeometryPointSize) + "\n");
+    Log(std::string("   shaderImageGatherExtended ") + std::to_string(physical_device_features.shaderImageGatherExtended) + "\n");
+    Log(std::string("   shaderStorageImageExtendedFormats ") + std::to_string(physical_device_features.shaderStorageImageExtendedFormats) + "\n");
+    Log(std::string("   shaderStorageImageMultisample ") + std::to_string(physical_device_features.shaderStorageImageMultisample) + "\n");
+    Log(std::string("   shaderStorageImageReadWithoutFormat ") + std::to_string(physical_device_features.shaderStorageImageReadWithoutFormat) + "\n");
+    Log(std::string("   shaderStorageImageWriteWithoutFormat ") + std::to_string(physical_device_features.shaderStorageImageWriteWithoutFormat) + "\n");
+    Log(std::string("   shaderUniformBufferArrayDynamicIndexing ") + std::to_string(physical_device_features.shaderUniformBufferArrayDynamicIndexing) + "\n");
+    Log(std::string("   shaderSampledImageArrayDynamicIndexing ") + std::to_string(physical_device_features.shaderSampledImageArrayDynamicIndexing) + "\n");
+    Log(std::string("   shaderStorageBufferArrayDynamicIndexing ") + std::to_string(physical_device_features.shaderStorageBufferArrayDynamicIndexing) + "\n");
+    Log(std::string("   shaderStorageImageArrayDynamicIndexing ") + std::to_string(physical_device_features.shaderStorageImageArrayDynamicIndexing) + "\n");
+    Log(std::string("   shaderClipDistance ") + std::to_string(physical_device_features.shaderClipDistance) + "\n");
+    Log(std::string("   shaderCullDistance ") + std::to_string(physical_device_features.shaderCullDistance) + "\n");
+    Log(std::string("   shaderFloat64 ") + std::to_string(physical_device_features.shaderFloat64) + "\n");
+    Log(std::string("   shaderInt64 ") + std::to_string(physical_device_features.shaderInt64) + "\n");
+    Log(std::string("   shaderInt16 ") + std::to_string(physical_device_features.shaderInt16) + "\n");
+    Log(std::string("   shaderResourceResidency ") + std::to_string(physical_device_features.shaderResourceResidency) + "\n");
+    Log(std::string("   shaderResourceMinLod ") + std::to_string(physical_device_features.shaderResourceMinLod) + "\n");
+    Log(std::string("   sparseBinding ") + std::to_string(physical_device_features.sparseBinding) + "\n");
+    Log(std::string("   sparseResidencyBuffer ") + std::to_string(physical_device_features.sparseResidencyBuffer) + "\n");
+    Log(std::string("   sparseResidencyImage2D ") + std::to_string(physical_device_features.sparseResidencyImage2D) + "\n");
+    Log(std::string("   sparseResidencyImage3D ") + std::to_string(physical_device_features.sparseResidencyImage3D) + "\n");
+    Log(std::string("   sparseResidency2Samples ") + std::to_string(physical_device_features.sparseResidency2Samples) + "\n");
+    Log(std::string("   sparseResidency4Samples ") + std::to_string(physical_device_features.sparseResidency4Samples) + "\n");
+    Log(std::string("   sparseResidency8Samples ") + std::to_string(physical_device_features.sparseResidency8Samples) + "\n");
+    Log(std::string("   sparseResidency16Samples ") + std::to_string(physical_device_features.sparseResidency16Samples) + "\n");
+    Log(std::string("   sparseResidencyAliased ") + std::to_string(physical_device_features.sparseResidencyAliased) + "\n");
+    Log(std::string("   variableMultisampleRate ") + std::to_string(physical_device_features.variableMultisampleRate) + "\n");
+    Log(std::string("   inheritedQueries ") + std::to_string(physical_device_features.inheritedQueries) + "\n");
+#endif
+    return physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+        && physical_device_features.geometryShader
+        && physical_device_features.tessellationShader;
+}
+
+bool Renderer::SelectQueueFamilyIndices()
+{
+    uint32_t family_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, nullptr);
+    if (family_count == 0)
+    {
+        assert(!"Vulkan ERROR: No Queue family!!");
+        return false;
+    }
+    Log(std::string("#     -> found ") + std::to_string(family_count) + std::string(" queue families.\n"));
+    std::vector<VkQueueFamilyProperties> family_property_list(family_count);
+    vkGetPhysicalDeviceQueueFamilyProperties(_ctx.physical_device, &family_count, family_property_list.data());
+
+    // Look for a queue family supporting graphics operations.
+    bool found_graphics = false;
+    bool found_compute = false;
+    bool found_transfer = false;
+    bool found_present = false;
+    for (uint32_t i = 0; i < family_count; ++i)
+    {
+        // to know if support for presentation on windows desktop, even not knowing about the surface.
+        VkBool32 supportsPresentation = vkGetPhysicalDeviceWin32PresentationSupportKHR(_ctx.physical_device, i);
+
+        if (family_property_list[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        {
+            if (!found_graphics)
+            {
+                Log(std::string("#     FOUND Graphics queue: ") + std::to_string(i) + std::string("\n"));
+                found_graphics = true;
+                _ctx.graphics.family_index = i;
+            }
+        }
+
+        if (family_property_list[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
+        {
+            if (!found_compute)
+            {
+                Log(std::string("#     FOUND Compute queue: ") + std::to_string(i) + std::string("\n"));
+                found_compute = true;
+                _ctx.compute.family_index = i;
+            }
+        }
+
+        if (family_property_list[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
+        {
+            if (!found_transfer)
+            {
+                Log(std::string("#     FOUND Transfer queue: ") + std::to_string(i) + std::string("\n"));
+                found_transfer = true;
+                _ctx.transfer.family_index = i;
+            }
+        }
+
+        if (supportsPresentation)
+        {
+            if (!found_present)
+            {
+                Log(std::string("#     FOUND Present queue: ") + std::to_string(i) + std::string("\n"));
+                found_present = true;
+                _ctx.present.family_index = i;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool Renderer::EnumerateInstanceLayers()
+{
+    VkResult result;
+
+    uint32_t layer_count = 0;
+    result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr); // first call = query number
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    std::vector<VkLayerProperties> layer_property_list(layer_count);
+    result = vkEnumerateInstanceLayerProperties(&layer_count, layer_property_list.data()); // second call with allocated array
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    for (auto &i : layer_property_list)
+    {
+        std::ostringstream oss;
+        oss << "#     " << i.layerName << " | " << i.description << std::endl;
+        std::string oss_str = oss.str();
+        Log(oss_str.c_str());
+    }
+    
+    return true;
+}
+
+
+// Device Layer Properties (deprecated)
+bool Renderer::EnumerateDeviceLayers()
+{
+    VkResult result;
+
+    uint32_t layer_count = 0;
+    result = vkEnumerateDeviceLayerProperties(_ctx.physical_device, &layer_count, nullptr); // first call = query number
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    std::vector<VkLayerProperties> layer_property_list(layer_count);
+    result = vkEnumerateDeviceLayerProperties(_ctx.physical_device, &layer_count, layer_property_list.data()); // second call with allocated array
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+    
+    for (auto &i : layer_property_list)
+    {
+        std::ostringstream oss;
+        oss << "#     " << i.layerName << " | " << i.description << std::endl;
+        std::string oss_str = oss.str();
+        Log(oss_str.c_str());
+    }
+    
+    return true;
+}
+
+bool Renderer::EnumerateDeviceExtensions()
+{
+    VkResult result;
+
+    uint32_t extension_count;
+    result = vkEnumerateDeviceExtensionProperties(_ctx.physical_device, nullptr, &extension_count, nullptr);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    std::vector<VkExtensionProperties> available_extensions(extension_count);
+    result = vkEnumerateDeviceExtensionProperties(_ctx.physical_device, nullptr, &extension_count, available_extensions.data());
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    for (auto &i : available_extensions)
+    {
+        std::ostringstream oss;
+        oss << "#     " << i.extensionName << " | " << i.specVersion << std::endl;
+        std::string oss_str = oss.str();
+        Log(oss_str.c_str());
+    }
+    
+    return true;
+}
+
+bool Renderer::CreateLogicalDevice()
+{
+    VkResult result;
+
+    float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
+    VkDeviceQueueCreateInfo device_queue_create_info = {};
+    device_queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    device_queue_create_info.queueFamilyIndex = _ctx.graphics.family_index;
+    device_queue_create_info.queueCount = 1;
+    device_queue_create_info.pQueuePriorities = queue_priorities;
+
+    // Create a logical "device" associated with the physical "device"
+    VkDeviceCreateInfo device_create_info = {};
+    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_create_info.queueCreateInfoCount = 1;
+    device_create_info.pQueueCreateInfos = &device_queue_create_info;
+    //device_create_info.enabledLayerCount = _ctx.device_layers.size(); // deprecated
+    //device_create_info.ppEnabledLayerNames = _ctx.device_layers.data(); // deprecated
+    device_create_info.enabledExtensionCount = (uint32_t)_ctx.device_extensions.size();
+    device_create_info.ppEnabledExtensionNames = _ctx.device_extensions.data();
+    //device_create_info.pEnabledFeatures = nullptr;
+
+    Log("#     Create Device\n");
+    result = vkCreateDevice(_ctx.physical_device, &device_create_info, nullptr, &_ctx.device);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    // get first queue in family (index 0)
+    Log("#     Get Graphics Queue\n");
+    vkGetDeviceQueue(_ctx.device, _ctx.graphics.family_index, 0, &_ctx.graphics.queue);
+
+    Log("#     Get Compute Queue\n");
+    vkGetDeviceQueue(_ctx.device, _ctx.compute.family_index, 0, &_ctx.compute.queue);
+
+    Log("#     Get Transfer Queue\n");
+    vkGetDeviceQueue(_ctx.device, _ctx.transfer.family_index, 0, &_ctx.transfer.queue);
+
+    Log("#     Get Present Queue\n");
+    vkGetDeviceQueue(_ctx.device, _ctx.present.family_index, 0, &_ctx.present.queue);
+
+    return true;
 }
 
 #if BUILD_ENABLE_VULKAN_DEBUG
@@ -567,7 +733,14 @@ void Renderer::DeInitDebug()
 }
 
 #else
+void Renderer::SetupLayers() {}
+void Renderer::SetupExtensions()
+{
+    _ctx.instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    _ctx.instance_extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 
+    _ctx.device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+}
 void Renderer::SetupDebug() {}
 bool Renderer::InitDebug() { return true; }
 void Renderer::DeInitDebug() {}

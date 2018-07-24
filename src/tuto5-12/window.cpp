@@ -16,8 +16,8 @@ Window::Window()
 
 bool Window::OpenWindow(uint32_t size_x, uint32_t size_y, const std::string & title)
 {
-    _surface_size_x = size_x;
-    _surface_size_y = size_y;
+    _surface_size.width = size_x;
+    _surface_size.height = size_y;
     _window_name = title;
 
     Log("#   Init OS Window\n");
@@ -152,8 +152,6 @@ void Window::EndRender(std::vector<VkSemaphore> wait_semaphores)
     ErrorCheck(present_result);
 }
 
-
-
 bool Window::InitSurface()
 {
     VkResult result = VK_SUCCESS;
@@ -174,55 +172,104 @@ bool Window::InitSurface()
         return false;
     }
 
+    //
+    // SURFACE EXTENT
+    //
+
     //vkGetPhysicalDeviceSurfaceCapabilities2EXT ???
     //vkGetPhysicalDeviceSurfaceCapabilities2KHR ???
     Log("#     Get Physical Device Surface Capabilities\n");
     result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, _surface, &_surface_caps);
     ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    _surface_size = ChooseSurfaceExtent();
+
+    Log(std::string("#      width: ") + std::to_string(_surface_size.width) + std::string(" height: ") + std::to_string(_surface_size.height) + "\n");
+    
+    //
+    // SURFACE FORMAT
+    //
+
+    // vkGetPhysicalDeviceSurfaceFormats2KHR ???
+    Log("#      Get Physical Device Surface Formats\n");
+    uint32_t surface_formats_count = 0;
+    result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, nullptr);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS || surface_formats_count == 0)
     {
-        // The size of the surface may not be exactly the one we asked for.
-        if (_surface_caps.currentExtent.width < UINT32_MAX)
-        {
-            _surface_size_x = _surface_caps.currentExtent.width;
-            _surface_size_y = _surface_caps.currentExtent.height;
-
-            std::ostringstream oss;
-            oss << "#      width: " << _surface_size_x << " height: " << _surface_size_y << std::endl;
-            Log(oss.str().c_str());
-        }
-
-        {
-            // vkGetPhysicalDeviceSurfaceFormats2KHR ???
-            Log("#      Get Physical Device Surface Formats\n");
-            uint32_t surface_formats_count = 0;
-            result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, nullptr);
-            ErrorCheck(result);
-            if (surface_formats_count == 0)
-            {
-                assert(!"No surface formats");
-                return false;
-            }
-
-            // VkSurfaceFormat2KHR ???
-            std::vector<VkSurfaceFormatKHR> surface_formats;
-            surface_formats.resize(surface_formats_count);
-            result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, surface_formats.data());
-            ErrorCheck(result);
-            if (surface_formats_count == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED)
-            {
-                // if it does not care which format, lets choose one we want.
-                _surface_format.format = VK_FORMAT_B8G8R8A8_UNORM;
-                _surface_format.colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-            }
-            else
-            {
-                // recommanded to use the first one.
-                _surface_format = surface_formats[0];
-            }
-        }
+        assert(!"No surface formats");
+        return false;
     }
 
+    // VkSurfaceFormat2KHR ???
+    std::vector<VkSurfaceFormatKHR> surface_formats;
+    surface_formats.resize(surface_formats_count);
+    result = vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, _surface, &surface_formats_count, surface_formats.data());
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    _surface_format = ChooseSurfaceFormat(surface_formats);
+    
     return true;
+}
+
+VkExtent2D Window::ChooseSurfaceExtent()
+{
+    // The size of the surface may not be exactly the one we asked for.
+    if (_surface_caps.currentExtent.width < UINT32_MAX)
+    {
+        return _surface_caps.currentExtent;
+    }
+    else
+    {
+        // check our initial decision against min/max
+        VkExtent2D actual_extent = _surface_size;
+        
+        actual_extent.width = std::max(
+            _surface_caps.minImageExtent.width, 
+            std::min(
+                _surface_caps.maxImageExtent.width, 
+                actual_extent.width
+            )
+        );
+        
+        actual_extent.height = std::max(
+            _surface_caps.minImageExtent.height, 
+            std::min(_surface_caps.maxImageExtent.height, 
+                actual_extent.height
+            )
+        );
+
+        return actual_extent;
+    }
+}
+
+VkSurfaceFormatKHR Window::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &surface_formats)
+{
+    if (surface_formats.size() == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED)
+    {
+        // if it does not care which format, lets choose one we want.
+        VkSurfaceFormatKHR result = {};
+        result.format = VK_FORMAT_B8G8R8A8_UNORM;
+        result.colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+        return result;
+    }
+    else
+    {
+        for (const auto& f : surface_formats) 
+        { 
+            if (f.format == VK_FORMAT_B8G8R8A8_UNORM && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) 
+            { 
+                return f;
+            }
+        }
+
+        // recommanded to use the first one.
+        return surface_formats[0];
+    }
 }
 
 void Window::DeInitSurface()
@@ -242,34 +289,24 @@ bool Window::InitSwapChain()
         _swapchain_image_count = _surface_caps.maxImageCount;
 
     Log("#     Get Physical Device Surface Present Modes.\n");
-    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR; // VK_PRESENT_MODE_FIFO_KHR always available
-    {
-        uint32_t present_mode_count = 0;
-        result = vkGetPhysicalDeviceSurfacePresentModesKHR(_ctx->physical_device, _surface, &present_mode_count, nullptr);
-        ErrorCheck(result);
-        if (result != VK_SUCCESS)
-            return false;
+    uint32_t present_mode_count = 0;
+    result = vkGetPhysicalDeviceSurfacePresentModesKHR(_ctx->physical_device, _surface, &present_mode_count, nullptr);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
-        std::vector<VkPresentModeKHR> present_modes(present_mode_count);
-        result = vkGetPhysicalDeviceSurfacePresentModesKHR(_ctx->physical_device, _surface, &present_mode_count, present_modes.data());
-        ErrorCheck(result);
-        if (result != VK_SUCCESS)
-            return false;
+    std::vector<VkPresentModeKHR> present_modes(present_mode_count);
+    result = vkGetPhysicalDeviceSurfacePresentModesKHR(_ctx->physical_device, _surface, &present_mode_count, present_modes.data());
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
-        for (auto m : present_modes)
-        {
-            // look for MailBox which does vsync.
-            if (m == VK_PRESENT_MODE_MAILBOX_KHR)
-            {
-                present_mode = m;
-            }
-        }
-    }
+    VkPresentModeKHR present_mode = ChoosePresentMode(present_modes);
+
     Log( (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) ? "#      -> VK_PRESENT_MODE_MAILBOX_KHR\n" : "#   -> VK_PRESENT_MODE_FIFO_KHR\n");
 
     std::ostringstream oss;
-    oss << "#     Create SwapChain:\n"
-        << "#      -> image count: " << _swapchain_image_count << "\n";
+    oss << "#     Create SwapChain with " << _swapchain_image_count << " images.\n";
     Log(oss.str().c_str());
 
     VkSwapchainCreateInfoKHR swapchain_create_info = {};
@@ -278,8 +315,7 @@ bool Window::InitSwapChain()
     swapchain_create_info.minImageCount         = _swapchain_image_count; // 2 = double buffering
     swapchain_create_info.imageFormat           = _surface_format.format;
     swapchain_create_info.imageColorSpace       = _surface_format.colorSpace;
-    swapchain_create_info.imageExtent.width     = _surface_size_x;
-    swapchain_create_info.imageExtent.height    = _surface_size_y;
+    swapchain_create_info.imageExtent           = _surface_size;
     swapchain_create_info.imageArrayLayers      = 1;
     swapchain_create_info.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // + transfer dst bit if not rendering directly.
     swapchain_create_info.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
@@ -300,6 +336,25 @@ bool Window::InitSwapChain()
 void Window::DeInitSwapChain()
 {
     vkDestroySwapchainKHR(device(), _swapchain, nullptr);
+}
+
+VkPresentModeKHR Window::ChoosePresentMode(const std::vector<VkPresentModeKHR> &present_modes)
+{
+    VkPresentModeKHR best_mode = VK_PRESENT_MODE_FIFO_KHR;
+    for (auto m : present_modes)
+    {
+        // look for MailBox which does vsync.
+        if (m == VK_PRESENT_MODE_MAILBOX_KHR)
+        {
+            return m;
+        }
+        else if (m==VK_PRESENT_MODE_IMMEDIATE_KHR)
+        {
+            best_mode = m;
+        }
+    }
+
+    return best_mode;
 }
 
 bool Window::InitSwapChainImages()

@@ -11,7 +11,7 @@ class Scene;
 struct vulkan_queue
 {
     VkQueue         queue = VK_NULL_HANDLE;
-    uint32_t        family_index = 0;
+    uint32_t        family_index = UINT32_MAX;
     VkCommandPool   command_pool = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer = VK_NULL_HANDLE; // maybe many
 };
@@ -61,6 +61,13 @@ private:
     void DeInitInstance();
 
     bool InitDevice();
+        bool ChoosePhysicalDevice();
+            bool IsDeviceSuitable(VkPhysicalDevice dev);
+        bool SelectQueueFamilyIndices();
+        bool EnumerateInstanceLayers();
+        bool EnumerateDeviceLayers();
+        bool EnumerateDeviceExtensions();
+        bool CreateLogicalDevice();
     void DeInitDevice();
 
     void SetupDebug();

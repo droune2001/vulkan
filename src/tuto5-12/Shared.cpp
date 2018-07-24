@@ -82,17 +82,20 @@ void _ErrorCheck( VkResult result )
 
 #endif // BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
 
-void Log(const char *text)
+void _LogCStr(const char *text)
 {
     std::cout << text;
     ::OutputDebugStringA(text);
 }
 
-void Log(const std::string &str)
+void _LogStr(const std::string &str)
 {
     const char *cstr = str.c_str();
-    Log(cstr);
+    _LogCStr(cstr);
 }
+
+
+
 
 uint32_t FindMemoryTypeIndex(
     const VkPhysicalDeviceMemoryProperties *gpu_memory_properties,

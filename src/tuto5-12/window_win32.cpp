@@ -28,8 +28,7 @@ LRESULT CALLBACK WindowsEventHandler(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM
 void Window::InitOSWindow()
 {
     WNDCLASSEX win_class;
-    assert(_surface_size_x > 0);
-    assert(_surface_size_y > 0);
+    assert(_surface_size.width > 0 && _surface_size.height > 0);
 
     _win32_instance = ::GetModuleHandle(nullptr);
     _win32_class_name = _window_name + std::to_string(_win32_class_id_counter);
@@ -57,7 +56,7 @@ void Window::InitOSWindow()
     DWORD ex_style = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
     DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 
-    RECT wr = { 0, 0, LONG(_surface_size_x), LONG(_surface_size_y)};
+    RECT wr = { 0, 0, LONG(_surface_size.width), LONG(_surface_size.height)};
     ::AdjustWindowRectEx(&wr, style, FALSE, ex_style);
     _win32_window = ::CreateWindowEx(
         0,

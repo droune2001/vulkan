@@ -34,10 +34,9 @@ public:
     uint32_t active_swapchain_image_id()        { return _active_swapchain_image_id; }
     VkImage active_swapchain_image()            { return _swapchain_images[_active_swapchain_image_id]; }
     VkImageView swapchain_image_views(size_t i) { return _swapchain_image_views[i]; }
-    VkExtent2D surface_size()                   { return {_surface_size_x, _surface_size_y}; }
+    VkExtent2D surface_size()                   { return _surface_size; }
 
 private:
-
     
     void InitOSWindow();
     void DeInitOSWindow();
@@ -45,9 +44,12 @@ private:
 
     bool InitOSSurface();
     bool InitSurface();
+        VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &surface_formats);
+        VkExtent2D ChooseSurfaceExtent();
     void DeInitSurface();
 
     bool InitSwapChain();
+        VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> &present_modes);
     void DeInitSwapChain();
 
     bool InitSwapChainImages();
@@ -72,8 +74,7 @@ public:
     
     // ==== WSI/WINDOW ============
     std::string _window_name;
-    uint32_t _surface_size_x = 512;
-    uint32_t _surface_size_y = 512;
+    VkExtent2D _surface_size = { 512,512 };
     uint32_t _swapchain_image_count = 2;
     VkSurfaceKHR _surface = VK_NULL_HANDLE;
     VkSurfaceCapabilitiesKHR _surface_caps = {};

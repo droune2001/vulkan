@@ -16,8 +16,14 @@ void _ErrorCheck( VkResult result );
 
 #endif
 
-void Log(const char *text);
-void Log(const std::string &str);
+void _LogCStr(const char *text);
+void _LogStr(const std::string &str);
+
+#if ENABLE_LOG == 1
+#   define Log(a) _LogStr(a)
+#else
+#   define Log(a)
+#endif
 
 uint32_t FindMemoryTypeIndex(
     const VkPhysicalDeviceMemoryProperties *gpu_memory_properties, 
