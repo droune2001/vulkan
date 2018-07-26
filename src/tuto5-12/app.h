@@ -36,9 +36,9 @@ protected:
     virtual void clean() override;
 
 private:
-    // context_t *_context = nullptr;
-    // wsi_t     *_wsi = nullptr;
+    void BuildScene();
 
+private:
     Renderer * _r = nullptr;
     Window   * _w = nullptr;
     Scene    * _scene = nullptr;

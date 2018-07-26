@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="..\src\tuto5-12\app.h" />
     <ClInclude Include="..\src\tuto5-12\build_options.h" />
+    <ClInclude Include="..\src\tuto5-12\glm_usage.h" />
     <ClInclude Include="..\src\tuto5-12\platform.h" />
     <ClInclude Include="..\src\tuto5-12\Renderer.h" />
     <ClInclude Include="..\src\tuto5-12\scene.h" />

@@ -34,6 +34,7 @@ struct vulkan_context
     std::vector< const char * > instance_extensions;
     std::vector< const char * > device_layers; // deprecated
     std::vector< const char * > device_extensions;
+    VkPhysicalDeviceFeatures    features = {};
 
     VkDebugReportCallbackEXT    debug_report = VK_NULL_HANDLE;
 
@@ -51,7 +52,7 @@ public:
     bool InitContext();
     bool InitSceneVulkan();
     void DeInitSceneVulkan();
-    void AddScene(Scene *scene) { _scenes.push_back(scene); }
+    void SetScene(Scene *scene) { _scene = scene; }
     void Draw(float dt);
 
     vulkan_context *context() { return &_ctx; };
@@ -76,12 +77,17 @@ private:
 
     void SetupLayers();
     void SetupExtensions();
+    void SetupFeatures();
 
     bool InitVma();
     void DeInitVma();
 
     //
-    // 
+    // SCENE from a global point of view
+    // - acquire
+    // - call render on scene
+    // - blit the fbo into swapchain
+    // - present swapchain
     //
 
     bool InitCommandBuffer();
@@ -96,40 +102,15 @@ private:
     bool InitSwapChainFrameBuffers();
     void DeInitSwapChainFrameBuffers();
 
-    bool InitUniformBuffer();
-    void DeInitUniformBuffer();
-
-    bool InitDescriptors();
-    void DeInitDescriptors();
-
-    bool InitFakeImage();
-    void DeInitFakeImage();
-
-    bool InitShaders();
-    void DeInitShaders();
-
-    bool InitGraphicsPipeline();
-    void DeInitGraphicsPipeline();
-
-    //
-    //
-    //
-
-    void set_object_position(float, float, float);
-    void set_camera_position(float, float, float);
-    void update_matrices_ubo();
-
 private:
 
     vulkan_context _ctx;
     VmaAllocator   _allocator = VK_NULL_HANDLE;
 
-    Window * _w = nullptr; // ref
+    Window * _w = nullptr;
+    Scene  * _scene = nullptr;
 
     VkExtent2D _global_viewport = {512, 512};
-
-    std::vector<Scene*> _scenes;
-
 
     std::vector<VkFramebuffer> _swapchain_framebuffers;
 
@@ -140,44 +121,4 @@ private:
     bool _stencil_available = false;
 
     VkRenderPass _render_pass = VK_NULL_HANDLE;
-
-    VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
-    VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;
-    VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
-
-    // ==== MATERIAL =======
-    VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
-    VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;
-
-    std::array<VkPipeline, 1> _pipelines = {};
-    VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
-    // =====================
-
-    struct matrices
-    {
-        float m[16];
-        float v[16];
-        float p[16];
-    } _mvp;
-
-    struct uniform_buffer
-    {
-        VkBuffer buffer = VK_NULL_HANDLE;
-        VkDeviceMemory memory = VK_NULL_HANDLE;
-    } _matrices_ubo;
-
-    struct texture
-    {
-        VkImage         texture_image = VK_NULL_HANDLE;
-        VkDeviceMemory  texture_image_memory = {};
-        VkImageView     texture_view = VK_NULL_HANDLE;
-        VkSampler       sampler = VK_NULL_HANDLE;
-    } _checker_texture;
-
-	// "Scene"
-    struct camera
-    {
-        float cameraZ = 10.0f;
-        float cameraZDir = -1.0f;
-    } _camera;
 };

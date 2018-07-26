@@ -9,6 +9,8 @@
 #include "utils.h"
 #include "Scene.h"
 
+#include "glm_usage.h"
+
 #include <array>
 #include <chrono>
 #include <sstream>
@@ -43,17 +45,8 @@ bool VulkanApplication::init()
         return false;
 
     Log("#  Init Scene\n");
-    _scene = new Scene(_r->context());
-
-    IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
-    Scene::object_description_t obj_desc = {};
-    obj_desc.vertexCount = (uint32_t)icosphere.first.size();
-    obj_desc.vertices    = icosphere.first.data();
-    obj_desc.indexCount  = (uint32_t)icosphere.second.size();
-    obj_desc.indices     = icosphere.second.data();
-
-    _scene->add_object(obj_desc);
-
+    BuildScene();
+    
     _r->AddScene(_scene);
 
     return true;
@@ -113,3 +106,41 @@ void VulkanApplication::clean()
     _w->DeleteWindow();
     delete _w;
 }
+
+void VulkanApplication::BuildScene()
+{
+    _scene = new Scene(_r->context());
+    _scene->init();
+
+    Scene::light_description_t light = {};
+    light.color = glm::vec3(1,0,1);
+    light.position = glm::vec3(1, 1, 1);
+    _scene->add_light(light);
+
+    Scene::camera_description_t camera = {};
+    camera.position = glm::vec3(10, 0, 0);
+    _scene->add_camera(camera);
+
+    {
+        IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
+        Scene::object_description_t obj_desc = {};
+        obj_desc.vertexCount = (uint32_t)icosphere.first.size();
+        obj_desc.vertices = icosphere.first.data();
+        obj_desc.indexCount = (uint32_t)icosphere.second.size();
+        obj_desc.indices = icosphere.second.data();
+        obj_desc.model_matrix = glm::translate(glm::mat4(1), glm::vec3(-2.0f, 0.0f, -1.0f));
+        _scene->add_object(obj_desc);
+    }
+
+    {
+        IndexedMesh obj = make_flat_cube(); // 24 vtx, 12 tri, 36 idx
+        Scene::object_description_t obj_desc = {};
+        obj_desc.vertexCount = (uint32_t)obj.first.size();
+        obj_desc.vertices = obj.first.data();
+        obj_desc.indexCount = (uint32_t)obj.second.size();
+        obj_desc.indices = obj.second.data();
+        obj_desc.model_matrix = glm::translate(glm::mat4(1), glm::vec3(3.0f, 0.0f, 1.0f));
+        _scene->add_object(obj_desc);
+    }
+}
+//

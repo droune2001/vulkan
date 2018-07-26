@@ -5,10 +5,7 @@
 #include "platform.h"
 #include "scene.h" // vertext_t, index_t
 
-#ifndef GLM_SWIZZLE
-#   define GLM_SWIZZLE
-#endif
-#include <glm/glm.hpp>
+#include "glm_usage.h"
 
 #include <vector>
 
@@ -66,40 +63,10 @@ struct triangle_t
 using TriangleList = std::vector<triangle_t>;
 using IndexList = std::vector<Scene::index_t>;
 using VertexList = std::vector<Scene::vertex_t>;
-
-namespace icosahedron
-{
-    const float X = .525731112119133606f;
-    const float Z = .850650808352039932f;
-    const float N = 0.f;
-
-    static const VertexList vertices =
-    {
-        {{-X, N, Z, 1},{-X, N, Z},{0,0}},
-        {{X, N, Z, 1},{X, N, Z},{0,0}},
-        {{-X, N,-Z, 1},{-X, N,-Z},{0,0}},
-        {{X, N,-Z, 1},{X, N,-Z},{0,0}},
-        {{N, Z, X, 1},{N, Z, X},{0,0}},
-        {{N, Z,-X, 1},{N, Z,-X},{0,0}},
-        {{N,-Z, X, 1},{N,-Z, X},{0,0}},
-        {{N,-Z,-X, 1},{N,-Z,-X},{0,0}},
-        {{Z, X, N, 1},{Z, X, N},{0,0}},
-        {{-Z, X, N, 1},{-Z, X, N},{0,0}},
-        {{Z,-X, N, 1},{Z,-X, N},{0,0}},
-        {{-Z,-X, N, 1},{-Z,-X, N},{0,0}},
-    };
-
-    static const TriangleList triangles =
-    {
-        {0,4,1},{0,9,4},{9,5,4},{4,5,8},{4,8,1},
-        {8,10,1},{8,3,10},{5,3,8},{5,2,3},{2,7,3},
-        {7,10,3},{7,6,10},{7,11,6},{11,0,6},{0,1,6},
-        {6,1,10},{9,0,11},{9,11,2},{9,2,5},{7,2,11}
-    };
-}
-
 using IndexedMesh = std::pair<VertexList, IndexList>;
-IndexedMesh make_icosphere(int subdivisions);
 
+IndexedMesh make_icosphere(int subdivisions);
+IndexedMesh make_flat_cube();
+IndexedMesh make_cube();
 
 #endif // !_VULKAN_UTILS_2018_07_18_H_

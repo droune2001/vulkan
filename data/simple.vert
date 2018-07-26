@@ -1,7 +1,7 @@
-#version 400
+#version 420
 #extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_shading_language_420pack : enable
 
+// mot cle "buffer" ne semble plus exister apres la version 420 de glsl
 layout( std140, binding = 0 ) uniform buffer {
     mat4 model_matrix;
     mat4 view_matrix;

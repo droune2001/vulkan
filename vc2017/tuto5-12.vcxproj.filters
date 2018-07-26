@@ -48,6 +48,9 @@
     <ClInclude Include="..\src\tuto5-12\scene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\tuto5-12\glm_usage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\tuto5-12\main.cpp">

@@ -316,7 +316,7 @@ bool Window::InitSwapChain()
     swapchain_create_info.imageFormat           = _surface_format.format;
     swapchain_create_info.imageColorSpace       = _surface_format.colorSpace;
     swapchain_create_info.imageExtent           = _surface_size;
-    swapchain_create_info.imageArrayLayers      = 1;
+    swapchain_create_info.imageArrayLayers      = 1; // except if we are doing stereo 3d
     swapchain_create_info.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // + transfer dst bit if not rendering directly.
     swapchain_create_info.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
     swapchain_create_info.queueFamilyIndexCount = 0; // ignored if using exclusive sharing
