@@ -13,30 +13,14 @@ Scene::Scene(vulkan_context *c) : _ctx(c)
 
 Scene::~Scene()
 {
-    VkDevice device = _ctx->device;
-
     de_init();
-
-    // TODO: free buffers for each object
-    for (size_t i = 0; i < _objects.size(); ++i)
-    {
-        auto &o = _objects[i];
-
-        Log("#   Free Memory\n");
-        vkFreeMemory(device, o.vertex_buffer_memory, nullptr);
-        vkFreeMemory(device, o.index_buffer_memory, nullptr);
-
-        Log("#   Destroy Buffer\n");
-        vkDestroyBuffer(device, o.vertex_buffer, nullptr);
-        vkDestroyBuffer(device, o.index_buffer, nullptr);
-    }
 }
 
 bool Scene::init()
 {
-    Log("#    Init Uniform Buffer\n");
-    if (!InitUniformBuffer())
-        return false;
+    //Log("#    Init Uniform Buffer\n");
+    //if (!InitUniformBuffer())
+    //    return false;
 
     Log("#    Init FakeImage\n");
     if (!InitFakeImage())
@@ -72,11 +56,16 @@ void Scene::de_init()
     DeInitFakeImage();
 
     Log("#   Destroy Uniform Buffer\n");
-    DeInitUniformBuffer();
+    if (_global_object_vbo_created) destroy_global_object_vbo();
+    if (_global_object_ibo_created) destroy_global_object_ibo();
+    if (_global_object_ubo_created) destroy_global_object_ubo();
+    if (_scene_ubo_created) destroy_scene_ubo();
 }
 
 bool Scene::add_object(object_description_t od)
 {
+    Log("#   Add Object\n");
+
     VkResult result;
     VkDevice device = _ctx->device;
 
@@ -85,108 +74,59 @@ bool Scene::add_object(object_description_t od)
     obj.vertexCount = od.vertexCount;
     obj.indexCount = od.indexCount;
 
-    //Log("#   Create Vertex Buffer\n");
-    std::array<VkBufferCreateInfo,2> buffer_create_infos = {};
-    buffer_create_infos[0].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_infos[0].size = od.vertexCount * sizeof(vertex_t);
-    buffer_create_infos[0].usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    buffer_create_infos[0].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    // with lazy init
+    auto global_vbo = get_global_object_vbo();
+    auto global_ibo = get_global_object_ibo();
+    auto global_ubo = get_global_object_ubo();
 
-    buffer_create_infos[1].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_infos[1].size = od.indexCount * sizeof(index_t);
-    buffer_create_infos[1].usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    buffer_create_infos[1].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    result = vkCreateBuffer(device, &buffer_create_infos[0], nullptr, &obj.vertex_buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkCreateBuffer(device, &buffer_create_infos[1], nullptr, &obj.index_buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    //Log("#   Get Vertex Buffer Memory Requirements(size and type)\n");
-    std::array<VkMemoryRequirements,2> buffer_memory_requirements = {};
-    vkGetBufferMemoryRequirements(device, obj.vertex_buffer, &buffer_memory_requirements[0]);
-    vkGetBufferMemoryRequirements(device, obj.index_buffer, &buffer_memory_requirements[1]);
-
-    std::array<VkMemoryAllocateInfo,2> memory_allocate_infos = {};
-    memory_allocate_infos[0].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_infos[0].allocationSize = buffer_memory_requirements[0].size;
-
-    memory_allocate_infos[1].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_infos[1].allocationSize = buffer_memory_requirements[1].size;
-
-    for (size_t m = 0; m < buffer_memory_requirements.size(); ++m)
-    {
-        uint32_t memory_type_bits = buffer_memory_requirements[m].memoryTypeBits;
-        VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-        auto mem_props = _ctx->physical_device_memory_properties;
-        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
-        {
-            if (memory_type_bits & 1)
-            {
-                if ((mem_props.memoryTypes[i].propertyFlags & desired_memory_flags) == desired_memory_flags)
-                {
-                    memory_allocate_infos[m].memoryTypeIndex = i;
-                    break;
-                }
-            }
-            memory_type_bits = memory_type_bits >> 1;
-        }
-    }
-
-    //Log("#   Allocate Vertex Buffer Memory\n");
-    result = vkAllocateMemory(device, &memory_allocate_infos[0], nullptr, &obj.vertex_buffer_memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkAllocateMemory(device, &memory_allocate_infos[1], nullptr, &obj.index_buffer_memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-
-    //Log("#   Map Vertex Buffer\n");
     void *mapped = nullptr;
 
-    result = vkMapMemory(device, obj.vertex_buffer_memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    Log("#   Map Vertex Buffer\n");
+    size_t vertex_data_size = od.vertexCount * sizeof(vertex_t);
+
+    result = vkMapMemory(device, global_vbo.memory, global_vbo.offset, vertex_data_size/*VK_WHOLE_SIZE*/, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     vertex_t *vertices = (vertex_t*)mapped;
-    memcpy(vertices, od.vertices, od.vertexCount * sizeof(vertex_t));
+    memcpy(vertices, od.vertices, vertex_data_size);
 
-    //Log("#   UnMap Vertex Buffer\n");
-    vkUnmapMemory(device, obj.vertex_buffer_memory);
-
-    result = vkBindBufferMemory(device, obj.vertex_buffer, obj.vertex_buffer_memory, 0);
+    Log("#   UnMap Vertex Buffer\n");
+    vkUnmapMemory(device, global_vbo.memory);
+    
+    result = vkBindBufferMemory(device, global_vbo.buffer, global_vbo.memory, global_vbo.offset);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    //Log("#   Map Vertex Buffer\n");
-    //void *mapped = nullptr;
+    global_vbo.offset += vertex_data_size;
 
-    result = vkMapMemory(device, obj.index_buffer_memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+
+
+
+    Log("#   Map Index Buffer\n");
+    size_t index_data_size = od.indexCount * sizeof(index_t);
+
+    result = vkMapMemory(device, global_ibo.memory, global_ibo.offset, index_data_size/*VK_WHOLE_SIZE*/, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     index_t *indices = (index_t*)mapped;
-    memcpy(indices, od.indices, od.indexCount * sizeof(index_t));
+    memcpy(indices, od.indices, index_data_size);
 
-    //Log("#   UnMap Vertex Buffer\n");
-    vkUnmapMemory(device, obj.index_buffer_memory);
+    Log("#   UnMap Index Buffer\n");
+    vkUnmapMemory(device, global_ibo.memory);
 
-    result = vkBindBufferMemory(device, obj.index_buffer, obj.index_buffer_memory, 0);
+    result = vkBindBufferMemory(device, global_ibo.buffer, global_ibo.memory, global_ibo.offset);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
+
+    global_ibo.offset += index_data_size;
+
+
 
     _objects.push_back(obj);
 
@@ -240,6 +180,214 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
 
 // =====================================================
 
+// lazy creation - can do it at the beginning.
+Scene::vertex_buffer_object_t &Scene::get_global_object_vbo()
+{
+    if (!_global_object_vbo_created)
+    {
+        if (!create_global_object_vbo())
+        {
+            assert("could not create vbo");
+        }
+    }
+
+    return _global_object_vbo;
+}
+
+bool Scene::create_global_object_vbo()
+{
+    VkResult result;
+
+    Log("#   Create Global Object Vertex/Index/Uniform Buffers\n");
+
+    std::array<VkBufferCreateInfo, 3> buffer_create_infos = {};
+    // VBO
+    buffer_create_infos[0].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_infos[0].size = 4 * 1024 * 1024;// od.vertexCount * sizeof(vertex_t);
+    buffer_create_infos[0].usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; // <-- VBO
+    buffer_create_infos[0].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    // IBO
+    buffer_create_infos[1].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_infos[1].size = 4 * 1024 * 1024; // od.indexCount * sizeof(index_t);
+    buffer_create_infos[1].usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT; // <-- IBO
+    buffer_create_infos[1].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    // UBO
+    buffer_create_infos[2].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_infos[2].size = 4 * 1024 * 1024;// sizeof(_mvp); // size in bytes
+    buffer_create_infos[2].usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
+    buffer_create_infos[2].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // VBO
+    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[0], nullptr, &_global_object_vbo.buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+    // IBO
+    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[1], nullptr, &_global_object_ibo.buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+    // UBO
+    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[2], nullptr, &_global_object_ubo.buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Get Global Object V/I/U Buffer Memory Requirements(size and type)\n");
+    std::array<VkMemoryRequirements, 3> buffer_memory_requirements = {};
+    vkGetBufferMemoryRequirements(_ctx->device, _global_object_vbo.buffer, &buffer_memory_requirements[0]);
+    vkGetBufferMemoryRequirements(_ctx->device, _global_object_ibo.buffer, &buffer_memory_requirements[1]);
+    vkGetBufferMemoryRequirements(_ctx->device, _global_object_ubo.buffer, &buffer_memory_requirements[2]);
+
+    std::array<VkMemoryAllocateInfo, 3> memory_allocate_infos = {};
+    memory_allocate_infos[0].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_infos[0].allocationSize = buffer_memory_requirements[0].size;
+
+    memory_allocate_infos[1].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_infos[1].allocationSize = buffer_memory_requirements[1].size;
+
+    memory_allocate_infos[2].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_infos[2].allocationSize = buffer_memory_requirements[1].size;
+
+    for (size_t m = 0; m < buffer_memory_requirements.size(); ++m)
+    {
+        uint32_t memory_type_bits = buffer_memory_requirements[m].memoryTypeBits;
+        VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT; // TODO: ON device, use staging buffer
+        auto mem_props = _ctx->physical_device_memory_properties;
+        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
+        {
+            if (memory_type_bits & 1)
+            {
+                if ((mem_props.memoryTypes[i].propertyFlags & desired_memory_flags) == desired_memory_flags)
+                {
+                    memory_allocate_infos[m].memoryTypeIndex = i;
+                    break;
+                }
+            }
+            memory_type_bits = memory_type_bits >> 1;
+        }
+    }
+    
+    Log("#   Allocate Global Object V/I/U Buffer Memory\n");
+    result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[0], nullptr, &_global_object_vbo.memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[1], nullptr, &_global_object_ibo.memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[2], nullptr, &_global_object_ubo.memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    _global_object_vbo_created = true;
+    _global_object_ibo_created = true;
+    _global_object_ubo_created = true;
+
+    return true;
+}
+
+void Scene::destroy_global_object_vbo()
+{
+    Log("#   Free Global Object Buffers Memory\n");
+    vkFreeMemory(_ctx->device, _global_object_vbo.memory, nullptr);
+    vkFreeMemory(_ctx->device, _global_object_ibo.memory, nullptr);
+    vkFreeMemory(_ctx->device, _global_object_ubo.memory, nullptr);
+
+    Log("#   Destroy Global Object Buffers\n");
+    vkDestroyBuffer(_ctx->device, _global_object_vbo.buffer, nullptr);
+    vkDestroyBuffer(_ctx->device, _global_object_ibo.buffer, nullptr);
+    vkDestroyBuffer(_ctx->device, _global_object_ubo.buffer, nullptr);
+
+    _global_object_vbo_created = false;
+    _global_object_ibo_created = false;
+    _global_object_ubo_created = false;
+}
+
+Scene::vertex_buffer_object_t &Scene::get_global_object_ibo()
+{
+    if (!_global_object_ibo_created)
+    {
+        if (!create_global_object_ibo())
+        {
+            assert("could not create ibo");
+        }
+    }
+
+    return _global_object_ibo;
+}
+
+bool Scene::create_global_object_ibo()
+{
+    return create_global_object_vbo(); // 3 at a time
+}
+
+void Scene::destroy_global_object_ibo()
+{
+    // TODO
+}
+
+
+
+Scene::uniform_buffer_t &Scene::get_global_object_ubo()
+{
+    if (!_global_object_ubo_created)
+    {
+        if (!create_global_object_ubo())
+        {
+            assert("could not create objects ubo");
+        }
+    }
+
+    return _global_object_ubo;
+}
+
+bool Scene::create_global_object_ubo()
+{
+    return create_global_object_vbo(); // 3 at a time
+}
+
+void Scene::destroy_global_object_ubo()
+{
+    // TODO
+}
+
+
+
+
+
+
+Scene::uniform_buffer_t &Scene::get_scene_ubo()
+{
+    if (!_scene_ubo_created)
+    {
+        if (!create_scene_ubo())
+        {
+            assert("could not create scene ubo");
+        }
+    }
+
+    return _scene_ubo;
+}
+
+bool Scene::create_scene_ubo()
+{
+    // TODO
+    return true;
+}
+
+void Scene::destroy_scene_ubo()
+{
+    // TODO
+}
+
+
+
+
 void Scene::animate_object(float dt)
 {
     static float obj_x = 0.0f;
@@ -278,22 +426,9 @@ void Scene::animate_camera(float dt)
     _cameras[0].v = glm::lookAt(glm::vec3(0,0,_camera_anim.cameraZ), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 }
 
-bool Scene::create_scene_ubo()
-{
-    return true;
-}
-
-bool Scene::create_object_ubo()
-{
-    return true;
-}
-
 void Scene::update_scene_ubo()
 {
-    if (!_scene_ubo_created)
-    {
-        create_scene_ubo();
-    }
+    auto &scene_ubo = get_scene_ubo();
 
     // map
     //     copy view matrix
@@ -305,12 +440,9 @@ void Scene::update_scene_ubo()
 
 void Scene::update_object_ubo(size_t i)
 {
-    if (!_object_ubo_created)
-    {
-        create_object_ubo();
-    }
-
     const _object_t &obj = _objects[i];
+
+    auto &global_object_vbo = get_global_object_ubo();
 
     // map
     //     copy model matrix

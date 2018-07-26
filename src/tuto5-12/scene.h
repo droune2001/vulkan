@@ -62,6 +62,22 @@ public:
 
 private:
 
+    struct uniform_buffer_t
+    {
+        VkBuffer        buffer = VK_NULL_HANDLE;
+        VkDeviceMemory  memory = VK_NULL_HANDLE;
+    };
+
+    // VBO/IBO to handle multiple objects.
+    struct vertex_buffer_object_t
+    {
+        uint32_t        offset = 0; // first free byte offset.
+        VkBuffer        buffer = VK_NULL_HANDLE;
+        VkDeviceMemory  memory = VK_NULL_HANDLE;
+    };
+
+private:
+
     void animate_object(float dt);
     void animate_camera(float dt);
 
@@ -71,14 +87,24 @@ private:
     void update_scene_ubo();
     void update_object_ubo(size_t i);
 
+    uniform_buffer_t &get_scene_ubo();
     bool create_scene_ubo();
-    bool create_object_ubo();
+    void destroy_scene_ubo();
 
+    vertex_buffer_object_t &get_global_object_vbo();
+    bool create_global_object_vbo();
+    void destroy_global_object_vbo();
+
+    vertex_buffer_object_t &get_global_object_ibo();
+    bool create_global_object_ibo();
+    void destroy_global_object_ibo();
+
+    uniform_buffer_t &get_global_object_ubo();
+    bool create_global_object_ubo();
+    void destroy_global_object_ubo();
 
 
     // SCENE ======================================================
-    bool InitUniformBuffer();
-    void DeInitUniformBuffer();
 
     bool InitDescriptors();
     void DeInitDescriptors();
@@ -100,12 +126,6 @@ private:
 
     vulkan_context *_ctx = nullptr;
 
-    struct uniform_buffer_t
-    {
-        VkBuffer buffer = VK_NULL_HANDLE;
-        VkDeviceMemory memory = VK_NULL_HANDLE;
-    };
-
     VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
     VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;
     VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
@@ -114,22 +134,28 @@ private:
     // OBJECTS
     //
 
+    
+
     struct _object_t
     {
         uint32_t vertexCount = 0;
-        VkBuffer index_buffer = VK_NULL_HANDLE;
-        VkDeviceMemory index_buffer_memory = VK_NULL_HANDLE;
-
+        uint32_t index_offset = 0;
+        VkBuffer index_buffer = VK_NULL_HANDLE; // ref
+        
         uint32_t indexCount = 0;
-        VkBuffer vertex_buffer = VK_NULL_HANDLE;
-        VkDeviceMemory vertex_buffer_memory = VK_NULL_HANDLE;
-
+        uint32_t vertex_offset = 0;
+        VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
+        
         glm::mat4 model_matrix = glm::mat4(1);
     };
 
     std::vector<_object_t> _objects;
-    uniform_buffer_t _objects_ubo;
-    bool _object_ubo_created = false;
+    uniform_buffer_t _global_object_ubo; // all objects model matrices in one buffer
+    vertex_buffer_object_t _global_object_vbo; // all objects vertices in one buffer
+    vertex_buffer_object_t _global_object_ibo; // all objects indices in one buffer
+    bool _global_object_ubo_created = false; //
+    bool _global_object_vbo_created = false; // lazy creation
+    bool _global_object_ibo_created = false; //
 
     //
     // LIGHTS 
@@ -155,8 +181,7 @@ private:
     };
 
     std::vector<_camera_t> _cameras;
-    uniform_buffer_t _cameras_ubo;
-
+    uniform_buffer_t _scene_ubo;
     bool _scene_ubo_created = false;
 
     //
