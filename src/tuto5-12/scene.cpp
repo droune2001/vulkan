@@ -32,36 +32,12 @@ bool Scene::init()
     if (!create_default_material())
         return false;
 
-#if 0
-    Log("#    Init Descriptors\n");
-    if (!InitDescriptors()) 
-        return false;
-
-    Log("#    Init Shaders\n");
-    if (!InitShaders())
-        return false;
-
-    Log("#    Init Graphics Pipeline\n");
-    if (!InitGraphicsPipeline())
-        return false;
-#endif
-
     return true;
 }
 
 void Scene::de_init()
 {
     vkQueueWaitIdle(_ctx->graphics.queue);
-#if 0
-    Log("#   Destroy Graphics Pipeline\n");
-    DeInitGraphicsPipeline();
-
-    Log("#   Destroy Shaders\n");
-    DeInitShaders();
-
-    Log("#   Destroy Descriptors\n");
-    DeInitDescriptors();
-#endif
 
     Log("#   Destroy Materials\n");
     destroy_materials();
@@ -756,9 +732,91 @@ bool Scene::create_shader_module(const std::string &file_path, VkShaderModule *s
     return true;
 }
 
+bool Scene::create_default_descriptor_set_layout()
+{
+    _material_t &default_material = _materials["default"];
+
+    VkResult result;
+    
+    // layout( std140, binding = 0 ) uniform buffer { mat4 v; mat4 p; } Scene_UBO;
+    std::array<VkDescriptorSetLayoutBinding, 3> bindings = {};
+    bindings[0].binding = 0; // <---- value used in the shader itself
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[0].descriptorCount = 1; // si j'ai 2 ubo, je mets 2 ou j'en fais 2??
+    bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    bindings[0].pImmutableSamplers = nullptr;
+
+    // layout( std140, binding = 1 ) uniform buffer { mat4 m; } Object_UBO;
+    bindings[1].binding = 1; // <---- value used in the shader itself
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    bindings[1].pImmutableSamplers = nullptr;
+
+    // layout ( set = 0, binding = 2 ) uniform sampler2D diffuse_tex_checker_texure._sampler;
+    bindings[2].binding = 2; // <---- value used in the shader itself
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[2].descriptorCount = 1;
+    bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[2].pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo set_layout_create_info = {};
+    set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    set_layout_create_info.bindingCount = (uint32_t)bindings.size();
+    set_layout_create_info.pBindings = bindings.data();
+
+    Log("#      Create Default Descriptor Set Layout\n");
+    result = vkCreateDescriptorSetLayout(_ctx->device, &set_layout_create_info, nullptr, &default_material.descriptor_set_layout);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    // allocate just enough for two uniform descriptor sets
+    std::array<VkDescriptorPoolSize, 2> uniform_buffer_pool_sizes = {};
+    uniform_buffer_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniform_buffer_pool_sizes[0].descriptorCount = 2; // scene and object ubos
+
+    uniform_buffer_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    uniform_buffer_pool_sizes[1].descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo pool_create_info = {};
+    pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_create_info.maxSets = 1;
+    pool_create_info.poolSizeCount = (uint32_t)uniform_buffer_pool_sizes.size();
+    pool_create_info.pPoolSizes = uniform_buffer_pool_sizes.data();
+
+    Log("#      Create Default Descriptor Set Pool\n");
+    result = vkCreateDescriptorPool(_ctx->device, &pool_create_info, nullptr, &default_material.descriptor_pool);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkDescriptorSetAllocateInfo descriptor_allocate_info = {};
+    descriptor_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_allocate_info.descriptorPool = default_material.descriptor_pool;
+    descriptor_allocate_info.descriptorSetCount = 1;
+    descriptor_allocate_info.pSetLayouts = &default_material.descriptor_set_layout;
+
+    Log("#      Allocate Descriptor Set\n");
+    result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &default_material.descriptor_set);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+bool Scene::create_default_pipeline()
+{
+    _material_t &default_material = _materials["default"];
+
+
+    return true;
+}
+
 bool Scene::create_default_material()
 {
-    _material_t default_material = {};
+    _material_t &default_material = _materials["default"];
 
     Log("#     Create Default Vertex Shader\n");
     if (!create_shader_module("./vert.spv", &default_material.vs))
@@ -768,19 +826,13 @@ bool Scene::create_default_material()
     if (!create_shader_module("./frag.spv", &default_material.fs))
         return false;
 
+    Log("#     Create Default Descriptor Set Layout\n");
+    if (!create_default_descriptor_set_layout())
+        return false;
 
-    _materials["default"] = default_material;
-
-    return true;
-}
-
-bool Scene::add_material(material_description_t ma)
-{
-    _material_t material = {};
-    
-    // TODO
-
-    _materials[ma.id] = material;
+    Log("#     Create Default Pipeline\n");
+    if (!create_default_pipeline())
+        return false;
 
     return true;
 }
@@ -790,22 +842,36 @@ void Scene::destroy_materials()
     for (auto m : _materials)
     {
         auto mat = m.second;
+
+        Log("#    Destroy Shader Modules\n");
         vkDestroyShaderModule(_ctx->device, mat.vs, nullptr);
         vkDestroyShaderModule(_ctx->device, mat.fs, nullptr);
+
+        Log("#    Destroy Descriptor Pool\n");
+        vkDestroyDescriptorPool(_ctx->device, mat.descriptor_pool, nullptr);
+
+        Log("#    Destroy Descriptor Set Layout\n");
+        vkDestroyDescriptorSetLayout(_ctx->device, mat.descriptor_set_layout, nullptr);
 #if 0
-        Log("#   Destroy Descriptor Pool\n");
-        vkDestroyDescriptorPool(_ctx.device, _descriptor_pool, nullptr);
+        Log("#    Destroy Pipeline\n");
+        vkDestroyPipeline(_ctx->device, mat.pipeline, nullptr);
 
-        Log("#   Destroy Descriptor Set Layout\n");
-        vkDestroyDescriptorSetLayout(_ctx.device, _descriptor_set_layout, nullptr);
-
-        vkDestroyPipeline(_ctx.device, pipeline, nullptr);
-        vkDestroyPipelineLayout(_ctx.device, _pipeline_layout, nullptr);
+        Log("#    Destroy Pipeline Layout\n");
+        vkDestroyPipelineLayout(_ctx->device, mat.pipeline_layout, nullptr);
 #endif
     }
 }
 
+bool Scene::add_material(material_description_t ma)
+{
+    _material_t material = {};
 
+    // TODO
+
+    _materials[ma.id] = material;
+
+    return true;
+}
 
 
 
@@ -895,77 +961,10 @@ bool Renderer::InitUniformBuffer()
     return true;
 }
 
-void Renderer::DeInitUniformBuffer()
-{
-    Log("#   Free Memory\n");
-    vkFreeMemory(_ctx.device, _matrices_ubo.memory, nullptr);
-
-    Log("#   Destroy Buffer\n");
-    vkDestroyBuffer(_ctx.device, _matrices_ubo.buffer, nullptr);
-}
 
 bool Renderer::InitDescriptors()
 {
-    VkResult result;
 
-    Log("#   Init bindings for the UBO of matrices and texture sampler\n");
-    // layout( std140, binding = 0 ) uniform buffer { mat4 m; mat4 v; mat4 p; } UBO;
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {};
-    bindings[0].binding = 0; // <---- value used in the shader itself
-    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    bindings[0].descriptorCount = 1;
-    bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    bindings[0].pImmutableSamplers = nullptr;
-
-    // layout ( set = 0, binding = 1 ) uniform sampler2D diffuse_tex_checker_texure._sampler;
-    bindings[1].binding = 1; // <---- value used in the shader itself
-    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    bindings[1].descriptorCount = 1;
-    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    bindings[1].pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutCreateInfo set_layout_create_info = {};
-    set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    set_layout_create_info.bindingCount = (uint32_t)bindings.size();
-    set_layout_create_info.pBindings = bindings.data();
-
-    Log("#   Create Descriptor Set Layout\n");
-    result = vkCreateDescriptorSetLayout(_ctx.device, &set_layout_create_info, nullptr, &_descriptor_set_layout);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    // allocate just enough for one uniform descriptor set
-    std::array<VkDescriptorPoolSize, 2> uniform_buffer_pool_sizes = {};
-    uniform_buffer_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniform_buffer_pool_sizes[0].descriptorCount = 1;
-
-    uniform_buffer_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    uniform_buffer_pool_sizes[1].descriptorCount = 1;
-
-    VkDescriptorPoolCreateInfo pool_create_info = {};
-    pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_create_info.maxSets = 1;
-    pool_create_info.poolSizeCount = (uint32_t)uniform_buffer_pool_sizes.size();
-    pool_create_info.pPoolSizes = uniform_buffer_pool_sizes.data();
-
-    Log("#   Create Descriptor Set Pool\n");
-    result = vkCreateDescriptorPool(_ctx.device, &pool_create_info, nullptr, &_descriptor_pool);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    VkDescriptorSetAllocateInfo descriptor_allocate_info = {};
-    descriptor_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_allocate_info.descriptorPool = _descriptor_pool;
-    descriptor_allocate_info.descriptorSetCount = 1;
-    descriptor_allocate_info.pSetLayouts = &_descriptor_set_layout;
-
-    Log("#   Allocate Descriptor Set\n");
-    result = vkAllocateDescriptorSets(_ctx.device, &descriptor_allocate_info, &_descriptor_set);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
 
 
     // "PER-OBJECT" at render time

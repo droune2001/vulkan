@@ -122,6 +122,9 @@ private:
     bool create_default_material();
     void destroy_materials();
 
+    bool create_default_descriptor_set_layout();
+    bool create_default_pipeline();
+
     // SCENE ======================================================
 #if 0
     bool InitDescriptors();
