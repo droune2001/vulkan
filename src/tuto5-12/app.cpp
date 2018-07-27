@@ -39,21 +39,24 @@ bool VulkanApplication::init()
     if (!_w->OpenWindow(800, 600, "test"))
         return false;
 
+    Log("#----------------------------------------\n");
     Log("#  Create Renderer/Init Context\n");
     _r = new Renderer(_w);
     if (!_r->InitContext())
         return false;
 
+    Log("#----------------------------------------\n");
     Log("#  Init Scene\n");
     BuildScene();
     
-    _r->AddScene(_scene);
+    _r->SetScene(_scene);
 
     return true;
 }
 
 bool VulkanApplication::loop()
 {
+    Log("#----------------------------------------\n");
     Log("# App::run()...\n");
 
     // FPS
@@ -86,6 +89,7 @@ bool VulkanApplication::loop()
         _r->Draw(dt);
     }
 
+    Log("#----------------------------------------\n");
     Log("#   Wait Queue Idle\n");
     vkQueueWaitIdle(_r->context()->graphics.queue);
 

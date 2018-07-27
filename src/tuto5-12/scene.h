@@ -103,9 +103,11 @@ private:
     bool create_global_object_ubo();
     void destroy_global_object_ubo();
 
+    bool create_procedural_textures();
+    void destroy_procedural_textures();
 
     // SCENE ======================================================
-
+#if 0
     bool InitDescriptors();
     void DeInitDescriptors();
 
@@ -120,6 +122,7 @@ private:
     void DeInitGraphicsPipeline();
 
     void update_matrices_ubo();
+#endif
     // ==============================================================
 
 private:
@@ -188,13 +191,15 @@ private:
     // MATERIALS
     //
 
-    struct texture
+    struct texture_t
     {
         VkImage         texture_image = VK_NULL_HANDLE;
         VkDeviceMemory  texture_image_memory = {};
         VkImageView     texture_view = VK_NULL_HANDLE;
         VkSampler       sampler = VK_NULL_HANDLE;
-    } _checker_texture;
+    };
+    
+    std::vector<texture_t> _textures;
 
     VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
     VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;

@@ -5,6 +5,7 @@
 #include "Shared.h"
 
 #include <array>
+#include <string>
 
 Scene::Scene(vulkan_context *c) : _ctx(c)
 {
@@ -22,10 +23,11 @@ bool Scene::init()
     //if (!InitUniformBuffer())
     //    return false;
 
-    Log("#    Init FakeImage\n");
-    if (!InitFakeImage())
+    Log("#    Create Procedural Textures\n");
+    if (!create_procedural_textures())
         return false;
 
+#if 0
     Log("#    Init Descriptors\n");
     if (!InitDescriptors())
         return false;
@@ -37,12 +39,15 @@ bool Scene::init()
     Log("#    Init Graphics Pipeline\n");
     if (!InitGraphicsPipeline())
         return false;
+#endif
+
+    return true;
 }
 
 void Scene::de_init()
 {
     vkQueueWaitIdle(_ctx->graphics.queue);
-
+#if 0
     Log("#   Destroy Graphics Pipeline\n");
     DeInitGraphicsPipeline();
 
@@ -51,9 +56,10 @@ void Scene::de_init()
 
     Log("#   Destroy Descriptors\n");
     DeInitDescriptors();
+#endif
 
-    Log("#   Destroy FakeImage\n");
-    DeInitFakeImage();
+    Log("#   Destroy Procerudal Textures\n");
+    destroy_procedural_textures();
 
     Log("#   Destroy Uniform Buffer\n");
     if (_global_object_vbo_created) destroy_global_object_vbo();
@@ -74,16 +80,19 @@ bool Scene::add_object(object_description_t od)
     obj.vertexCount = od.vertexCount;
     obj.indexCount = od.indexCount;
 
+    Log(std::string("#    v: ") + std::to_string(od.vertexCount) + std::string(" i: ") + std::to_string(od.indexCount) + "\n");
+
     // with lazy init
-    auto global_vbo = get_global_object_vbo();
-    auto global_ibo = get_global_object_ibo();
-    auto global_ubo = get_global_object_ubo();
+    auto &global_vbo = get_global_object_vbo();
+    auto &global_ibo = get_global_object_ibo();
+    auto &global_ubo = get_global_object_ubo();
 
     void *mapped = nullptr;
 
-    Log("#   Map Vertex Buffer\n");
+    Log("#    Map Vertex Buffer\n");
     size_t vertex_data_size = od.vertexCount * sizeof(vertex_t);
 
+    Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
     result = vkMapMemory(device, global_vbo.memory, global_vbo.offset, vertex_data_size/*VK_WHOLE_SIZE*/, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -92,22 +101,23 @@ bool Scene::add_object(object_description_t od)
     vertex_t *vertices = (vertex_t*)mapped;
     memcpy(vertices, od.vertices, vertex_data_size);
 
-    Log("#   UnMap Vertex Buffer\n");
+    Log("#    UnMap Vertex Buffer\n");
     vkUnmapMemory(device, global_vbo.memory);
     
-    result = vkBindBufferMemory(device, global_vbo.buffer, global_vbo.memory, global_vbo.offset);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
+    //result = vkBindBufferMemory(device, global_vbo.buffer, global_vbo.memory, global_vbo.offset);
+    //ErrorCheck(result);
+    //if (result != VK_SUCCESS)
+    //    return false;
 
-    global_vbo.offset += vertex_data_size;
-
-
+    global_vbo.offset += (uint32_t)vertex_data_size;
 
 
-    Log("#   Map Index Buffer\n");
+
+
+    Log("#    Map Index Buffer\n");
     size_t index_data_size = od.indexCount * sizeof(index_t);
 
+    Log("#     offset: " + std::to_string(global_ibo.offset) + std::string(" size: ") + std::to_string(index_data_size) + "\n");
     result = vkMapMemory(device, global_ibo.memory, global_ibo.offset, index_data_size/*VK_WHOLE_SIZE*/, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -116,15 +126,15 @@ bool Scene::add_object(object_description_t od)
     index_t *indices = (index_t*)mapped;
     memcpy(indices, od.indices, index_data_size);
 
-    Log("#   UnMap Index Buffer\n");
+    Log("#    UnMap Index Buffer\n");
     vkUnmapMemory(device, global_ibo.memory);
 
-    result = vkBindBufferMemory(device, global_ibo.buffer, global_ibo.memory, global_ibo.offset);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
+    //result = vkBindBufferMemory(device, global_ibo.buffer, global_ibo.memory, global_ibo.offset);
+    //ErrorCheck(result);
+    //if (result != VK_SUCCESS)
+    //    return false;
 
-    global_ibo.offset += index_data_size;
+    global_ibo.offset += (uint32_t)index_data_size;
 
 
 
@@ -167,14 +177,14 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
 
     update_scene_ubo();
     // pipeline barrier pour flush ubo
-
+#if 0
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines[0]);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_set, 0, nullptr);
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
     draw_all_objects(cmd);
-
+#endif
     // RENDER PASS END ---
 }
 
@@ -198,7 +208,7 @@ bool Scene::create_global_object_vbo()
 {
     VkResult result;
 
-    Log("#   Create Global Object Vertex/Index/Uniform Buffers\n");
+    Log("#   * Create Global Object Vertex/Index/Uniform Buffers\n");
 
     std::array<VkBufferCreateInfo, 3> buffer_create_infos = {};
     // VBO
@@ -233,7 +243,7 @@ bool Scene::create_global_object_vbo()
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#   Get Global Object V/I/U Buffer Memory Requirements(size and type)\n");
+    Log("#   * Get Global Object V/I/U Buffer Memory Requirements(size and type)\n");
     std::array<VkMemoryRequirements, 3> buffer_memory_requirements = {};
     vkGetBufferMemoryRequirements(_ctx->device, _global_object_vbo.buffer, &buffer_memory_requirements[0]);
     vkGetBufferMemoryRequirements(_ctx->device, _global_object_ibo.buffer, &buffer_memory_requirements[1]);
@@ -247,7 +257,7 @@ bool Scene::create_global_object_vbo()
     memory_allocate_infos[1].allocationSize = buffer_memory_requirements[1].size;
 
     memory_allocate_infos[2].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_infos[2].allocationSize = buffer_memory_requirements[1].size;
+    memory_allocate_infos[2].allocationSize = buffer_memory_requirements[2].size;
 
     for (size_t m = 0; m < buffer_memory_requirements.size(); ++m)
     {
@@ -268,7 +278,7 @@ bool Scene::create_global_object_vbo()
         }
     }
     
-    Log("#   Allocate Global Object V/I/U Buffer Memory\n");
+    Log("#   * Allocate Global Object V/I/U Buffer Memory\n");
     result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[0], nullptr, &_global_object_vbo.memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -280,6 +290,22 @@ bool Scene::create_global_object_vbo()
         return false;
 
     result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[2], nullptr, &_global_object_ubo.memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   * Bind Global Object V/I/U Buffer Memory\n");
+    result = vkBindBufferMemory(_ctx->device, _global_object_vbo.buffer, _global_object_vbo.memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkBindBufferMemory(_ctx->device, _global_object_ibo.buffer, _global_object_ibo.memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkBindBufferMemory(_ctx->device, _global_object_ubo.buffer, _global_object_ubo.memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -470,6 +496,227 @@ void Scene::draw_all_objects(VkCommandBuffer cmd)
     }
 }
 
+bool Scene::create_procedural_textures()
+{
+    Log("#     Compute Procedural Texture\n");
+    _textures.resize(1);
+
+    struct loaded_image 
+    {
+        int width;
+        int height;
+        void *data;
+    };
+
+    loaded_image test_image;
+    test_image.width = 512;
+    test_image.height = 512;
+    test_image.data = (void *) new float[test_image.width * test_image.height * 3];
+
+    for (uint32_t x = 0; x < (uint32_t)test_image.width; ++x) 
+    {
+        for (uint32_t y = 0; y < (uint32_t)test_image.height; ++y) 
+        {
+            float g = 0.3f;
+            if (x % 40 < 20 && y % 40 < 20) {
+                g = 1;
+            }
+            if (x % 40 >= 20 && y % 40 >= 20) {
+                g = 1;
+            }
+
+            float *pixel = ((float *)test_image.data) + (x * test_image.height * 3) + (y * 3);
+            pixel[0] = g * 0.4f;
+            pixel[1] = g * 0.5f;
+            pixel[2] = g * 0.7f;
+        }
+    }
+
+    VkResult result;
+    auto device = _ctx->device;
+
+    VkImageCreateInfo texture_create_info = {};
+    texture_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    texture_create_info.imageType = VK_IMAGE_TYPE_2D;
+    texture_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
+    texture_create_info.extent = { (uint32_t)test_image.width, (uint32_t)test_image.height, 1 };
+    texture_create_info.mipLevels = 1;
+    texture_create_info.arrayLayers = 1;
+    texture_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    texture_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+    texture_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+    texture_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
+
+    Log("#     Create Image\n");
+    result = vkCreateImage(device, &texture_create_info, nullptr, &_textures[0].texture_image);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkMemoryRequirements texture_memory_requirements = {};
+    vkGetImageMemoryRequirements(device, _textures[0].texture_image, &texture_memory_requirements);
+
+    VkMemoryAllocateInfo texture_image_allocate_info = {};
+    texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    texture_image_allocate_info.allocationSize = texture_memory_requirements.size;
+
+    uint32_t texture_memory_type_bits = texture_memory_requirements.memoryTypeBits;
+    VkMemoryPropertyFlags tDesiredMemoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    for (uint32_t i = 0; i < 32; ++i) {
+        VkMemoryType memory_type = _ctx->physical_device_memory_properties.memoryTypes[i];
+        if (texture_memory_type_bits & 1)
+        {
+            if ((memory_type.propertyFlags & tDesiredMemoryFlags) == tDesiredMemoryFlags)
+            {
+                texture_image_allocate_info.memoryTypeIndex = i;
+                break;
+            }
+        }
+        texture_memory_type_bits = texture_memory_type_bits >> 1;
+    }
+
+    Log("#     Allocate Memory\n");
+    result = vkAllocateMemory(device, &texture_image_allocate_info, nullptr, &_textures[0].texture_image_memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkBindImageMemory(device, _textures[0].texture_image, _textures[0].texture_image_memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#     Map/Fill/Flush/UnMap\n");
+    void *image_mapped;
+    result = vkMapMemory(device, _textures[0].texture_image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    memcpy(image_mapped, test_image.data, sizeof(float) * test_image.width * test_image.height * 3);
+
+    VkMappedMemoryRange memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memory_range.memory = _textures[0].texture_image_memory;
+    memory_range.offset = 0;
+    memory_range.size = VK_WHOLE_SIZE;
+    vkFlushMappedMemoryRanges(device, 1, &memory_range);
+
+    vkUnmapMemory(device, _textures[0].texture_image_memory);
+
+    // we can clear the image data:
+    delete[] test_image.data;
+
+    //
+    // TRANSITION
+    //
+
+    VkFence submit_fence = {};
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(device, &fence_create_info, nullptr, &submit_fence);
+
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    auto &cmd = _ctx->graphics.command_buffer;
+
+    vkBeginCommandBuffer(cmd, &begin_info);
+
+    VkImageMemoryBarrier layout_transition_barrier = {};
+    layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    layout_transition_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+    layout_transition_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+    layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.image = _textures[0].texture_image;
+    layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    Log("#     Transition\n");
+    vkCmdPipelineBarrier(cmd,
+        VK_PIPELINE_STAGE_HOST_BIT, //VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,//VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &layout_transition_barrier);
+
+    vkEndCommandBuffer(cmd);
+
+    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = wait_stage_mask;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &cmd;
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
+    result = vkQueueSubmit(_ctx->graphics.queue, 1, &submit_info, submit_fence);
+
+    vkWaitForFences(device, 1, &submit_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &submit_fence);
+    vkResetCommandBuffer(cmd, 0);
+
+    vkDestroyFence(device, submit_fence, nullptr);
+
+    VkImageViewCreateInfo texture_image_view_create_info = {};
+    texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    texture_image_view_create_info.image = _textures[0].texture_image;
+    texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    texture_image_view_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
+    texture_image_view_create_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+    texture_image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    texture_image_view_create_info.subresourceRange.baseMipLevel = 0;
+    texture_image_view_create_info.subresourceRange.levelCount = 1;
+    texture_image_view_create_info.subresourceRange.baseArrayLayer = 0;
+    texture_image_view_create_info.subresourceRange.layerCount = 1;
+
+    Log("#     Create Image View\n");
+    result = vkCreateImageView(device, &texture_image_view_create_info, nullptr, &_textures[0].texture_view);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkSamplerCreateInfo sampler_create_info = {};
+    sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_create_info.magFilter = VK_FILTER_LINEAR;
+    sampler_create_info.minFilter = VK_FILTER_LINEAR;
+    sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.mipLodBias = 0;
+    sampler_create_info.anisotropyEnable = VK_FALSE;
+    sampler_create_info.minLod = 0;
+    sampler_create_info.maxLod = 5;
+    sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+
+    Log("#     Create Sampler\n");
+    result = vkCreateSampler(device, &sampler_create_info, nullptr, &_textures[0].sampler);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+void Scene::destroy_procedural_textures()
+{
+    for (auto t : _textures)
+    {
+        vkDestroySampler(_ctx->device, t.sampler, nullptr);
+        vkDestroyImageView(_ctx->device, t.texture_view, nullptr);
+        vkDestroyImage(_ctx->device, t.texture_image, nullptr);
+        vkFreeMemory(_ctx->device, t.texture_image_memory, nullptr);
+    }
+}
 
 
 
@@ -478,8 +725,7 @@ void Scene::draw_all_objects(VkCommandBuffer cmd)
 
 
 
-
-
+#if 0
 
 bool Renderer::InitUniformBuffer()
 {
@@ -690,210 +936,7 @@ void Renderer::DeInitDescriptors()
     vkDestroyDescriptorSetLayout(_ctx.device, _descriptor_set_layout, nullptr);
 }
 
-bool Renderer::InitFakeImage()
-{
-    struct loaded_image {
-        int width;
-        int height;
-        void *data;
-    };
 
-    loaded_image test_image;
-    test_image.width = 800;
-    test_image.height = 600;
-    test_image.data = (void *) new float[test_image.width * test_image.height * 3];
-
-    for (uint32_t x = 0; x < (uint32_t)test_image.width; ++x) {
-        for (uint32_t y = 0; y < (uint32_t)test_image.height; ++y) {
-            float g = 0.3f;
-            if (x % 40 < 20 && y % 40 < 20) {
-                g = 1;
-            }
-            if (x % 40 >= 20 && y % 40 >= 20) {
-                g = 1;
-            }
-
-            float *pixel = ((float *)test_image.data) + (x * test_image.height * 3) + (y * 3);
-            pixel[0] = g * 0.4f;
-            pixel[1] = g * 0.5f;
-            pixel[2] = g * 0.7f;
-        }
-    }
-
-    VkResult result;
-
-    VkImageCreateInfo texture_create_info = {};
-    texture_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    texture_create_info.imageType = VK_IMAGE_TYPE_2D;
-    texture_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
-    texture_create_info.extent = { (uint32_t)test_image.width, (uint32_t)test_image.height, 1 };
-    texture_create_info.mipLevels = 1;
-    texture_create_info.arrayLayers = 1;
-    texture_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    texture_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-    texture_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-    texture_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
-
-    result = vkCreateImage(_ctx.device, &texture_create_info, nullptr, &_checker_texture.texture_image);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    VkMemoryRequirements texture_memory_requirements = {};
-    vkGetImageMemoryRequirements(_ctx.device, _checker_texture.texture_image, &texture_memory_requirements);
-
-    VkMemoryAllocateInfo texture_image_allocate_info = {};
-    texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    texture_image_allocate_info.allocationSize = texture_memory_requirements.size;
-
-    uint32_t texture_memory_type_bits = texture_memory_requirements.memoryTypeBits;
-    VkMemoryPropertyFlags tDesiredMemoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    for (uint32_t i = 0; i < 32; ++i) {
-        VkMemoryType memory_type = _ctx.physical_device_memory_properties.memoryTypes[i];
-        if (texture_memory_type_bits & 1)
-        {
-            if ((memory_type.propertyFlags & tDesiredMemoryFlags) == tDesiredMemoryFlags)
-            {
-                texture_image_allocate_info.memoryTypeIndex = i;
-                break;
-            }
-        }
-        texture_memory_type_bits = texture_memory_type_bits >> 1;
-    }
-
-    result = vkAllocateMemory(_ctx.device, &texture_image_allocate_info, nullptr, &_checker_texture.texture_image_memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkBindImageMemory(_ctx.device, _checker_texture.texture_image, _checker_texture.texture_image_memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    void *image_mapped;
-    result = vkMapMemory(_ctx.device, _checker_texture.texture_image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    memcpy(image_mapped, test_image.data, sizeof(float) * test_image.width * test_image.height * 3);
-
-    VkMappedMemoryRange memory_range = {};
-    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memory_range.memory = _checker_texture.texture_image_memory;
-    memory_range.offset = 0;
-    memory_range.size = VK_WHOLE_SIZE;
-    vkFlushMappedMemoryRanges(_ctx.device, 1, &memory_range);
-
-    vkUnmapMemory(_ctx.device, _checker_texture.texture_image_memory);
-
-    // we can clear the image data:
-    delete[] test_image.data;
-
-    // TODO: transition
-
-    VkFence submit_fence = {};
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    vkCreateFence(_ctx.device, &fence_create_info, nullptr, &submit_fence);
-
-    VkCommandBufferBeginInfo begin_info = {};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    auto &cmd = _ctx.graphics.command_buffer;
-
-    vkBeginCommandBuffer(cmd, &begin_info);
-
-    VkImageMemoryBarrier layout_transition_barrier = {};
-    layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    layout_transition_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-    layout_transition_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.image = _checker_texture.texture_image;
-    layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-    vkCmdPipelineBarrier(cmd,
-        VK_PIPELINE_STAGE_HOST_BIT, //VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,//VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &layout_transition_barrier);
-
-    vkEndCommandBuffer(cmd);
-
-    VkPipelineStageFlags waitStageMask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.pWaitDstStageMask = waitStageMask;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &cmd;
-    submit_info.signalSemaphoreCount = 0;
-    submit_info.pSignalSemaphores = nullptr;
-    result = vkQueueSubmit(_ctx.graphics.queue, 1, &submit_info, submit_fence);
-
-    vkWaitForFences(_ctx.device, 1, &submit_fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(_ctx.device, 1, &submit_fence);
-    vkResetCommandBuffer(cmd, 0);
-
-    vkDestroyFence(_ctx.device, submit_fence, nullptr);
-
-    // TODO: image view
-    VkImageViewCreateInfo texture_image_view_create_info = {};
-    texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    texture_image_view_create_info.image = _checker_texture.texture_image;
-    texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    texture_image_view_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
-    texture_image_view_create_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-    texture_image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    texture_image_view_create_info.subresourceRange.baseMipLevel = 0;
-    texture_image_view_create_info.subresourceRange.levelCount = 1;
-    texture_image_view_create_info.subresourceRange.baseArrayLayer = 0;
-    texture_image_view_create_info.subresourceRange.layerCount = 1;
-
-    result = vkCreateImageView(_ctx.device, &texture_image_view_create_info, nullptr, &_checker_texture.texture_view);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    VkSamplerCreateInfo sampler_create_info = {};
-    sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler_create_info.magFilter = VK_FILTER_LINEAR;
-    sampler_create_info.minFilter = VK_FILTER_LINEAR;
-    sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_create_info.mipLodBias = 0;
-    sampler_create_info.anisotropyEnable = VK_FALSE;
-    sampler_create_info.minLod = 0;
-    sampler_create_info.maxLod = 5;
-    sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-    sampler_create_info.unnormalizedCoordinates = VK_FALSE;
-
-    result = vkCreateSampler(_ctx.device, &sampler_create_info, nullptr, &_checker_texture.sampler);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    return true;
-}
-
-void Renderer::DeInitFakeImage()
-{
-    vkDestroySampler(_ctx.device, _checker_texture.sampler, nullptr);
-    vkDestroyImageView(_ctx.device, _checker_texture.texture_view, nullptr);
-    vkDestroyImage(_ctx.device, _checker_texture.texture_image, nullptr);
-    vkFreeMemory(_ctx.device, _checker_texture.texture_image_memory, nullptr);
-}
 
 static
 std::vector<char> ReadFileContent(const std::string &file_path)
@@ -1202,7 +1245,7 @@ void Renderer::update_matrices_ubo()
     vkUnmapMemory(_ctx.device, _matrices_ubo.memory);
 }
 
-
+#endif
 
 
 
