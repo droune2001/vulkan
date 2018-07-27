@@ -3,6 +3,7 @@
 #include "scene.h"
 #include "Renderer.h"
 #include "Shared.h"
+#include "utils.h"
 
 #include <array>
 #include <string>
@@ -27,9 +28,13 @@ bool Scene::init()
     if (!create_procedural_textures())
         return false;
 
+    Log("#    Create Default Material\n");
+    if (!create_default_material())
+        return false;
+
 #if 0
     Log("#    Init Descriptors\n");
-    if (!InitDescriptors())
+    if (!InitDescriptors()) 
         return false;
 
     Log("#    Init Shaders\n");
@@ -58,13 +63,17 @@ void Scene::de_init()
     DeInitDescriptors();
 #endif
 
-    Log("#   Destroy Procerudal Textures\n");
-    destroy_procedural_textures();
+    Log("#   Destroy Materials\n");
+    destroy_materials();
+
+    Log("#   Destroy Procedural Textures\n");
+    destroy_textures();
 
     Log("#   Destroy Uniform Buffer\n");
-    if (_global_object_vbo_created) destroy_global_object_vbo();
-    if (_global_object_ibo_created) destroy_global_object_ibo();
-    if (_global_object_ubo_created) destroy_global_object_ubo();
+    if (_global_object_vbo_created || _global_object_ibo_created || _global_object_ubo_created)
+    {
+        destroy_global_object_buffers();
+    }
     if (_scene_ubo_created) destroy_scene_ubo();
 }
 
@@ -79,6 +88,8 @@ bool Scene::add_object(object_description_t od)
     obj.model_matrix = od.model_matrix;
     obj.vertexCount = od.vertexCount;
     obj.indexCount = od.indexCount;
+    obj.material_id = od.material;
+    obj.diffuse_texture = od.diffuse_texture;
 
     Log(std::string("#    v: ") + std::to_string(od.vertexCount) + std::string(" i: ") + std::to_string(od.indexCount) + "\n");
 
@@ -190,21 +201,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
 
 // =====================================================
 
-// lazy creation - can do it at the beginning.
-Scene::vertex_buffer_object_t &Scene::get_global_object_vbo()
-{
-    if (!_global_object_vbo_created)
-    {
-        if (!create_global_object_vbo())
-        {
-            assert("could not create vbo");
-        }
-    }
-
-    return _global_object_vbo;
-}
-
-bool Scene::create_global_object_vbo()
+bool Scene::create_global_object_buffers()
 {
     VkResult result;
 
@@ -317,7 +314,7 @@ bool Scene::create_global_object_vbo()
     return true;
 }
 
-void Scene::destroy_global_object_vbo()
+void Scene::destroy_global_object_buffers()
 {
     Log("#   Free Global Object Buffers Memory\n");
     vkFreeMemory(_ctx->device, _global_object_vbo.memory, nullptr);
@@ -334,11 +331,25 @@ void Scene::destroy_global_object_vbo()
     _global_object_ubo_created = false;
 }
 
+// lazy creation - can do it at the beginning.
+Scene::vertex_buffer_object_t &Scene::get_global_object_vbo()
+{
+    if (!_global_object_vbo_created)
+    {
+        if (!create_global_object_buffers())
+        {
+            assert("could not create vbo");
+        }
+    }
+
+    return _global_object_vbo;
+}
+
 Scene::vertex_buffer_object_t &Scene::get_global_object_ibo()
 {
     if (!_global_object_ibo_created)
     {
-        if (!create_global_object_ibo())
+        if (!create_global_object_buffers())
         {
             assert("could not create ibo");
         }
@@ -347,23 +358,11 @@ Scene::vertex_buffer_object_t &Scene::get_global_object_ibo()
     return _global_object_ibo;
 }
 
-bool Scene::create_global_object_ibo()
-{
-    return create_global_object_vbo(); // 3 at a time
-}
-
-void Scene::destroy_global_object_ibo()
-{
-    // TODO
-}
-
-
-
 Scene::uniform_buffer_t &Scene::get_global_object_ubo()
 {
     if (!_global_object_ubo_created)
     {
-        if (!create_global_object_ubo())
+        if (!create_global_object_buffers())
         {
             assert("could not create objects ubo");
         }
@@ -371,17 +370,6 @@ Scene::uniform_buffer_t &Scene::get_global_object_ubo()
 
     return _global_object_ubo;
 }
-
-bool Scene::create_global_object_ubo()
-{
-    return create_global_object_vbo(); // 3 at a time
-}
-
-void Scene::destroy_global_object_ubo()
-{
-    // TODO
-}
-
 
 
 
@@ -408,7 +396,13 @@ bool Scene::create_scene_ubo()
 
 void Scene::destroy_scene_ubo()
 {
-    // TODO
+#if 0
+    Log("#   Free Memory\n");
+    vkFreeMemory(_ctx.device, _matrices_ubo.memory, nullptr);
+
+    Log("#   Destroy Buffer\n");
+    vkDestroyBuffer(_ctx.device, _matrices_ubo.buffer, nullptr);
+#endif
 }
 
 
@@ -499,7 +493,7 @@ void Scene::draw_all_objects(VkCommandBuffer cmd)
 bool Scene::create_procedural_textures()
 {
     Log("#     Compute Procedural Texture\n");
-    _textures.resize(1);
+    auto &checker_texture = _textures["checker"];
 
     struct loaded_image 
     {
@@ -549,13 +543,13 @@ bool Scene::create_procedural_textures()
     texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
 
     Log("#     Create Image\n");
-    result = vkCreateImage(device, &texture_create_info, nullptr, &_textures[0].texture_image);
+    result = vkCreateImage(device, &texture_create_info, nullptr, &checker_texture.texture_image);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     VkMemoryRequirements texture_memory_requirements = {};
-    vkGetImageMemoryRequirements(device, _textures[0].texture_image, &texture_memory_requirements);
+    vkGetImageMemoryRequirements(device, checker_texture.texture_image, &texture_memory_requirements);
 
     VkMemoryAllocateInfo texture_image_allocate_info = {};
     texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -577,19 +571,19 @@ bool Scene::create_procedural_textures()
     }
 
     Log("#     Allocate Memory\n");
-    result = vkAllocateMemory(device, &texture_image_allocate_info, nullptr, &_textures[0].texture_image_memory);
+    result = vkAllocateMemory(device, &texture_image_allocate_info, nullptr, &checker_texture.texture_image_memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    result = vkBindImageMemory(device, _textures[0].texture_image, _textures[0].texture_image_memory, 0);
+    result = vkBindImageMemory(device, checker_texture.texture_image, checker_texture.texture_image_memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#     Map/Fill/Flush/UnMap\n");
     void *image_mapped;
-    result = vkMapMemory(device, _textures[0].texture_image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
+    result = vkMapMemory(device, checker_texture.texture_image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -598,12 +592,12 @@ bool Scene::create_procedural_textures()
 
     VkMappedMemoryRange memory_range = {};
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memory_range.memory = _textures[0].texture_image_memory;
+    memory_range.memory = checker_texture.texture_image_memory;
     memory_range.offset = 0;
     memory_range.size = VK_WHOLE_SIZE;
     vkFlushMappedMemoryRanges(device, 1, &memory_range);
 
-    vkUnmapMemory(device, _textures[0].texture_image_memory);
+    vkUnmapMemory(device, checker_texture.texture_image_memory);
 
     // we can clear the image data:
     delete[] test_image.data;
@@ -633,7 +627,7 @@ bool Scene::create_procedural_textures()
     layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.image = _textures[0].texture_image;
+    layout_transition_barrier.image = checker_texture.texture_image;
     layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
     Log("#     Transition\n");
@@ -667,7 +661,7 @@ bool Scene::create_procedural_textures()
 
     VkImageViewCreateInfo texture_image_view_create_info = {};
     texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    texture_image_view_create_info.image = _textures[0].texture_image;
+    texture_image_view_create_info.image = checker_texture.texture_image;
     texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     texture_image_view_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
     texture_image_view_create_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
@@ -678,7 +672,7 @@ bool Scene::create_procedural_textures()
     texture_image_view_create_info.subresourceRange.layerCount = 1;
 
     Log("#     Create Image View\n");
-    result = vkCreateImageView(device, &texture_image_view_create_info, nullptr, &_textures[0].texture_view);
+    result = vkCreateImageView(device, &texture_image_view_create_info, nullptr, &checker_texture.texture_view);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -699,7 +693,7 @@ bool Scene::create_procedural_textures()
     sampler_create_info.unnormalizedCoordinates = VK_FALSE;
 
     Log("#     Create Sampler\n");
-    result = vkCreateSampler(device, &sampler_create_info, nullptr, &_textures[0].sampler);
+    result = vkCreateSampler(device, &sampler_create_info, nullptr, &checker_texture.sampler);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -707,19 +701,109 @@ bool Scene::create_procedural_textures()
     return true;
 }
 
-void Scene::destroy_procedural_textures()
+void Scene::destroy_textures()
 {
     for (auto t : _textures)
     {
-        vkDestroySampler(_ctx->device, t.sampler, nullptr);
-        vkDestroyImageView(_ctx->device, t.texture_view, nullptr);
-        vkDestroyImage(_ctx->device, t.texture_image, nullptr);
-        vkFreeMemory(_ctx->device, t.texture_image_memory, nullptr);
+        auto tex = t.second;
+        vkDestroySampler(_ctx->device, tex.sampler, nullptr);
+        vkDestroyImageView(_ctx->device, tex.texture_view, nullptr);
+        vkDestroyImage(_ctx->device, tex.texture_image, nullptr);
+        vkFreeMemory(_ctx->device, tex.texture_image_memory, nullptr);
     }
 }
 
+bool Scene::create_shader_module(const std::string &file_path, VkShaderModule *shader_module)
+{
+#if 0
+    uint32_t codeSize;
+    char *code = new char[10000];
+    HANDLE fileHandle = nullptr;
+
+    // load our vertex shader:
+    fileHandle = ::CreateFile(file_path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (fileHandle == INVALID_HANDLE_VALUE)
+    {
+        Log("!!!!!!!!! Failed to open shader file.\n");
+        return false;
+    }
+    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, nullptr);
+    ::CloseHandle(fileHandle);
+
+    VkShaderModuleCreateInfo shader_creation_info = {};
+    shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shader_creation_info.codeSize = codeSize;
+    shader_creation_info.pCode = (uint32_t *)code;
+#else
+
+    auto content = ReadFileContent(file_path);
+
+    VkShaderModuleCreateInfo shader_creation_info = {};
+    shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shader_creation_info.codeSize = content.size();
+    shader_creation_info.pCode = (uint32_t *)content.data();
+
+#endif
+
+    VkResult result;
+
+    Log("#      Create Shader Module\n");
+    result = vkCreateShaderModule(_ctx->device, &shader_creation_info, nullptr, shader_module);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+bool Scene::create_default_material()
+{
+    _material_t default_material = {};
+
+    Log("#     Create Default Vertex Shader\n");
+    if (!create_shader_module("./vert.spv", &default_material.vs))
+        return false;
+
+    Log("#     Create Default Fragment Shader\n");
+    if (!create_shader_module("./frag.spv", &default_material.fs))
+        return false;
 
 
+    _materials["default"] = default_material;
+
+    return true;
+}
+
+bool Scene::add_material(material_description_t ma)
+{
+    _material_t material = {};
+    
+    // TODO
+
+    _materials[ma.id] = material;
+
+    return true;
+}
+
+void Scene::destroy_materials()
+{
+    for (auto m : _materials)
+    {
+        auto mat = m.second;
+        vkDestroyShaderModule(_ctx->device, mat.vs, nullptr);
+        vkDestroyShaderModule(_ctx->device, mat.fs, nullptr);
+#if 0
+        Log("#   Destroy Descriptor Pool\n");
+        vkDestroyDescriptorPool(_ctx.device, _descriptor_pool, nullptr);
+
+        Log("#   Destroy Descriptor Set Layout\n");
+        vkDestroyDescriptorSetLayout(_ctx.device, _descriptor_set_layout, nullptr);
+
+        vkDestroyPipeline(_ctx.device, pipeline, nullptr);
+        vkDestroyPipelineLayout(_ctx.device, _pipeline_layout, nullptr);
+#endif
+    }
+}
 
 
 
@@ -883,6 +967,11 @@ bool Renderer::InitDescriptors()
     if (result != VK_SUCCESS)
         return false;
 
+
+    // "PER-OBJECT" at render time
+    // Bind the UBO for this object, the texture of that object...
+
+
     // When a set is allocated all values are undefined and all 
     // descriptors are uninitialised. must init all statically used bindings:
     VkDescriptorBufferInfo descriptor_uniform_buffer_info = {};
@@ -936,33 +1025,7 @@ void Renderer::DeInitDescriptors()
     vkDestroyDescriptorSetLayout(_ctx.device, _descriptor_set_layout, nullptr);
 }
 
-
-
-static
-std::vector<char> ReadFileContent(const std::string &file_path)
-{
-    std::vector<char> content;
-
-    std::ifstream file(file_path, std::ios::ate | std::ios::binary);
-    if (!file.is_open())
-    {
-        Log("!!!!!!!!! Failed to open shader file.\n");
-        return std::vector<char>();
-    }
-    else
-    {
-        size_t file_size = (size_t)file.tellg();
-        std::vector<char> buffer(file_size);
-
-        file.seekg(0);
-        file.read(buffer.data(), file_size);
-
-        file.close();
-        return buffer;
-    }
-}
-
-bool Renderer::CreateShaderModule(const std::string &file_path, VkShaderModule *shader_module)
+bool Scene::create_shader_module(const std::string &file_path, VkShaderModule *shader_module)
 {
 #if 0
     uint32_t codeSize;

@@ -6,6 +6,7 @@
 
 #include <array>
 #include <vector>
+#include <unordered_map>
 
 #define MAX_OBJECTS 1024
 #define MAX_LIGHTS 8
@@ -18,6 +19,9 @@ class Scene
 public:
     Scene(vulkan_context *);
     ~Scene();
+
+    using material_id_t = std::string;
+    using texture_id_t = std::string;
 
     struct vertex_t
     {
@@ -33,7 +37,12 @@ public:
         uint16_t *indices = nullptr;
         uint32_t vertexCount = 0;
         vertex_t *vertices = nullptr;
+
         glm::mat4 model_matrix;
+
+        material_id_t material = "default";
+        // hardcoded
+        texture_id_t diffuse_texture;
     };
 
     struct light_description_t
@@ -51,10 +60,19 @@ public:
         float far_plane = 1000.0f;
     };
 
+    struct material_description_t
+    {
+        std::string id;
+        std::string vertex_shader_path;
+        std::string fragment_shader_path;
+        // a completer
+    };
+
     bool add_object(object_description_t od);
     bool add_light(light_description_t li);
     bool add_camera(camera_description_t ca);
-    
+    bool add_material(material_description_t ma);
+
     bool init(); // tmp
     void de_init();
     void update(float dt);
@@ -76,8 +94,6 @@ private:
         VkDeviceMemory  memory = VK_NULL_HANDLE;
     };
 
-private:
-
     void animate_object(float dt);
     void animate_camera(float dt);
 
@@ -91,20 +107,20 @@ private:
     bool create_scene_ubo();
     void destroy_scene_ubo();
 
-    vertex_buffer_object_t &get_global_object_vbo();
-    bool create_global_object_vbo();
-    void destroy_global_object_vbo();
+    vertex_buffer_object_t & get_global_object_vbo();
+    vertex_buffer_object_t & get_global_object_ibo();
+    uniform_buffer_t       & get_global_object_ubo();
 
-    vertex_buffer_object_t &get_global_object_ibo();
-    bool create_global_object_ibo();
-    void destroy_global_object_ibo();
-
-    uniform_buffer_t &get_global_object_ubo();
-    bool create_global_object_ubo();
-    void destroy_global_object_ubo();
-
+    bool create_global_object_buffers();
+    void destroy_global_object_buffers();
+    
     bool create_procedural_textures();
-    void destroy_procedural_textures();
+    void destroy_textures();
+
+    bool create_shader_module(const std::string &file_path, VkShaderModule *shader_module);
+
+    bool create_default_material();
+    void destroy_materials();
 
     // SCENE ======================================================
 #if 0
@@ -129,15 +145,9 @@ private:
 
     vulkan_context *_ctx = nullptr;
 
-    VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
-    VkDescriptorSetLayout _descriptor_set_layout = VK_NULL_HANDLE;
-    VkDescriptorSet _descriptor_set = VK_NULL_HANDLE;
-
     //
     // OBJECTS
     //
-
-    
 
     struct _object_t
     {
@@ -150,6 +160,11 @@ private:
         VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
         
         glm::mat4 model_matrix = glm::mat4(1);
+
+        material_id_t material_id = "default";
+        
+        // hardcoded
+        texture_id_t diffuse_texture;
     };
 
     std::vector<_object_t> _objects;
@@ -191,7 +206,7 @@ private:
     // MATERIALS
     //
 
-    struct texture_t
+    struct _texture_t
     {
         VkImage         texture_image = VK_NULL_HANDLE;
         VkDeviceMemory  texture_image_memory = {};
@@ -199,13 +214,22 @@ private:
         VkSampler       sampler = VK_NULL_HANDLE;
     };
     
-    std::vector<texture_t> _textures;
+    std::unordered_map<texture_id_t, _texture_t> _textures;
 
-    VkShaderModule _vertex_shader_module = VK_NULL_HANDLE;
-    VkShaderModule _fragment_shader_module = VK_NULL_HANDLE;
+    struct _material_t
+    {
+        VkShaderModule vs = VK_NULL_HANDLE;
+        VkShaderModule fs = VK_NULL_HANDLE;
 
-    std::array<VkPipeline, 1> _pipelines = {};
-    VkPipelineLayout _pipeline_layout = VK_NULL_HANDLE;
+        VkDescriptorPool      descriptor_pool = VK_NULL_HANDLE;
+        VkDescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
+        VkDescriptorSet       descriptor_set = VK_NULL_HANDLE;
+
+        VkPipeline       pipeline = {};
+        VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
+    };
+
+    std::unordered_map<material_id_t, _material_t> _materials;
 
     //
     // ANIMATION

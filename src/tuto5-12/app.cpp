@@ -133,6 +133,8 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
         obj_desc.indices = icosphere.second.data();
         obj_desc.model_matrix = glm::translate(glm::mat4(1), glm::vec3(-2.0f, 0.0f, -1.0f));
+        obj_desc.material = "default";
+        obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
     }
 
@@ -144,6 +146,8 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.model_matrix = glm::translate(glm::mat4(1), glm::vec3(3.0f, 0.0f, 1.0f));
+        obj_desc.material = "default";
+        obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
     }
 }
