@@ -114,7 +114,7 @@ void VulkanApplication::clean()
 void VulkanApplication::BuildScene()
 {
     _scene = new Scene(_r->context());
-    _scene->init();
+    _scene->init(_r->render_pass());
 
     Scene::light_description_t light = {};
     light.color = glm::vec3(1,0,1);

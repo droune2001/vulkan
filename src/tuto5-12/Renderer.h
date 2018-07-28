@@ -56,6 +56,7 @@ public:
     void Draw(float dt);
 
     vulkan_context *context() { return &_ctx; };
+    VkRenderPass render_pass() { return _render_pass; }
 
 private:
     bool InitInstance();

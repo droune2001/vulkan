@@ -73,7 +73,7 @@ public:
     bool add_camera(camera_description_t ca);
     bool add_material(material_description_t ma);
 
-    bool init(); // tmp
+    bool init(VkRenderPass rp);
     void de_init();
     void update(float dt);
     void draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect);
@@ -119,28 +119,19 @@ private:
 
     bool create_shader_module(const std::string &file_path, VkShaderModule *shader_module);
 
-    bool create_default_material();
+    bool create_default_material(VkRenderPass rp);
     void destroy_materials();
 
     bool create_default_descriptor_set_layout();
-    bool create_default_pipeline();
+    bool create_default_pipeline(VkRenderPass rp);
 
     // SCENE ======================================================
 #if 0
     bool InitDescriptors();
     void DeInitDescriptors();
 
-    bool InitFakeImage();
-    void DeInitFakeImage();
-
-    bool InitShaders();
-    bool CreateShaderModule(const std::string &file_path, VkShaderModule *shader_module);
-    void DeInitShaders();
-
     bool InitGraphicsPipeline();
     void DeInitGraphicsPipeline();
-
-    void update_matrices_ubo();
 #endif
     // ==============================================================
 
@@ -197,8 +188,8 @@ private:
 
     struct _camera_t
     {
-        glm::mat4 v = glm::mat4(1);; // view matrix
-        glm::mat4 p = glm::mat4(1);; // proj matrix
+        glm::mat4 v = glm::mat4(1); // view matrix
+        glm::mat4 p = glm::mat4(1); // proj matrix
     };
 
     std::vector<_camera_t> _cameras;
@@ -225,8 +216,8 @@ private:
         VkShaderModule fs = VK_NULL_HANDLE;
 
         VkDescriptorPool      descriptor_pool = VK_NULL_HANDLE;
-        VkDescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
-        VkDescriptorSet       descriptor_set = VK_NULL_HANDLE;
+        VkDescriptorSetLayout descriptor_set_layouts[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+        VkDescriptorSet       descriptor_sets[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
 
         VkPipeline       pipeline = {};
         VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;

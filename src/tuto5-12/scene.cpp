@@ -18,18 +18,22 @@ Scene::~Scene()
     de_init();
 }
 
-bool Scene::init()
+bool Scene::init(VkRenderPass rp)
 {
-    //Log("#    Init Uniform Buffer\n");
-    //if (!InitUniformBuffer())
-    //    return false;
+    Log("#    Create Global Objects VBO/IBO/UBO\n");
+    if (!create_global_object_buffers())
+        return false;
 
+    Log("#    Create Scene UBO\n");
+    if (!create_scene_ubo())
+        return false;
+    
     Log("#    Create Procedural Textures\n");
     if (!create_procedural_textures())
         return false;
 
     Log("#    Create Default Material\n");
-    if (!create_default_material())
+    if (!create_default_material(rp))
         return false;
 
     return true;
@@ -167,11 +171,17 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     // pipeline barrier pour flush ubo
 #if 0
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines[0]);
+
+    // scene, one time
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_set, 0, nullptr);
+
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
     draw_all_objects(cmd);
+
+    // for each object, bind per-object ubo
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_set, 0, nullptr);
 #endif
     // RENDER PASS END ---
 }
@@ -181,8 +191,6 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
 bool Scene::create_global_object_buffers()
 {
     VkResult result;
-
-    Log("#   * Create Global Object Vertex/Index/Uniform Buffers\n");
 
     std::array<VkBufferCreateInfo, 3> buffer_create_infos = {};
     // VBO
@@ -202,22 +210,25 @@ bool Scene::create_global_object_buffers()
     buffer_create_infos[2].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     // VBO
+    Log("#     Create Buffer VBO\n");
     result = vkCreateBuffer(_ctx->device, &buffer_create_infos[0], nullptr, &_global_object_vbo.buffer);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
     // IBO
+    Log("#     Create Buffer IBO\n");
     result = vkCreateBuffer(_ctx->device, &buffer_create_infos[1], nullptr, &_global_object_ibo.buffer);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
     // UBO
+    Log("#     Create Buffer UBO\n");
     result = vkCreateBuffer(_ctx->device, &buffer_create_infos[2], nullptr, &_global_object_ubo.buffer);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#   * Get Global Object V/I/U Buffer Memory Requirements(size and type)\n");
+    Log("#     Get Global Object V/I/U Buffer Memory Requirements(size and type)\n");
     std::array<VkMemoryRequirements, 3> buffer_memory_requirements = {};
     vkGetBufferMemoryRequirements(_ctx->device, _global_object_vbo.buffer, &buffer_memory_requirements[0]);
     vkGetBufferMemoryRequirements(_ctx->device, _global_object_ibo.buffer, &buffer_memory_requirements[1]);
@@ -252,7 +263,7 @@ bool Scene::create_global_object_buffers()
         }
     }
     
-    Log("#   * Allocate Global Object V/I/U Buffer Memory\n");
+    Log("#     Allocate Global Object V/I/U Buffer Memory\n");
     result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[0], nullptr, &_global_object_vbo.memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -268,7 +279,7 @@ bool Scene::create_global_object_buffers()
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#   * Bind Global Object V/I/U Buffer Memory\n");
+    Log("#     Bind Global Object V/I/U Buffer Memory\n");
     result = vkBindBufferMemory(_ctx->device, _global_object_vbo.buffer, _global_object_vbo.memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -369,7 +380,7 @@ bool Scene::create_scene_ubo()
 {
     VkResult result;
 
-    Log("#   Create Matrices Uniform Buffer\n");
+    Log("#     Create Matrices Uniform Buffer\n");
     VkBufferCreateInfo uniform_buffer_create_info = {};
     uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     uniform_buffer_create_info.size = sizeof(_camera_t)+sizeof(_light_t); // one camera and one light
@@ -381,7 +392,7 @@ bool Scene::create_scene_ubo()
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#   Get Uniform Buffer Memory Requirements(size and type)\n");
+    Log("#     Get Uniform Buffer Memory Requirements(size and type)\n");
     VkMemoryRequirements uniform_buffer_memory_requirements = {};
     vkGetBufferMemoryRequirements(_ctx->device, _scene_ubo.buffer, &uniform_buffer_memory_requirements);
 
@@ -405,13 +416,13 @@ bool Scene::create_scene_ubo()
         uniform_memory_type_bits = uniform_memory_type_bits >> 1;
     }
 
-    Log("#   Allocate Uniform Buffer Memory\n");
+    Log("#     Allocate Uniform Buffer Memory\n");
     result = vkAllocateMemory(_ctx->device, &uniform_buffer_allocate_info, nullptr, &_scene_ubo.memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    Log("#   Bind memory to buffer\n");
+    Log("#     Bind memory to buffer\n");
     result = vkBindBufferMemory(_ctx->device, _scene_ubo.buffer, _scene_ubo.memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -493,6 +504,13 @@ bool Scene::update_scene_ubo()
     
     memcpy(((float *)mapped + 32), glm::value_ptr(light.color), sizeof(light.color));
     memcpy(((float *)mapped + 32 + 4), glm::value_ptr(light.position), sizeof(light.position));
+
+    VkMappedMemoryRange memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memory_range.memory = _scene_ubo.memory;
+    memory_range.offset = 0;
+    memory_range.size = VK_WHOLE_SIZE;
+    vkFlushMappedMemoryRanges(_ctx->device, 1, &memory_range);
 
     //Log("#   UnMap Uniform Buffer\n");
     vkUnmapMemory(_ctx->device, _scene_ubo.memory);
@@ -759,35 +777,12 @@ void Scene::destroy_textures()
 
 bool Scene::create_shader_module(const std::string &file_path, VkShaderModule *shader_module)
 {
-#if 0
-    uint32_t codeSize;
-    char *code = new char[10000];
-    HANDLE fileHandle = nullptr;
-
-    // load our vertex shader:
-    fileHandle = ::CreateFile(file_path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (fileHandle == INVALID_HANDLE_VALUE)
-    {
-        Log("!!!!!!!!! Failed to open shader file.\n");
-        return false;
-    }
-    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, nullptr);
-    ::CloseHandle(fileHandle);
-
-    VkShaderModuleCreateInfo shader_creation_info = {};
-    shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shader_creation_info.codeSize = codeSize;
-    shader_creation_info.pCode = (uint32_t *)code;
-#else
-
     auto content = ReadFileContent(file_path);
 
     VkShaderModuleCreateInfo shader_creation_info = {};
     shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shader_creation_info.codeSize = content.size();
     shader_creation_info.pCode = (uint32_t *)content.data();
-
-#endif
 
     VkResult result;
 
@@ -806,38 +801,66 @@ bool Scene::create_default_descriptor_set_layout()
 
     VkResult result;
     
-    // layout( std140, binding = 0 ) uniform buffer { mat4 v; mat4 p; } Scene_UBO;
-    std::array<VkDescriptorSetLayoutBinding, 3> bindings = {};
-    bindings[0].binding = 0; // <---- value used in the shader itself
-    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    bindings[0].descriptorCount = 1; // si j'ai 2 ubo, je mets 2 ou j'en fais 2??
-    bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    bindings[0].pImmutableSamplers = nullptr;
+    // 2 Descriptor sets
+    // set = 0 for scene uniforms (camera matrices, lights)
+    // set = 1 for object uniforms (model matrix)
 
-    // layout( std140, binding = 1 ) uniform buffer { mat4 m; } Object_UBO;
-    bindings[1].binding = 1; // <---- value used in the shader itself
-    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    bindings[1].descriptorCount = 1;
-    bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    bindings[1].pImmutableSamplers = nullptr;
+    //
+    // PER-SCENE
+    //
 
-    // layout ( set = 0, binding = 2 ) uniform sampler2D diffuse_tex_checker_texure._sampler;
-    bindings[2].binding = 2; // <---- value used in the shader itself
-    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    bindings[2].descriptorCount = 1;
-    bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    bindings[2].pImmutableSamplers = nullptr;
+    std::array<VkDescriptorSetLayoutBinding, 2> scene_bindings = {};
 
-    VkDescriptorSetLayoutCreateInfo set_layout_create_info = {};
-    set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    set_layout_create_info.bindingCount = (uint32_t)bindings.size();
-    set_layout_create_info.pBindings = bindings.data();
+    // layout( std140, set = 0, binding = 0 ) uniform buffer { mat4 v; mat4 p; vec4 light_pos; vec4 light_color; } Scene_UBO;
+    scene_bindings[0].binding = 0; // <---- value used in the shader itself
+    scene_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    scene_bindings[0].descriptorCount = 1; // si j'ai 2 ubo, je mets 2 ou j'en fais 2??
+    scene_bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    scene_bindings[0].pImmutableSamplers = nullptr;
 
-    Log("#      Create Default Descriptor Set Layout\n");
-    result = vkCreateDescriptorSetLayout(_ctx->device, &set_layout_create_info, nullptr, &default_material.descriptor_set_layout);
+    // layout ( set = 0, binding = 1 ) uniform sampler2D diffuse_tex_checker_texure._sampler;
+    scene_bindings[1].binding = 1; // <---- value used in the shader itself
+    scene_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    scene_bindings[1].descriptorCount = 1;
+    scene_bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    scene_bindings[1].pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo scene_set_layout_create_info = {};
+    scene_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    scene_set_layout_create_info.bindingCount = (uint32_t)scene_bindings.size();
+    scene_set_layout_create_info.pBindings = scene_bindings.data();
+
+    Log("#      Create Default Descriptor Set Layout for Scene Uniforms\n");
+    result = vkCreateDescriptorSetLayout(_ctx->device, &scene_set_layout_create_info, nullptr, &default_material.descriptor_set_layouts[0]);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
+
+    //
+    // PER-OBJECT
+    //
+
+    std::array<VkDescriptorSetLayoutBinding, 1> object_bindings = {};
+    // layout( std140, set = 1, binding = 0 ) uniform buffer { mat4 m; } Object_UBO;
+    object_bindings[0].binding = 0; // <---- value used in the shader itself
+    object_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    object_bindings[0].descriptorCount = 1;
+    object_bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    object_bindings[0].pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo object_set_layout_create_info = {};
+    object_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    object_set_layout_create_info.bindingCount = (uint32_t)object_bindings.size();
+    object_set_layout_create_info.pBindings = object_bindings.data();
+
+    Log("#      Create Default Descriptor Set Layout for Objects Uniforms\n");
+    result = vkCreateDescriptorSetLayout(_ctx->device, &object_set_layout_create_info, nullptr, &default_material.descriptor_set_layouts[1]);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+
+
 
     // allocate just enough for two uniform descriptor sets
     std::array<VkDescriptorPoolSize, 2> uniform_buffer_pool_sizes = {};
@@ -849,7 +872,7 @@ bool Scene::create_default_descriptor_set_layout()
 
     VkDescriptorPoolCreateInfo pool_create_info = {};
     pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_create_info.maxSets = 1;
+    pool_create_info.maxSets = 2;
     pool_create_info.poolSizeCount = (uint32_t)uniform_buffer_pool_sizes.size();
     pool_create_info.pPoolSizes = uniform_buffer_pool_sizes.data();
 
@@ -862,132 +885,50 @@ bool Scene::create_default_descriptor_set_layout()
     VkDescriptorSetAllocateInfo descriptor_allocate_info = {};
     descriptor_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptor_allocate_info.descriptorPool = default_material.descriptor_pool;
-    descriptor_allocate_info.descriptorSetCount = 1;
-    descriptor_allocate_info.pSetLayouts = &default_material.descriptor_set_layout;
+    descriptor_allocate_info.descriptorSetCount = 2; // scene and obj sets
+    descriptor_allocate_info.pSetLayouts = default_material.descriptor_set_layouts; // [0] [1]
 
-    Log("#      Allocate Descriptor Set\n");
-    result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &default_material.descriptor_set);
+    Log("#      Allocate 2 Descriptor Sets\n");
+    result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, default_material.descriptor_sets); // [0] [1]
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    return true;
-}
-
-bool Scene::create_default_pipeline()
-{
-    _material_t &default_material = _materials["default"];
-
-
-    return true;
-}
-
-bool Scene::create_default_material()
-{
-    _material_t &default_material = _materials["default"];
-
-    Log("#     Create Default Vertex Shader\n");
-    if (!create_shader_module("./vert.spv", &default_material.vs))
-        return false;
-
-    Log("#     Create Default Fragment Shader\n");
-    if (!create_shader_module("./frag.spv", &default_material.fs))
-        return false;
-
-    Log("#     Create Default Descriptor Set Layout\n");
-    if (!create_default_descriptor_set_layout())
-        return false;
-
-    Log("#     Create Default Pipeline\n");
-    if (!create_default_pipeline())
-        return false;
-
-    return true;
-}
-
-void Scene::destroy_materials()
-{
-    for (auto m : _materials)
-    {
-        auto mat = m.second;
-
-        Log("#    Destroy Shader Modules\n");
-        vkDestroyShaderModule(_ctx->device, mat.vs, nullptr);
-        vkDestroyShaderModule(_ctx->device, mat.fs, nullptr);
-
-        Log("#    Destroy Descriptor Pool\n");
-        vkDestroyDescriptorPool(_ctx->device, mat.descriptor_pool, nullptr);
-
-        Log("#    Destroy Descriptor Set Layout\n");
-        vkDestroyDescriptorSetLayout(_ctx->device, mat.descriptor_set_layout, nullptr);
-#if 0
-        Log("#    Destroy Pipeline\n");
-        vkDestroyPipeline(_ctx->device, mat.pipeline, nullptr);
-
-        Log("#    Destroy Pipeline Layout\n");
-        vkDestroyPipelineLayout(_ctx->device, mat.pipeline_layout, nullptr);
-#endif
-    }
-}
-
-bool Scene::add_material(material_description_t ma)
-{
-    _material_t material = {};
-
-    // TODO
-
-    _materials[ma.id] = material;
-
-    return true;
-}
-
-
-
-#if 0
-
-
-
-
-bool Renderer::InitDescriptors()
-{
-
-
-
-    // "PER-OBJECT" at render time
-    // Bind the UBO for this object, the texture of that object...
-
-
+    //
+    // CONFIGURE DESCRIPTOR SETS
+    //
     // When a set is allocated all values are undefined and all 
     // descriptors are uninitialised. must init all statically used bindings:
-    VkDescriptorBufferInfo descriptor_uniform_buffer_info = {};
-    descriptor_uniform_buffer_info.buffer = _matrices_ubo.buffer;
-    descriptor_uniform_buffer_info.offset = 0;
-    descriptor_uniform_buffer_info.range = VK_WHOLE_SIZE;
 
-    VkWriteDescriptorSet write_descriptor_for_uniform_buffer = {};
-    write_descriptor_for_uniform_buffer.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_for_uniform_buffer.dstSet = _descriptor_set;
-    write_descriptor_for_uniform_buffer.dstBinding = 0;
-    write_descriptor_for_uniform_buffer.dstArrayElement = 0;
-    write_descriptor_for_uniform_buffer.descriptorCount = 1;
-    write_descriptor_for_uniform_buffer.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_descriptor_for_uniform_buffer.pImageInfo = nullptr;
-    write_descriptor_for_uniform_buffer.pBufferInfo = &descriptor_uniform_buffer_info;
-    write_descriptor_for_uniform_buffer.pTexelBufferView = nullptr;
 
-    Log("#   Update Descriptor Set (UBO)\n");
-    vkUpdateDescriptorSets(_ctx.device, 1, &write_descriptor_for_uniform_buffer, 0, nullptr);
+    VkDescriptorBufferInfo scene_ubo_descriptor_buffer_info = {};
+    scene_ubo_descriptor_buffer_info.buffer = _scene_ubo.buffer;
+    scene_ubo_descriptor_buffer_info.offset = 0;
+    scene_ubo_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet scene_ubo_write_descriptor_set = {};
+    scene_ubo_write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    scene_ubo_write_descriptor_set.dstSet = default_material.descriptor_sets[0]; // <-- scene descriptor set
+    scene_ubo_write_descriptor_set.dstBinding = 0; // binding = 0 in shaders
+    scene_ubo_write_descriptor_set.dstArrayElement = 0;
+    scene_ubo_write_descriptor_set.descriptorCount = 1;
+    scene_ubo_write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    scene_ubo_write_descriptor_set.pImageInfo = nullptr;
+    scene_ubo_write_descriptor_set.pBufferInfo = &scene_ubo_descriptor_buffer_info;
+    scene_ubo_write_descriptor_set.pTexelBufferView = nullptr;
+
+    Log("#      Update Descriptor Set (Scene UBO)\n");
+    vkUpdateDescriptorSets(_ctx->device, 1, &scene_ubo_write_descriptor_set, 0, nullptr);
 
     VkDescriptorImageInfo descriptor_image_info = {};
-    descriptor_image_info.sampler = _checker_texture.sampler;
-    descriptor_image_info.imageView = _checker_texture.texture_view;
-    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!!
-                                                                        // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    descriptor_image_info.sampler = _textures["checker"].sampler;
+    descriptor_image_info.imageView = _textures["checker"].texture_view;
+    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
     VkWriteDescriptorSet write_descriptor_for_checker_texture_sampler = {};
     write_descriptor_for_checker_texture_sampler.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_for_checker_texture_sampler.dstSet = _descriptor_set;
-    write_descriptor_for_checker_texture_sampler.dstBinding = 1; // <----- beware
+    write_descriptor_for_checker_texture_sampler.dstSet = default_material.descriptor_sets[0]; // <-- scene descriptor set
+    write_descriptor_for_checker_texture_sampler.dstBinding = 1; // binding = 1 on shaders
     write_descriptor_for_checker_texture_sampler.dstArrayElement = 0;
     write_descriptor_for_checker_texture_sampler.descriptorCount = 1;
     write_descriptor_for_checker_texture_sampler.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -995,94 +936,47 @@ bool Renderer::InitDescriptors()
     write_descriptor_for_checker_texture_sampler.pBufferInfo = nullptr;
     write_descriptor_for_checker_texture_sampler.pTexelBufferView = nullptr;
 
-    Log("#   Update Descriptor Set (texture sampler)\n");
-    vkUpdateDescriptorSets(_ctx.device, 1, &write_descriptor_for_checker_texture_sampler, 0, nullptr);
+    Log("#      Update Descriptor Set (Scene texture sampler)\n");
+    vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_for_checker_texture_sampler, 0, nullptr);
+
+    VkDescriptorBufferInfo object_ubo_descriptor_buffer_info = {};
+    object_ubo_descriptor_buffer_info.buffer = _global_object_ubo.buffer;
+    object_ubo_descriptor_buffer_info.offset = 0;
+    object_ubo_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet object_ubo_write_descriptor_set = {};
+    object_ubo_write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    object_ubo_write_descriptor_set.dstSet = default_material.descriptor_sets[1]; // <-- object descriptor set
+    object_ubo_write_descriptor_set.dstBinding = 0; // binding = 0 in shaders
+    object_ubo_write_descriptor_set.dstArrayElement = 0;
+    object_ubo_write_descriptor_set.descriptorCount = 1;
+    object_ubo_write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    object_ubo_write_descriptor_set.pImageInfo = nullptr;
+    object_ubo_write_descriptor_set.pBufferInfo = &object_ubo_descriptor_buffer_info;
+    object_ubo_write_descriptor_set.pTexelBufferView = nullptr;
+
+    Log("#      Update Descriptor Set (Object UBO)\n");
+    vkUpdateDescriptorSets(_ctx->device, 1, &object_ubo_write_descriptor_set, 0, nullptr);
 
     return true;
 }
 
-void Renderer::DeInitDescriptors()
+bool Scene::create_default_pipeline(VkRenderPass rp)
 {
-    Log("#   Destroy Descriptor Pool\n");
-    vkDestroyDescriptorPool(_ctx.device, _descriptor_pool, nullptr);
+    _material_t &default_material = _materials["default"];
 
-    Log("#   Destroy Descriptor Set Layout\n");
-    vkDestroyDescriptorSetLayout(_ctx.device, _descriptor_set_layout, nullptr);
-}
-
-bool Scene::create_shader_module(const std::string &file_path, VkShaderModule *shader_module)
-{
-#if 0
-    uint32_t codeSize;
-    char *code = new char[10000];
-    HANDLE fileHandle = nullptr;
-
-    // load our vertex shader:
-    fileHandle = ::CreateFile(file_path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (fileHandle == INVALID_HANDLE_VALUE)
-    {
-        Log("!!!!!!!!! Failed to open shader file.\n");
-        return false;
-    }
-    ::ReadFile((HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, nullptr);
-    ::CloseHandle(fileHandle);
-
-    VkShaderModuleCreateInfo shader_creation_info = {};
-    shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shader_creation_info.codeSize = codeSize;
-    shader_creation_info.pCode = (uint32_t *)code;
-#else
-
-    auto content = ReadFileContent(file_path);
-
-    VkShaderModuleCreateInfo shader_creation_info = {};
-    shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shader_creation_info.codeSize = content.size();
-    shader_creation_info.pCode = (uint32_t *)content.data();
-
-#endif
-
-    VkResult result;
-
-    result = vkCreateShaderModule(_ctx.device, &shader_creation_info, nullptr, shader_module);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    return true;
-}
-
-bool Renderer::InitShaders()
-{
-    if (!CreateShaderModule("./vert.spv", &_vertex_shader_module))
-        return false;
-
-    if (!CreateShaderModule("./frag.spv", &_fragment_shader_module))
-        return false;
-
-    return true;
-}
-
-void Renderer::DeInitShaders()
-{
-    vkDestroyShaderModule(_ctx.device, _fragment_shader_module, nullptr);
-    vkDestroyShaderModule(_ctx.device, _vertex_shader_module, nullptr);
-}
-
-bool Renderer::InitGraphicsPipeline()
-{
     VkResult result;
 
     // use it later to define uniform buffer
     VkPipelineLayoutCreateInfo layout_create_info = {};
     layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_create_info.setLayoutCount = 1;
-    layout_create_info.pSetLayouts = &_descriptor_set_layout;
+    layout_create_info.setLayoutCount = 2; // <--- 2 sets, scene and object
+    layout_create_info.pSetLayouts = default_material.descriptor_set_layouts;
     layout_create_info.pushConstantRangeCount = 0;
     layout_create_info.pPushConstantRanges = nullptr; // constant into shader for opti???
 
-    Log("#   Fill Pipeline Layout... and everything else.\n");
-    result = vkCreatePipelineLayout(_ctx.device, &layout_create_info, nullptr, &_pipeline_layout);
+    Log("#      Fill Pipeline Layout (with 2 sets)\n");
+    result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &default_material.pipeline_layout);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1090,13 +984,13 @@ bool Renderer::InitGraphicsPipeline()
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stage_create_infos = {};
     shader_stage_create_infos[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shader_stage_create_infos[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shader_stage_create_infos[0].module = _vertex_shader_module;
+    shader_stage_create_infos[0].module = default_material.vs;
     shader_stage_create_infos[0].pName = "main";        // shader entry point function name
     shader_stage_create_infos[0].pSpecializationInfo = nullptr;
 
     shader_stage_create_infos[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shader_stage_create_infos[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shader_stage_create_infos[1].module = _fragment_shader_module;
+    shader_stage_create_infos[1].module = default_material.fs;
     shader_stage_create_infos[1].pName = "main";        // shader entry point function name
     shader_stage_create_infos[1].pSpecializationInfo = nullptr;
 
@@ -1105,7 +999,7 @@ bool Renderer::InitGraphicsPipeline()
     vertex_binding_description.stride = sizeof(Scene::vertex_t);
     vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    // bind input to location=0, binding=0
+    // bind input to location=0/1/2, binding=0
     VkVertexInputAttributeDescription vertex_attribute_description[3] = {};
     vertex_attribute_description[0].location = 0;
     vertex_attribute_description[0].binding = 0;
@@ -1138,14 +1032,14 @@ bool Renderer::InitGraphicsPipeline()
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)_global_viewport.width;
-    viewport.height = (float)_global_viewport.height;
+    viewport.width = 512.0f; // dynamic, will set the correct size later.
+    viewport.height = 512.0f;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissors = {};
     scissors.offset = { 0, 0 };
-    scissors.extent = _global_viewport;
+    scissors.extent = { 512, 512 };
 
     VkPipelineViewportStateCreateInfo viewport_state_create_info = {};
     viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -1224,33 +1118,33 @@ bool Renderer::InitGraphicsPipeline()
     dynamic_state_create_info.dynamicStateCount = (uint32_t)dynamic_state.size();
     dynamic_state_create_info.pDynamicStates = dynamic_state.data();
 
-    std::array<VkGraphicsPipelineCreateInfo, 1> pipeline_create_infos = {};
-    pipeline_create_infos[0].sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipeline_create_infos[0].stageCount = (uint32_t)shader_stage_create_infos.size();
-    pipeline_create_infos[0].pStages = shader_stage_create_infos.data();
-    pipeline_create_infos[0].pVertexInputState = &vertex_input_state_create_info;
-    pipeline_create_infos[0].pInputAssemblyState = &input_assembly_state_create_info;
-    pipeline_create_infos[0].pTessellationState = nullptr;
-    pipeline_create_infos[0].pViewportState = &viewport_state_create_info;
-    pipeline_create_infos[0].pRasterizationState = &raster_state_create_info;
-    pipeline_create_infos[0].pMultisampleState = &multisample_state_create_info;
-    pipeline_create_infos[0].pDepthStencilState = &depth_stencil_state_create_info;
-    pipeline_create_infos[0].pColorBlendState = &color_blend_state_create_info;
-    pipeline_create_infos[0].pDynamicState = &dynamic_state_create_info;
-    pipeline_create_infos[0].layout = _pipeline_layout;
-    pipeline_create_infos[0].renderPass = _render_pass;
-    pipeline_create_infos[0].subpass = 0;
-    pipeline_create_infos[0].basePipelineHandle = VK_NULL_HANDLE; // only if VK_PIPELINE_CREATE_DERIVATIVE flag is set.
-    pipeline_create_infos[0].basePipelineIndex = 0;
+    VkGraphicsPipelineCreateInfo pipeline_create_info = {};
+    pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_create_info.stageCount = (uint32_t)shader_stage_create_infos.size();
+    pipeline_create_info.pStages = shader_stage_create_infos.data();
+    pipeline_create_info.pVertexInputState = &vertex_input_state_create_info;
+    pipeline_create_info.pInputAssemblyState = &input_assembly_state_create_info;
+    pipeline_create_info.pTessellationState = nullptr;
+    pipeline_create_info.pViewportState = &viewport_state_create_info;
+    pipeline_create_info.pRasterizationState = &raster_state_create_info;
+    pipeline_create_info.pMultisampleState = &multisample_state_create_info;
+    pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
+    pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
+    pipeline_create_info.pDynamicState = &dynamic_state_create_info;
+    pipeline_create_info.layout = default_material.pipeline_layout;
+    pipeline_create_info.renderPass = rp; // TODO: create a render pass inside Scene
+    pipeline_create_info.subpass = 0;
+    pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE; // only if VK_PIPELINE_CREATE_DERIVATIVE flag is set.
+    pipeline_create_info.basePipelineIndex = 0;
 
-    Log("#   Create Pipeline\n");
+    Log("#      Create Pipeline\n");
     result = vkCreateGraphicsPipelines(
-        _ctx.device,
+        _ctx->device,
         VK_NULL_HANDLE, // cache
-        (uint32_t)pipeline_create_infos.size(),
-        pipeline_create_infos.data(),
+        1,
+        &pipeline_create_info,
         nullptr,
-        _pipelines.data());
+        &default_material.pipeline);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1258,48 +1152,65 @@ bool Renderer::InitGraphicsPipeline()
     return true;
 }
 
-void Renderer::DeInitGraphicsPipeline()
+bool Scene::create_default_material(VkRenderPass rp)
 {
-    for (auto & pipeline : _pipelines)
+    _material_t &default_material = _materials["default"];
+
+    Log("#     Create Default Vertex Shader\n");
+    if (!create_shader_module("./vert.spv", &default_material.vs))
+        return false;
+
+    Log("#     Create Default Fragment Shader\n");
+    if (!create_shader_module("./frag.spv", &default_material.fs))
+        return false;
+
+    Log("#     Create Default Descriptor Set Layout\n");
+    if (!create_default_descriptor_set_layout())
+        return false;
+
+    Log("#     Create Default Pipeline\n");
+    if (!create_default_pipeline(rp))
+        return false;
+
+    return true;
+}
+
+void Scene::destroy_materials()
+{
+    for (auto m : _materials)
     {
-        vkDestroyPipeline(_ctx.device, pipeline, nullptr);
+        auto mat = m.second;
+
+        Log("#    Destroy Shader Modules\n");
+        vkDestroyShaderModule(_ctx->device, mat.vs, nullptr);
+        vkDestroyShaderModule(_ctx->device, mat.fs, nullptr);
+
+        Log("#    Destroy Descriptor Pool\n");
+        vkDestroyDescriptorPool(_ctx->device, mat.descriptor_pool, nullptr);
+
+        Log("#    Destroy Descriptor Set Layout\n");
+        for (int i = 0; i < 2; ++i)
+        {
+            vkDestroyDescriptorSetLayout(_ctx->device, mat.descriptor_set_layouts[i], nullptr);
+        }
+        
+        Log("#    Destroy Pipeline\n");
+        vkDestroyPipeline(_ctx->device, mat.pipeline, nullptr);
+
+        Log("#    Destroy Pipeline Layout\n");
+        vkDestroyPipelineLayout(_ctx->device, mat.pipeline_layout, nullptr);
     }
-    vkDestroyPipelineLayout(_ctx.device, _pipeline_layout, nullptr);
 }
 
-
-void Renderer::update_matrices_ubo()
+bool Scene::add_material(material_description_t ma)
 {
-    void *matrix_mapped;
-    vkMapMemory(_ctx.device, _matrices_ubo.memory, 0, VK_WHOLE_SIZE, 0, &matrix_mapped);
+    _material_t material = {};
 
-    memcpy(matrix_mapped, _mvp.m, sizeof(_mvp.m));
-    memcpy(((float *)matrix_mapped + 16), _mvp.v, sizeof(_mvp.v));
-    memcpy(((float *)matrix_mapped + 32), _mvp.p, sizeof(_mvp.p));
+    // TODO
 
-    /*
-    memcpy(matrix_mapped + offsetof(_mvp, m), _mvp.m, sizeof(_mvp.m));
-    memcpy(matrix_mapped + offsetof(_mvp, v), _mvp.v, sizeof(_mvp.v));
-    memcpy(matrix_mapped + offsetof(_mvp, p), _mvp.p, sizeof(_mvp.p));
-    */
+    _materials[ma.id] = material;
 
-    VkMappedMemoryRange memory_range = {};
-    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memory_range.memory = _matrices_ubo.memory;
-    memory_range.offset = 0;
-    memory_range.size = VK_WHOLE_SIZE;
-    vkFlushMappedMemoryRanges(_ctx.device, 1, &memory_range);
-
-    vkUnmapMemory(_ctx.device, _matrices_ubo.memory);
+    return true;
 }
-
-#endif
-
-
-
-
-
-
-
 
 //
