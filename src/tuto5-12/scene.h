@@ -100,8 +100,8 @@ private:
     void draw_object(size_t object_index, VkCommandBuffer cmd);
     void draw_all_objects(VkCommandBuffer cmd);
 
-    void update_scene_ubo();
-    void update_object_ubo(size_t i);
+    bool update_scene_ubo();
+    bool update_object_ubo(size_t i);
 
     uniform_buffer_t &get_scene_ubo();
     bool create_scene_ubo();

@@ -45,7 +45,7 @@ void Scene::de_init()
     Log("#   Destroy Procedural Textures\n");
     destroy_textures();
 
-    Log("#   Destroy Uniform Buffer\n");
+    Log("#   Destroy Uniform Buffers\n");
     if (_global_object_vbo_created || _global_object_ibo_created || _global_object_ubo_created)
     {
         destroy_global_object_buffers();
@@ -146,6 +146,7 @@ bool Scene::add_camera(camera_description_t ca)
     _camera_t camera = {};
     camera.v = glm::lookAt(ca.position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
     camera.p = glm::perspective(ca.fovy, ca.aspect, ca.near_plane, ca.far_plane);
+    camera.p[1][1] *= -1.0f;
 
     _cameras.push_back(camera);
 
@@ -292,12 +293,12 @@ bool Scene::create_global_object_buffers()
 
 void Scene::destroy_global_object_buffers()
 {
-    Log("#   Free Global Object Buffers Memory\n");
+    Log("#    Free Global Object Buffers Memory\n");
     vkFreeMemory(_ctx->device, _global_object_vbo.memory, nullptr);
     vkFreeMemory(_ctx->device, _global_object_ibo.memory, nullptr);
     vkFreeMemory(_ctx->device, _global_object_ubo.memory, nullptr);
 
-    Log("#   Destroy Global Object Buffers\n");
+    Log("#    Destroy Global Object Buffers\n");
     vkDestroyBuffer(_ctx->device, _global_object_vbo.buffer, nullptr);
     vkDestroyBuffer(_ctx->device, _global_object_ibo.buffer, nullptr);
     vkDestroyBuffer(_ctx->device, _global_object_ubo.buffer, nullptr);
@@ -366,19 +367,68 @@ Scene::uniform_buffer_t &Scene::get_scene_ubo()
 
 bool Scene::create_scene_ubo()
 {
-    // TODO
+    VkResult result;
+
+    Log("#   Create Matrices Uniform Buffer\n");
+    VkBufferCreateInfo uniform_buffer_create_info = {};
+    uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    uniform_buffer_create_info.size = sizeof(_camera_t)+sizeof(_light_t); // one camera and one light
+    uniform_buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
+    uniform_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    result = vkCreateBuffer(_ctx->device, &uniform_buffer_create_info, nullptr, &_scene_ubo.buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Get Uniform Buffer Memory Requirements(size and type)\n");
+    VkMemoryRequirements uniform_buffer_memory_requirements = {};
+    vkGetBufferMemoryRequirements(_ctx->device, _scene_ubo.buffer, &uniform_buffer_memory_requirements);
+
+    VkMemoryAllocateInfo uniform_buffer_allocate_info = {};
+    uniform_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    uniform_buffer_allocate_info.allocationSize = uniform_buffer_memory_requirements.size;
+
+    uint32_t uniform_memory_type_bits = uniform_buffer_memory_requirements.memoryTypeBits;
+    VkMemoryPropertyFlags uniform_desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    auto mem_props = _ctx->physical_device_memory_properties;
+    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
+    {
+        VkMemoryType memory_type = mem_props.memoryTypes[i];
+        if (uniform_memory_type_bits & 1)
+        {
+            if ((memory_type.propertyFlags & uniform_desired_memory_flags) == uniform_desired_memory_flags) {
+                uniform_buffer_allocate_info.memoryTypeIndex = i;
+                break;
+            }
+        }
+        uniform_memory_type_bits = uniform_memory_type_bits >> 1;
+    }
+
+    Log("#   Allocate Uniform Buffer Memory\n");
+    result = vkAllocateMemory(_ctx->device, &uniform_buffer_allocate_info, nullptr, &_scene_ubo.memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#   Bind memory to buffer\n");
+    result = vkBindBufferMemory(_ctx->device, _scene_ubo.buffer, _scene_ubo.memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    _scene_ubo_created = true;
+
     return true;
 }
 
 void Scene::destroy_scene_ubo()
 {
-#if 0
-    Log("#   Free Memory\n");
-    vkFreeMemory(_ctx.device, _matrices_ubo.memory, nullptr);
+    Log("#    Free Memory\n");
+    vkFreeMemory(_ctx->device, _scene_ubo.memory, nullptr);
 
-    Log("#   Destroy Buffer\n");
-    vkDestroyBuffer(_ctx.device, _matrices_ubo.buffer, nullptr);
-#endif
+    Log("#    Destroy Buffer\n");
+    vkDestroyBuffer(_ctx->device, _scene_ubo.buffer, nullptr);
 }
 
 
@@ -422,19 +472,35 @@ void Scene::animate_camera(float dt)
     _cameras[0].v = glm::lookAt(glm::vec3(0,0,_camera_anim.cameraZ), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 }
 
-void Scene::update_scene_ubo()
+bool Scene::update_scene_ubo()
 {
     auto &scene_ubo = get_scene_ubo();
+    auto camera = _cameras[0];
+    auto light = _lights[0];
 
-    // map
-    //     copy view matrix
-    //     copy proj matrix
-    //     copy light color
-    //     copy light position
-    // unmap
+    VkResult result;
+
+    //Log("#   Map Uniform Buffer\n");
+    void *mapped = nullptr;
+    result = vkMapMemory(_ctx->device, _scene_ubo.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    //Log("#   Copy matrices, first time.\n");
+    memcpy(mapped, glm::value_ptr(camera.v), sizeof(camera.v));
+    memcpy(((float *)mapped + 16), glm::value_ptr(camera.p), sizeof(camera.p));
+    
+    memcpy(((float *)mapped + 32), glm::value_ptr(light.color), sizeof(light.color));
+    memcpy(((float *)mapped + 32 + 4), glm::value_ptr(light.position), sizeof(light.position));
+
+    //Log("#   UnMap Uniform Buffer\n");
+    vkUnmapMemory(_ctx->device, _scene_ubo.memory);
+
+    return true;
 }
 
-void Scene::update_object_ubo(size_t i)
+bool Scene::update_object_ubo(size_t i)
 {
     const _object_t &obj = _objects[i];
 
@@ -443,6 +509,8 @@ void Scene::update_object_ubo(size_t i)
     // map
     //     copy model matrix
     // unmap
+
+    return true;
 }
 
 void Scene::draw_object(size_t object_index, VkCommandBuffer cmd)
@@ -877,89 +945,7 @@ bool Scene::add_material(material_description_t ma)
 
 #if 0
 
-bool Renderer::InitUniformBuffer()
-{
-    VkResult result;
 
-    float aspect_ratio = _global_viewport.width / (float)_global_viewport.height;
-    float fov_degrees = 45.0f;
-    float nearZ = 0.1f;
-    float farZ = 1000.0f;
-
-    glm::mat4 proj = glm::perspective(fov_degrees, aspect_ratio, nearZ, farZ);
-    proj[1][1] *= -1.0f; // vulkan clip space with Y down.
-    glm::mat4 view = glm::lookAt(glm::vec3(-3, -2, 10), glm::vec3(0), glm::vec3(0, 1, 0));
-    glm::mat4 model = glm::mat4(1);
-
-    memcpy(_mvp.m, glm::value_ptr(model), sizeof(model));
-    memcpy(_mvp.v, glm::value_ptr(view), sizeof(view));
-    memcpy(_mvp.p, glm::value_ptr(proj), sizeof(proj));
-
-    Log("#   Create Matrices Uniform Buffer\n");
-    VkBufferCreateInfo uniform_buffer_create_info = {};
-    uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    uniform_buffer_create_info.size = sizeof(_mvp); // size in bytes
-    uniform_buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
-    uniform_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    result = vkCreateBuffer(_ctx.device, &uniform_buffer_create_info, nullptr, &_matrices_ubo.buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#   Get Uniform Buffer Memory Requirements(size and type)\n");
-    VkMemoryRequirements uniform_buffer_memory_requirements = {};
-    vkGetBufferMemoryRequirements(_ctx.device, _matrices_ubo.buffer, &uniform_buffer_memory_requirements);
-
-    VkMemoryAllocateInfo uniform_buffer_allocate_info = {};
-    uniform_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    uniform_buffer_allocate_info.allocationSize = uniform_buffer_memory_requirements.size;
-
-    uint32_t uniform_memory_type_bits = uniform_buffer_memory_requirements.memoryTypeBits;
-    VkMemoryPropertyFlags uniform_desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    auto mem_props = _ctx.physical_device_memory_properties;
-    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
-    {
-        VkMemoryType memory_type = mem_props.memoryTypes[i];
-        if (uniform_memory_type_bits & 1)
-        {
-            if ((memory_type.propertyFlags & uniform_desired_memory_flags) == uniform_desired_memory_flags) {
-                uniform_buffer_allocate_info.memoryTypeIndex = i;
-                break;
-            }
-        }
-        uniform_memory_type_bits = uniform_memory_type_bits >> 1;
-    }
-
-    Log("#   Allocate Uniform Buffer Memory\n");
-    result = vkAllocateMemory(_ctx.device, &uniform_buffer_allocate_info, nullptr, &_matrices_ubo.memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#   Bind memory to buffer\n");
-    result = vkBindBufferMemory(_ctx.device, _matrices_ubo.buffer, _matrices_ubo.memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#   Map Uniform Buffer\n");
-    void *mapped = nullptr;
-    result = vkMapMemory(_ctx.device, _matrices_ubo.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#   Copy matrices, first time.\n");
-    memcpy(mapped, _mvp.m, sizeof(_mvp.m));
-    memcpy(((float *)mapped + 16), _mvp.v, sizeof(_mvp.v));
-    memcpy(((float *)mapped + 32), _mvp.p, sizeof(_mvp.p));
-
-    Log("#   UnMap Uniform Buffer\n");
-    vkUnmapMemory(_ctx.device, _matrices_ubo.memory);
-
-    return true;
-}
 
 
 bool Renderer::InitDescriptors()
