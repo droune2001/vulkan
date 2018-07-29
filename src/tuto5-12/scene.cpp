@@ -64,19 +64,23 @@ bool Scene::add_object(object_description_t od)
     VkResult result;
     VkDevice device = _ctx->device;
 
-    _object_t obj = {};
-    obj.model_matrix = od.model_matrix;
-    obj.vertexCount = od.vertexCount;
-    obj.indexCount = od.indexCount;
-    obj.material_id = od.material;
-    obj.diffuse_texture = od.diffuse_texture;
-
-    Log(std::string("#    v: ") + std::to_string(od.vertexCount) + std::string(" i: ") + std::to_string(od.indexCount) + "\n");
-
     // with lazy init
     auto &global_vbo = get_global_object_vbo();
     auto &global_ibo = get_global_object_ibo();
     auto &global_ubo = get_global_object_ubo();
+
+    _object_t obj = {};
+    obj.model_matrix    = od.model_matrix;
+    obj.vertexCount     = od.vertexCount;
+    obj.vertex_buffer   = global_vbo.buffer;
+    obj.vertex_offset   = global_vbo.offset;
+    obj.indexCount      = od.indexCount;
+    obj.index_buffer    = global_ibo.buffer;
+    obj.index_offset    = global_ibo.offset;
+    obj.material_id     = od.material;
+    obj.diffuse_texture = od.diffuse_texture;
+
+    Log(std::string("#    v: ") + std::to_string(od.vertexCount) + std::string(" i: ") + std::to_string(od.indexCount) + "\n");
 
     void *mapped = nullptr;
 
@@ -168,21 +172,44 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     // RENDER PASS BEGIN ---
 
     update_scene_ubo();
-    // pipeline barrier pour flush ubo
-#if 0
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines[0]);
+    update_all_objects_ubos();
+
+    // pipeline barrier pour flush ubo ??
+
+    auto default_material = _materials["default"];
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline);
 
     // scene, one time
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_set, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout, 
+        0, // bind to set #0
+        1, &default_material.descriptor_sets[0], 0, nullptr);
 
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
-    draw_all_objects(cmd);
+    //draw_all_objects(cmd);
 
-    // for each object, bind per-object ubo
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_set, 0, nullptr);
-#endif
+    for (size_t i = 0; i < _objects.size(); ++i)
+    {
+        //draw_object(i, cmd);
+        const _object_t &obj = _objects[i];
+
+        
+
+        // bind uniform buffer
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout, 
+            1, // bind as set #1
+            1, &default_material.descriptor_sets[1], 
+            0, nullptr); // dynamic offsets
+        VkDeviceSize offsets = obj.vertex_offset;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets);
+        vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
+        vkCmdDrawIndexed(cmd, obj.indexCount, 1, 0, 0, 0);
+    }
+
+    
+
     // RENDER PASS END ---
 }
 
@@ -518,15 +545,34 @@ bool Scene::update_scene_ubo()
     return true;
 }
 
-bool Scene::update_object_ubo(size_t i)
+bool Scene::update_all_objects_ubos()
 {
-    const _object_t &obj = _objects[i];
+    auto &ubo = get_global_object_ubo();
+    
+    VkResult result;
+    
+    void *mapped = nullptr;
+    result = vkMapMemory(_ctx->device, ubo.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
-    auto &global_object_vbo = get_global_object_ubo();
+    size_t offset = 0;
+    for (const auto &obj : _objects)
+    {
+        //     copy model matrix
+        memcpy((char*)mapped+offset, glm::value_ptr(obj.model_matrix), sizeof(obj.model_matrix));
+        offset += sizeof(obj.model_matrix);
+    }
 
-    // map
-    //     copy model matrix
-    // unmap
+    VkMappedMemoryRange memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memory_range.memory = ubo.memory;
+    memory_range.offset = 0;
+    memory_range.size = VK_WHOLE_SIZE;
+    vkFlushMappedMemoryRanges(_ctx->device, 1, &memory_range);
+
+    vkUnmapMemory(_ctx->device, ubo.memory);
 
     return true;
 }
@@ -537,19 +583,19 @@ void Scene::draw_object(size_t object_index, VkCommandBuffer cmd)
 
     // bind uniform buffer
 
-    VkDeviceSize offsets = {};
+    VkDeviceSize offsets = obj.vertex_offset;
     vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets);
-    vkCmdBindIndexBuffer(cmd, obj.index_buffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
     vkCmdDrawIndexed(cmd, obj.indexCount, 1, 0, 0, 0);
 }
 
 void Scene::draw_all_objects(VkCommandBuffer cmd)
 {
-    for (size_t i = 0; i < _objects.size(); ++i)
-    {
-        update_object_ubo(i);
-        draw_object(i, cmd);
-    }
+    //for (size_t i = 0; i < _objects.size(); ++i)
+    //{
+    //    update_object_ubo(i);
+    //    draw_object(i, cmd);
+    //}
 }
 
 bool Scene::create_procedural_textures()
@@ -811,7 +857,7 @@ bool Scene::create_default_descriptor_set_layout()
 
     std::array<VkDescriptorSetLayoutBinding, 2> scene_bindings = {};
 
-    // layout( std140, set = 0, binding = 0 ) uniform buffer { mat4 v; mat4 p; vec4 light_pos; vec4 light_color; } Scene_UBO;
+    // layout( set = 0, binding = 0 ) uniform buffer { mat4 v; mat4 p; vec4 light_pos; vec4 light_color; } Scene_UBO;
     scene_bindings[0].binding = 0; // <---- value used in the shader itself
     scene_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     scene_bindings[0].descriptorCount = 1; // si j'ai 2 ubo, je mets 2 ou j'en fais 2??
@@ -841,7 +887,7 @@ bool Scene::create_default_descriptor_set_layout()
     //
 
     std::array<VkDescriptorSetLayoutBinding, 1> object_bindings = {};
-    // layout( std140, set = 1, binding = 0 ) uniform buffer { mat4 m; } Object_UBO;
+    // layout( set = 1, binding = 0 ) uniform buffer { mat4 m; } Object_UBO;
     object_bindings[0].binding = 0; // <---- value used in the shader itself
     object_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     object_bindings[0].descriptorCount = 1;

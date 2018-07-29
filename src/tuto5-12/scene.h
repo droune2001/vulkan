@@ -101,7 +101,7 @@ private:
     void draw_all_objects(VkCommandBuffer cmd);
 
     bool update_scene_ubo();
-    bool update_object_ubo(size_t i);
+    bool update_all_objects_ubos();
 
     uniform_buffer_t &get_scene_ubo();
     bool create_scene_ubo();
@@ -124,16 +124,6 @@ private:
 
     bool create_default_descriptor_set_layout();
     bool create_default_pipeline(VkRenderPass rp);
-
-    // SCENE ======================================================
-#if 0
-    bool InitDescriptors();
-    void DeInitDescriptors();
-
-    bool InitGraphicsPipeline();
-    void DeInitGraphicsPipeline();
-#endif
-    // ==============================================================
 
 private:
 

@@ -3,6 +3,7 @@
 
 layout ( location = 0 ) in struct fragment_in {
     vec4 vColor;
+	vec4 lColor;
     vec3 normal;
     vec2 uv;
     vec3 to_camera;
@@ -22,5 +23,5 @@ void main()
     float NdotV = max( dot( N, V ), 0.0f );
     vec4 Cd = vec4(texture(diffuse_tex_sampler,IN.uv).rgb, 1.0f);
     float spec = pow(NdotV,128);
-    uFragColor = IN.vColor * NdotL * Cd + spec;
+    uFragColor = IN.lColor * ( IN.vColor * NdotL * Cd + spec );
 }
