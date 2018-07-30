@@ -38,7 +38,7 @@ public:
         uint32_t vertexCount = 0;
         vertex_t *vertices = nullptr;
 
-        glm::mat4 model_matrix;
+        glm::vec3 position;
 
         material_id_t material = "default";
         // hardcoded

@@ -72,7 +72,7 @@ bool Scene::add_object(object_description_t od)
     auto &global_ubo = get_global_object_ubo();
 
     _object_t obj = {};
-    obj.position = glm::vec3(0,0,0);//od.model_matrix;
+    obj.position        = od.position;
     obj.vertexCount     = od.vertexCount;
     obj.vertex_buffer   = global_vbo.buffer;
     obj.vertex_offset   = global_vbo.offset;
@@ -100,11 +100,6 @@ bool Scene::add_object(object_description_t od)
 
     Log("#    UnMap Vertex Buffer\n");
     vkUnmapMemory(device, global_vbo.memory);
-    
-    //result = vkBindBufferMemory(device, global_vbo.buffer, global_vbo.memory, global_vbo.offset);
-    //ErrorCheck(result);
-    //if (result != VK_SUCCESS)
-    //    return false;
 
     global_vbo.offset += (uint32_t)vertex_data_size;
 
@@ -126,15 +121,12 @@ bool Scene::add_object(object_description_t od)
     Log("#    UnMap Index Buffer\n");
     vkUnmapMemory(device, global_ibo.memory);
 
-    //result = vkBindBufferMemory(device, global_ibo.buffer, global_ibo.memory, global_ibo.offset);
-    //ErrorCheck(result);
-    //if (result != VK_SUCCESS)
-    //    return false;
-
     global_ibo.offset += (uint32_t)index_data_size;
 
-
-
+    Log("#    Compute ModelMatrix and put it in the aligned buffer\n");
+    glm::mat4* model_mat = (glm::mat4*)(((uint64_t)_model_matrices + (_objects.size() * _dynamic_alignment)));
+    *model_mat = glm::translate(glm::mat4(1), od.position);
+  
     _objects.push_back(obj);
 
     return true;
@@ -231,7 +223,11 @@ bool Scene::create_global_object_buffers()
     }
      _dynamic_buffer_size = MAX_NB_OBJECTS * _dynamic_alignment;
     _model_matrices = (glm::mat4*)utils::aligned_alloc(_dynamic_buffer_size, _dynamic_alignment);
-
+    for (size_t i = 0; i < MAX_NB_OBJECTS; ++i)
+    {
+        glm::mat4 *model_mat_for_obj_i = (glm::mat4*)((uint64_t)_model_matrices + (i * _dynamic_alignment));
+        *model_mat_for_obj_i = glm::mat4(1);
+    }
 
     std::array<VkBufferCreateInfo, 3> buffer_create_infos = {};
     // VBO
@@ -495,17 +491,20 @@ void Scene::animate_object(float dt)
 
     accum += dt;
     float speed = 3.0f; // radian/sec
-    float radius = 2.0f;
+    float radius = 1.5f;
     obj_x = radius * std::cos(speed * accum);
-    obj_y = radius * std::sin(speed * accum);
+    obj_y = radius * std::sin(2.0f * speed * accum);
+    obj_z = 0.5f * radius * std::cos(speed * accum);
 
+    auto &obj_0 = _objects[0];
+    auto &obj_1 = _objects[1];
 
     // Aligned offset
     glm::mat4* model_mat_obj_0 = (glm::mat4*)(((uint64_t)_model_matrices + (0 * _dynamic_alignment)));
     glm::mat4* model_mat_obj_1 = (glm::mat4*)(((uint64_t)_model_matrices + (1 * _dynamic_alignment)));
 
-    *model_mat_obj_0 = glm::translate(glm::mat4(1), glm::vec3(obj_x, obj_y, obj_z));
-    *model_mat_obj_1 = glm::translate(glm::mat4(1), glm::vec3(-obj_x, obj_y, obj_z));
+    *model_mat_obj_0 = glm::translate(glm::mat4(1), obj_0.position + glm::vec3(obj_x, obj_y, obj_z));
+    *model_mat_obj_1 = glm::translate(glm::mat4(1), obj_1.position + glm::vec3(-obj_x, obj_y, -obj_z));
 }
 
 void Scene::animate_camera(float dt)
@@ -527,6 +526,18 @@ void Scene::animate_camera(float dt)
 
     // Update first camera position
     _cameras[0].v = glm::lookAt(glm::vec3(0,0,_camera_anim.cameraZ), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+
+    //
+    // LIGHT anim
+    //
+    static float accum_dt = 0.0f;
+    accum_dt += dt;
+    const float r = 4.0f; // radius
+    const float as = 1.0f; // angular_speed, radians/sec
+    float lx = r * std::cos(as * accum_dt);
+    float ly = r * std::sin(as * accum_dt);
+    float lz = r * std::cos(2.0f * as * accum_dt);
+    _lights[0].position = glm::vec4(lx, ly, lz, 1.0f);
 }
 
 bool Scene::update_scene_ubo()
@@ -566,6 +577,8 @@ bool Scene::update_scene_ubo()
 
 bool Scene::update_all_objects_ubos()
 {
+    // TODO: update only modified(animated) matrices.
+
     auto &ubo = get_global_object_ubo();
     
     VkResult result;
@@ -576,15 +589,7 @@ bool Scene::update_all_objects_ubos()
     if (result != VK_SUCCESS)
         return false;
 
-    //size_t offset = 0;
-    //for (const auto &obj : _objects)
-    //{
-    //    //     copy model matrix
-    //    memcpy((char*)mapped+offset, glm::value_ptr(obj.model_matrix), sizeof(obj.model_matrix));
-    //    offset += sizeof(obj.model_matrix);
-    //}
-
-    memcpy(mapped, _model_matrices, 2 * _dynamic_alignment); // only 2 objects
+    memcpy(mapped, _model_matrices, _objects.size() * _dynamic_alignment);
 
     // TODO: find out when this is really needed.
     VkMappedMemoryRange memory_range = {};
@@ -1107,7 +1112,7 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     raster_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     raster_state_create_info.depthClampEnable = VK_FALSE;
     raster_state_create_info.rasterizerDiscardEnable = VK_FALSE;
-    raster_state_create_info.polygonMode = VK_POLYGON_MODE_LINE;// VK_POLYGON_MODE_FILL;
+    raster_state_create_info.polygonMode = VK_POLYGON_MODE_FILL; //VK_POLYGON_MODE_LINE;// VK_POLYGON_MODE_FILL;
     raster_state_create_info.cullMode = VK_CULL_MODE_NONE;
     raster_state_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;// VK_FRONT_FACE_COUNTER_CLOCKWISE;
     raster_state_create_info.depthBiasEnable = VK_FALSE;

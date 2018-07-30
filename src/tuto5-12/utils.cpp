@@ -159,9 +159,16 @@ namespace flat_cube
     };
 }
 
-IndexedMesh make_flat_cube()
+IndexedMesh make_flat_cube(float width, float height, float depth)
 {
-    VertexList vertices = flat_cube::vertices;
+    VertexList vertices;
+    vertices.reserve(flat_cube::vertices.size());
+    for (auto v : flat_cube::vertices)
+    {
+        Scene::vertex_t scaled_v = v;
+        scaled_v.p *= glm::vec4(0.5f*width, 0.5f*height, 0.5f*depth, 1.0f);
+        vertices.push_back(scaled_v);
+    }
     TriangleList triangles = flat_cube::triangles;
 
     IndexList indices;

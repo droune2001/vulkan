@@ -15,6 +15,9 @@
 #include <chrono>
 #include <sstream>
 
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
+
 void BaseApplication::run()
 {
     if (!init()) return;
@@ -117,12 +120,16 @@ void VulkanApplication::BuildScene()
     _scene->init(_r->render_pass());
 
     Scene::light_description_t light = {};
-    light.color = glm::vec3(1,0,1);
-    light.position = glm::vec3(1, 1, 1);
+    light.color = glm::vec3(1,0.5,1);
+    light.position = glm::vec3(4,4,2);
     _scene->add_light(light);
 
     Scene::camera_description_t camera = {};
     camera.position = glm::vec3(10, 0, 0);
+    camera.near_plane = 0.1f;
+    camera.far_plane = 20.0f;
+    camera.aspect = (float)WINDOW_WIDTH/(float)WINDOW_HEIGHT;
+    camera.fovy = 45.0f;
     _scene->add_camera(camera);
 
     {
@@ -132,7 +139,7 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = icosphere.first.data();
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
         obj_desc.indices = icosphere.second.data();
-        obj_desc.model_matrix = glm::translate(glm::mat4(1), glm::vec3(-2.0f, 0.0f, -1.0f));
+        obj_desc.position = glm::vec3(-2.5f, 0.0f, -1.0f);
         obj_desc.material = "default";
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
@@ -145,7 +152,63 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
-        obj_desc.model_matrix = glm::translate(glm::mat4(1), glm::vec3(3.0f, 0.0f, 1.0f));
+        obj_desc.position = glm::vec3(2.5f, 0.0f, 1.0f);
+        obj_desc.material = "default";
+        obj_desc.diffuse_texture = "checker";
+        _scene->add_object(obj_desc);
+    }
+
+    // FLOOR
+    {
+        IndexedMesh obj = make_flat_cube(10.0f, 1.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
+        Scene::object_description_t obj_desc = {};
+        obj_desc.vertexCount = (uint32_t)obj.first.size();
+        obj_desc.vertices = obj.first.data();
+        obj_desc.indexCount = (uint32_t)obj.second.size();
+        obj_desc.indices = obj.second.data();
+        obj_desc.position = glm::vec3(0.0f, -5.0f, 0.0f);
+        obj_desc.material = "default";
+        obj_desc.diffuse_texture = "checker";
+        _scene->add_object(obj_desc);
+    }
+
+    // LEFT WALL
+    {
+        IndexedMesh obj = make_flat_cube(1.0f, 10.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
+        Scene::object_description_t obj_desc = {};
+        obj_desc.vertexCount = (uint32_t)obj.first.size();
+        obj_desc.vertices = obj.first.data();
+        obj_desc.indexCount = (uint32_t)obj.second.size();
+        obj_desc.indices = obj.second.data();
+        obj_desc.position = glm::vec3(-5.0f, 0.0f, 0.0f);
+        obj_desc.material = "default";
+        obj_desc.diffuse_texture = "checker";
+        _scene->add_object(obj_desc);
+    }
+
+    // RIGHT WALL
+    {
+        IndexedMesh obj = make_flat_cube(1.0f, 10.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
+        Scene::object_description_t obj_desc = {};
+        obj_desc.vertexCount = (uint32_t)obj.first.size();
+        obj_desc.vertices = obj.first.data();
+        obj_desc.indexCount = (uint32_t)obj.second.size();
+        obj_desc.indices = obj.second.data();
+        obj_desc.position = glm::vec3(5.0f, 0.0f, 0.0f);
+        obj_desc.material = "default";
+        obj_desc.diffuse_texture = "checker";
+        _scene->add_object(obj_desc);
+    }
+
+    // FAR WALL
+    {
+        IndexedMesh obj = make_flat_cube(10.0f, 10.0f, 1.0f); // 24 vtx, 12 tri, 36 idx
+        Scene::object_description_t obj_desc = {};
+        obj_desc.vertexCount = (uint32_t)obj.first.size();
+        obj_desc.vertices = obj.first.data();
+        obj_desc.indexCount = (uint32_t)obj.second.size();
+        obj_desc.indices = obj.second.data();
+        obj_desc.position = glm::vec3(0.0f, 0.0f, -5.0f);
         obj_desc.material = "default";
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);

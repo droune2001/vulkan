@@ -802,9 +802,10 @@ void Renderer::Draw(float dt)
         std::array<VkClearValue, 2> clear_values = {};
         clear_values[0].depthStencil.depth = 1.0f;
         clear_values[0].depthStencil.stencil = 0;
-        clear_values[1].color.float32[0] = 1.0f; // R // backbuffer is of type B8G8R8A8_UNORM
-        clear_values[1].color.float32[1] = 0.0f; // G
-        clear_values[1].color.float32[2] = 0.0f; // B
+        // cornflower blue #6495ED - 100 149 237
+        clear_values[1].color.float32[0] = 100.0f / 255.0f; // R // backbuffer is of type B8G8R8A8_UNORM
+        clear_values[1].color.float32[1] = 149.0f / 255.0f; // G
+        clear_values[1].color.float32[2] = 237.0f / 255.0f; // B
         clear_values[1].color.float32[3] = 1.0f; // A
 
         VkRenderPassBeginInfo render_pass_begin_info = {};
