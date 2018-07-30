@@ -27,10 +27,22 @@ IndexedMesh make_icosphere(int subdivisions);
 IndexedMesh make_flat_cube();
 IndexedMesh make_cube();
 
-//
-// SHADER UTILS
-//
+namespace utils
+{
 
-std::vector<char> ReadFileContent(const std::string &file_path);
+    //
+    // SHADER UTILS
+    //
+
+    std::vector<char> read_file_content(const std::string &file_path);
+
+    //
+    // OTHER
+    //
+
+    void* aligned_alloc(size_t size, size_t alignment);
+    void aligned_free(void* data);
+
+} // namespace utils
 
 #endif // !_VULKAN_UTILS_2018_07_18_H_

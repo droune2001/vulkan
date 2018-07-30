@@ -8,6 +8,8 @@
 #include <array>
 #include <string>
 
+#define MAX_NB_OBJECTS 1024
+
 Scene::Scene(vulkan_context *c) : _ctx(c)
 {
 
@@ -70,7 +72,7 @@ bool Scene::add_object(object_description_t od)
     auto &global_ubo = get_global_object_ubo();
 
     _object_t obj = {};
-    obj.model_matrix    = od.model_matrix;
+    obj.position = glm::vec3(0,0,0);//od.model_matrix;
     obj.vertexCount     = od.vertexCount;
     obj.vertex_buffer   = global_vbo.buffer;
     obj.vertex_offset   = global_vbo.offset;
@@ -188,23 +190,24 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
-    //draw_all_objects(cmd);
-
     for (size_t i = 0; i < _objects.size(); ++i)
     {
-        //draw_object(i, cmd);
         const _object_t &obj = _objects[i];
 
-        
-
-        // bind uniform buffer
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout, 
-            1, // bind as set #1
-            1, &default_material.descriptor_sets[1], 
-            0, nullptr); // dynamic offsets
+        // Bind Attribs Vertex/Index
         VkDeviceSize offsets = obj.vertex_offset;
         vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets);
         vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
+
+        // ith object offset into dynamic ubo
+        uint32_t dynamic_offset = static_cast<uint32_t>(i * _dynamic_alignment);
+
+        // Bind Per-Object Uniforms
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout, 
+            1, // bind as set #1
+            1, &default_material.descriptor_sets[1], 
+            1, &dynamic_offset); // dynamic offsets
+
         vkCmdDrawIndexed(cmd, obj.indexCount, 1, 0, 0, 0);
     }
 
@@ -219,6 +222,17 @@ bool Scene::create_global_object_buffers()
 {
     VkResult result;
 
+    // Find the memory alignment for the object matrices;
+    size_t min_ubo_alignment = _ctx->physical_device_properties.limits.minUniformBufferOffsetAlignment;
+    _dynamic_alignment = sizeof(glm::mat4);
+    if (min_ubo_alignment > 0) 
+    {
+        _dynamic_alignment = (_dynamic_alignment + min_ubo_alignment - 1) & ~(min_ubo_alignment - 1);
+    }
+     _dynamic_buffer_size = MAX_NB_OBJECTS * _dynamic_alignment;
+    _model_matrices = (glm::mat4*)utils::aligned_alloc(_dynamic_buffer_size, _dynamic_alignment);
+
+
     std::array<VkBufferCreateInfo, 3> buffer_create_infos = {};
     // VBO
     buffer_create_infos[0].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -232,7 +246,7 @@ bool Scene::create_global_object_buffers()
     buffer_create_infos[1].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     // UBO
     buffer_create_infos[2].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_infos[2].size = 4 * 1024 * 1024;// sizeof(_mvp); // size in bytes
+    buffer_create_infos[2].size = _dynamic_buffer_size;// 1024 aligned matrices
     buffer_create_infos[2].usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
     buffer_create_infos[2].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -274,7 +288,7 @@ bool Scene::create_global_object_buffers()
     for (size_t m = 0; m < buffer_memory_requirements.size(); ++m)
     {
         uint32_t memory_type_bits = buffer_memory_requirements[m].memoryTypeBits;
-        VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT; // TODO: ON device, use staging buffer
+        VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT; // TODO: ON device, use staging buffer
         auto mem_props = _ctx->physical_device_memory_properties;
         for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
         {
@@ -485,8 +499,13 @@ void Scene::animate_object(float dt)
     obj_x = radius * std::cos(speed * accum);
     obj_y = radius * std::sin(speed * accum);
 
-    // Update first object position
-    _objects[0].model_matrix = glm::translate(glm::mat4(1), glm::vec3(obj_x, obj_y, obj_z));
+
+    // Aligned offset
+    glm::mat4* model_mat_obj_0 = (glm::mat4*)(((uint64_t)_model_matrices + (0 * _dynamic_alignment)));
+    glm::mat4* model_mat_obj_1 = (glm::mat4*)(((uint64_t)_model_matrices + (1 * _dynamic_alignment)));
+
+    *model_mat_obj_0 = glm::translate(glm::mat4(1), glm::vec3(obj_x, obj_y, obj_z));
+    *model_mat_obj_1 = glm::translate(glm::mat4(1), glm::vec3(-obj_x, obj_y, obj_z));
 }
 
 void Scene::animate_camera(float dt)
@@ -557,14 +576,17 @@ bool Scene::update_all_objects_ubos()
     if (result != VK_SUCCESS)
         return false;
 
-    size_t offset = 0;
-    for (const auto &obj : _objects)
-    {
-        //     copy model matrix
-        memcpy((char*)mapped+offset, glm::value_ptr(obj.model_matrix), sizeof(obj.model_matrix));
-        offset += sizeof(obj.model_matrix);
-    }
+    //size_t offset = 0;
+    //for (const auto &obj : _objects)
+    //{
+    //    //     copy model matrix
+    //    memcpy((char*)mapped+offset, glm::value_ptr(obj.model_matrix), sizeof(obj.model_matrix));
+    //    offset += sizeof(obj.model_matrix);
+    //}
 
+    memcpy(mapped, _model_matrices, 2 * _dynamic_alignment); // only 2 objects
+
+    // TODO: find out when this is really needed.
     VkMappedMemoryRange memory_range = {};
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memory_range.memory = ubo.memory;
@@ -575,27 +597,6 @@ bool Scene::update_all_objects_ubos()
     vkUnmapMemory(_ctx->device, ubo.memory);
 
     return true;
-}
-
-void Scene::draw_object(size_t object_index, VkCommandBuffer cmd)
-{
-    const _object_t &obj = _objects[object_index];
-
-    // bind uniform buffer
-
-    VkDeviceSize offsets = obj.vertex_offset;
-    vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets);
-    vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
-    vkCmdDrawIndexed(cmd, obj.indexCount, 1, 0, 0, 0);
-}
-
-void Scene::draw_all_objects(VkCommandBuffer cmd)
-{
-    //for (size_t i = 0; i < _objects.size(); ++i)
-    //{
-    //    update_object_ubo(i);
-    //    draw_object(i, cmd);
-    //}
 }
 
 bool Scene::create_procedural_textures()
@@ -823,7 +824,7 @@ void Scene::destroy_textures()
 
 bool Scene::create_shader_module(const std::string &file_path, VkShaderModule *shader_module)
 {
-    auto content = ReadFileContent(file_path);
+    auto content = utils::read_file_content(file_path);
 
     VkShaderModuleCreateInfo shader_creation_info = {};
     shader_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -882,6 +883,8 @@ bool Scene::create_default_descriptor_set_layout()
     if (result != VK_SUCCESS)
         return false;
 
+    // NOTE: on doit pouvoir mettre les 3 bindings dans 1 seul descriptor_layout
+
     //
     // PER-OBJECT
     //
@@ -889,7 +892,7 @@ bool Scene::create_default_descriptor_set_layout()
     std::array<VkDescriptorSetLayoutBinding, 1> object_bindings = {};
     // layout( set = 1, binding = 0 ) uniform buffer { mat4 m; } Object_UBO;
     object_bindings[0].binding = 0; // <---- value used in the shader itself
-    object_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    object_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     object_bindings[0].descriptorCount = 1;
     object_bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     object_bindings[0].pImmutableSamplers = nullptr;
@@ -909,12 +912,15 @@ bool Scene::create_default_descriptor_set_layout()
 
 
     // allocate just enough for two uniform descriptor sets
-    std::array<VkDescriptorPoolSize, 2> uniform_buffer_pool_sizes = {};
+    std::array<VkDescriptorPoolSize, 3> uniform_buffer_pool_sizes = {};
     uniform_buffer_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniform_buffer_pool_sizes[0].descriptorCount = 2; // scene and object ubos
+    uniform_buffer_pool_sizes[0].descriptorCount = 1; // scene ubo
 
-    uniform_buffer_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    uniform_buffer_pool_sizes[1].descriptorCount = 1;
+    uniform_buffer_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    uniform_buffer_pool_sizes[1].descriptorCount = 1; // dynamic object ubo
+
+    uniform_buffer_pool_sizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    uniform_buffer_pool_sizes[2].descriptorCount = 1; // texture sampler;
 
     VkDescriptorPoolCreateInfo pool_create_info = {};
     pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -996,7 +1002,7 @@ bool Scene::create_default_descriptor_set_layout()
     object_ubo_write_descriptor_set.dstBinding = 0; // binding = 0 in shaders
     object_ubo_write_descriptor_set.dstArrayElement = 0;
     object_ubo_write_descriptor_set.descriptorCount = 1;
-    object_ubo_write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    object_ubo_write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     object_ubo_write_descriptor_set.pImageInfo = nullptr;
     object_ubo_write_descriptor_set.pBufferInfo = &object_ubo_descriptor_buffer_info;
     object_ubo_write_descriptor_set.pTexelBufferView = nullptr;
@@ -1040,6 +1046,9 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     shader_stage_create_infos[1].pName = "main";        // shader entry point function name
     shader_stage_create_infos[1].pSpecializationInfo = nullptr;
 
+
+    // TODO: put in model
+
     VkVertexInputBindingDescription vertex_binding_description = {};
     vertex_binding_description.binding = 0;
     vertex_binding_description.stride = sizeof(Scene::vertex_t);
@@ -1050,17 +1059,17 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     vertex_attribute_description[0].location = 0;
     vertex_attribute_description[0].binding = 0;
     vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
-    vertex_attribute_description[0].offset = 0;
+    vertex_attribute_description[0].offset = offsetof(Scene::vertex_t, p); //0;
 
     vertex_attribute_description[1].location = 1;
     vertex_attribute_description[1].binding = 0;
     vertex_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
-    vertex_attribute_description[1].offset = 4 * sizeof(float);
+    vertex_attribute_description[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
 
     vertex_attribute_description[2].location = 2;
     vertex_attribute_description[2].binding = 0;
     vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
-    vertex_attribute_description[2].offset = (4 + 3) * sizeof(float);
+    vertex_attribute_description[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

@@ -226,26 +226,53 @@ IndexedMesh make_cube()
 }
 
 
-std::vector<char> ReadFileContent(const std::string &file_path)
+namespace utils
 {
-    std::vector<char> content;
-
-    std::ifstream file(file_path, std::ios::ate | std::ios::binary);
-    if (!file.is_open())
+    std::vector<char> read_file_content(const std::string &file_path)
     {
-        Log("!!!!!!!!! Failed to open shader file.\n");
-        return std::vector<char>();
+        std::vector<char> content;
+
+        std::ifstream file(file_path, std::ios::ate | std::ios::binary);
+        if (!file.is_open())
+        {
+            Log("!!!!!!!!! Failed to open shader file.\n");
+            return std::vector<char>();
+        }
+        else
+        {
+            size_t file_size = (size_t)file.tellg();
+            std::vector<char> buffer(file_size);
+
+            file.seekg(0);
+            file.read(buffer.data(), file_size);
+
+            file.close();
+            return buffer;
+        }
     }
-    else
+
+    void* aligned_alloc(size_t size, size_t alignment)
     {
-        size_t file_size = (size_t)file.tellg();
-        std::vector<char> buffer(file_size);
-
-        file.seekg(0);
-        file.read(buffer.data(), file_size);
-
-        file.close();
-        return buffer;
+        void *data = nullptr;
+#if defined(_MSC_VER) || defined(__MINGW32__)
+        data = _aligned_malloc(size, alignment);
+#else 
+        int res = posix_memalign(&data, alignment, size);
+        if (res != 0)
+            data = nullptr;
+#endif
+        return data;
     }
-}
+
+    void aligned_free(void* data)
+    {
+#if	defined(_MSC_VER) || defined(__MINGW32__)
+        _aligned_free(data);
+#else 
+        free(data);
+#endif
+    }
+
+} // namespace utils
+
 //

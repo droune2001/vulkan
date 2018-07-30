@@ -84,6 +84,7 @@ private:
     {
         VkBuffer        buffer = VK_NULL_HANDLE;
         VkDeviceMemory  memory = VK_NULL_HANDLE;
+        // TODO: store reserved size
     };
 
     // VBO/IBO to handle multiple objects.
@@ -92,13 +93,11 @@ private:
         uint32_t        offset = 0; // first free byte offset.
         VkBuffer        buffer = VK_NULL_HANDLE;
         VkDeviceMemory  memory = VK_NULL_HANDLE;
+        // TODO: store reserved size
     };
 
     void animate_object(float dt);
     void animate_camera(float dt);
-
-    void draw_object(size_t object_index, VkCommandBuffer cmd);
-    void draw_all_objects(VkCommandBuffer cmd);
 
     bool update_scene_ubo();
     bool update_all_objects_ubos();
@@ -143,7 +142,7 @@ private:
         uint32_t vertex_offset = 0;
         VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
         
-        glm::mat4 model_matrix = glm::mat4(1);
+        glm::vec3 position = glm::vec3(0,0,0);
 
         material_id_t material_id = "default";
         
@@ -152,6 +151,10 @@ private:
     };
 
     std::vector<_object_t> _objects;
+    
+    glm::mat4 *_model_matrices = nullptr; // not a vector, need to align memory.
+    size_t _dynamic_alignment = 0;
+    size_t _dynamic_buffer_size = 0;
     uniform_buffer_t _global_object_ubo; // all objects model matrices in one buffer
     vertex_buffer_object_t _global_object_vbo; // all objects vertices in one buffer
     vertex_buffer_object_t _global_object_ibo; // all objects indices in one buffer
@@ -170,7 +173,7 @@ private:
     };
 
     std::vector<_light_t> _lights;
-    uniform_buffer_t _lights_ubo;
+    //uniform_buffer_t _lights_ubo;
 
     //
     // CAMERAS
