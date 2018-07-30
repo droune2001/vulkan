@@ -1,0 +1,11 @@
+- wrapper classes for objects like buffers, device
+- initializer class for already default-filled structs.
+
+ex:
+vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
+vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1),
+vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
+
+
+- separate build_command_buffer ->(cmd begin, pass begin, ..., pass end, cmd end)
+  from     draw -> submit and present.
