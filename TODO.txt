@@ -1,3 +1,7 @@
+- more than one texture = put sampler in object ubo.
+- many lights = handle array of struct in scene ubo (size?)
+- more objects material params = handle more than model_matrix.
+
 - wrapper classes for objects like buffers, device
 - initializer class for already default-filled structs.
 
@@ -9,3 +13,4 @@ vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 
 - separate build_command_buffer ->(cmd begin, pass begin, ..., pass end, cmd end)
   from     draw -> submit and present.
+  build_command_buffer can then be called in //

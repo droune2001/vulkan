@@ -63,7 +63,7 @@ void Window::InitOSWindow()
         _win32_class_name.c_str(),
         _window_name.c_str(),
         style,
-        CW_USEDEFAULT, CW_USEDEFAULT,
+        0,0,//CW_USEDEFAULT, CW_USEDEFAULT,
         wr.right - wr.left,
         wr.bottom - wr.top,
         NULL,

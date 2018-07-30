@@ -15,8 +15,8 @@
 #include <chrono>
 #include <sstream>
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
+#define WINDOW_WIDTH 1600
+#define WINDOW_HEIGHT 900
 
 void BaseApplication::run()
 {
@@ -39,7 +39,7 @@ bool VulkanApplication::init()
 
     Log("#  Creating Window\n");
     _w = new Window();
-    if (!_w->OpenWindow(800, 600, "test"))
+    if (!_w->OpenWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "test"))
         return false;
 
     Log("#----------------------------------------\n");
@@ -213,5 +213,23 @@ void VulkanApplication::BuildScene()
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
     }
+
+    for (uint32_t i = 0; i < 19; ++i)
+    {
+        for (uint32_t j = 0; j < 19; ++j)
+        {
+            IndexedMesh obj = make_flat_cube(0.2f, 0.2f, 0.2f);//make_icosphere(2);
+            Scene::object_description_t obj_desc = {};
+            obj_desc.vertexCount = (uint32_t)obj.first.size();
+            obj_desc.vertices = obj.first.data();
+            obj_desc.indexCount = (uint32_t)obj.second.size();
+            obj_desc.indices = obj.second.data();
+            obj_desc.position = glm::vec3(-4.0f+i*0.5f, -4.0f, -4.0f+j*0.5f);
+            obj_desc.material = "default";
+            obj_desc.diffuse_texture = "checker";
+            _scene->add_object(obj_desc);
+        }
+    }
+
 }
 //

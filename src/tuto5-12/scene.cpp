@@ -533,7 +533,7 @@ void Scene::animate_camera(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
     const float r = 4.0f; // radius
-    const float as = 1.0f; // angular_speed, radians/sec
+    const float as = 0.8f; // angular_speed, radians/sec
     float lx = r * std::cos(as * accum_dt);
     float ly = r * std::sin(as * accum_dt);
     float lz = r * std::cos(2.0f * as * accum_dt);
@@ -634,9 +634,9 @@ bool Scene::create_procedural_textures()
             }
 
             float *pixel = ((float *)test_image.data) + (x * test_image.height * 3) + (y * 3);
-            pixel[0] = g * 0.4f;
-            pixel[1] = g * 0.5f;
-            pixel[2] = g * 0.7f;
+            pixel[0] = g * 1.0f;// 0.4f;
+            pixel[1] = g * 1.0f;// 0.5f;
+            pixel[2] = g * 1.0f;// 0.7f;
         }
     }
 

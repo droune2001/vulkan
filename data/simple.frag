@@ -26,25 +26,39 @@ float saturate(float v)
 
 void main() 
 {
-	float light_radius = 5.0;
+	float light_radius = 10.0;
 	float dist2 = dot(IN.to_light,IN.to_light);
-	vec3 sky_color = vec3(0.39, 0.58, 0.92);
-	
 	float att = saturate(1.0 - dist2/(light_radius*light_radius));
 	//att *= att;
+	
+	
 	
     vec3 L = normalize( IN.to_light );
     vec3 V = normalize( IN.to_camera );
     vec3 N = normalize( IN.normal );
 	vec3 R = normalize(reflect(L, N));
 	
-	float NdotUp = max( dot( N, vec3(0,1,0) ), 0.0 );
     float NdotL = max( dot( N, L ), 0.0f );
     float NdotV = max( dot( N, V ), 0.0f );
 	float RdotV = max( dot( R, V ), 0.0f );
-    vec3 diffuse_color = texture(diffuse_tex_sampler,IN.uv).rgb;
-	vec3 diffuse = IN.vColor.xyz * NdotL * diffuse_color;
-	vec3 sky = NdotUp * sky_color;
-    float spec = pow(RdotV,128);
-    uFragColor = vec4(saturate(0.2 * sky + att * IN.lColor.xyz * ( 0.7 * diffuse + 0.5 * spec )), IN.vColor.a);
+    
+	vec3 albedo = texture(diffuse_tex_sampler,IN.uv).rgb;
+	
+	vec3 diffuse = NdotL * albedo; // IN.vColor.xyz *
+	
+	float spec = NdotL * pow(RdotV,128);
+	
+	vec3 light_intensity = att * IN.lColor.xyz;
+	
+	float NdotUp = max( dot( N, vec3(0,1,0) ), 0.0 );
+	vec3 sky_color = vec3(0.39, 0.58, 0.92);
+	vec3 sky     = NdotUp * sky_color * albedo;
+	
+	vec3 ambient = vec3(1,1,1) * albedo;
+	
+    uFragColor = vec4(saturate(
+		0.05 * ambient +
+		0.2 * sky + 
+		0.75 * light_intensity * ( 1.0 * diffuse + 1.0 * spec )), 
+		IN.vColor.a);
 }
