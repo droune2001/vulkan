@@ -43,6 +43,17 @@ namespace utils
     void* aligned_alloc(size_t size, size_t alignment);
     void aligned_free(void* data);
 
+    struct loaded_image
+    {
+        uint32_t width;
+        uint32_t height;
+        uint32_t size;
+        void *data;
+    };
+
+    void create_checker_image(loaded_image *);
+    void create_default_image(loaded_image *);
+
 } // namespace utils
 
 #endif // !_VULKAN_UTILS_2018_07_18_H_

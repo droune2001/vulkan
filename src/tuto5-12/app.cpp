@@ -226,7 +226,7 @@ void VulkanApplication::BuildScene()
             obj_desc.indices = obj.second.data();
             obj_desc.position = glm::vec3(-4.0f+i*0.5f, -4.0f, -4.0f+j*0.5f);
             obj_desc.material = "default";
-            obj_desc.diffuse_texture = "checker";
+            obj_desc.diffuse_texture = "default";
             _scene->add_object(obj_desc);
         }
     }

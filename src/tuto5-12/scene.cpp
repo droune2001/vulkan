@@ -34,6 +34,10 @@ bool Scene::init(VkRenderPass rp)
     if (!create_procedural_textures())
         return false;
 
+    Log("#    Create Texture Samplers\n");
+    if (!create_texture_samplers())
+        return false;
+
     Log("#    Create Default Material\n");
     if (!create_default_material(rp))
         return false;
@@ -604,50 +608,16 @@ bool Scene::update_all_objects_ubos()
     return true;
 }
 
-bool Scene::create_procedural_textures()
+bool Scene::create_texture_2d(void *data, size_t size, _texture_t *texture)
 {
-    Log("#     Compute Procedural Texture\n");
-    auto &checker_texture = _textures["checker"];
-
-    struct loaded_image 
-    {
-        int width;
-        int height;
-        void *data;
-    };
-
-    loaded_image test_image;
-    test_image.width = 512;
-    test_image.height = 512;
-    test_image.data = (void *) new float[test_image.width * test_image.height * 3];
-
-    for (uint32_t x = 0; x < (uint32_t)test_image.width; ++x) 
-    {
-        for (uint32_t y = 0; y < (uint32_t)test_image.height; ++y) 
-        {
-            float g = 0.3f;
-            if (x % 40 < 20 && y % 40 < 20) {
-                g = 1;
-            }
-            if (x % 40 >= 20 && y % 40 >= 20) {
-                g = 1;
-            }
-
-            float *pixel = ((float *)test_image.data) + (x * test_image.height * 3) + (y * 3);
-            pixel[0] = g * 1.0f;// 0.4f;
-            pixel[1] = g * 1.0f;// 0.5f;
-            pixel[2] = g * 1.0f;// 0.7f;
-        }
-    }
-
     VkResult result;
     auto device = _ctx->device;
 
     VkImageCreateInfo texture_create_info = {};
     texture_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     texture_create_info.imageType = VK_IMAGE_TYPE_2D;
-    texture_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
-    texture_create_info.extent = { (uint32_t)test_image.width, (uint32_t)test_image.height, 1 };
+    texture_create_info.format = texture->format;
+    texture_create_info.extent = texture->extent;
     texture_create_info.mipLevels = 1;
     texture_create_info.arrayLayers = 1;
     texture_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -657,21 +627,22 @@ bool Scene::create_procedural_textures()
     texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
 
     Log("#     Create Image\n");
-    result = vkCreateImage(device, &texture_create_info, nullptr, &checker_texture.texture_image);
+    result = vkCreateImage(device, &texture_create_info, nullptr, &texture->image);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     VkMemoryRequirements texture_memory_requirements = {};
-    vkGetImageMemoryRequirements(device, checker_texture.texture_image, &texture_memory_requirements);
+    vkGetImageMemoryRequirements(device, texture->image, &texture_memory_requirements);
 
     VkMemoryAllocateInfo texture_image_allocate_info = {};
     texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     texture_image_allocate_info.allocationSize = texture_memory_requirements.size;
 
     uint32_t texture_memory_type_bits = texture_memory_requirements.memoryTypeBits;
-    VkMemoryPropertyFlags tDesiredMemoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    for (uint32_t i = 0; i < 32; ++i) {
+    VkMemoryPropertyFlags tDesiredMemoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT; // TODO: use staging buffer
+    for (uint32_t i = 0; i < 32; ++i) 
+    {
         VkMemoryType memory_type = _ctx->physical_device_memory_properties.memoryTypes[i];
         if (texture_memory_type_bits & 1)
         {
@@ -685,40 +656,41 @@ bool Scene::create_procedural_textures()
     }
 
     Log("#     Allocate Memory\n");
-    result = vkAllocateMemory(device, &texture_image_allocate_info, nullptr, &checker_texture.texture_image_memory);
+    result = vkAllocateMemory(device, &texture_image_allocate_info, nullptr, &texture->image_memory);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    result = vkBindImageMemory(device, checker_texture.texture_image, checker_texture.texture_image_memory, 0);
+    result = vkBindImageMemory(device, texture->image, texture->image_memory, 0);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
     Log("#     Map/Fill/Flush/UnMap\n");
     void *image_mapped;
-    result = vkMapMemory(device, checker_texture.texture_image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
+    result = vkMapMemory(device, texture->image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
 
-    memcpy(image_mapped, test_image.data, sizeof(float) * test_image.width * test_image.height * 3);
+    memcpy(image_mapped, data, size);
 
     VkMappedMemoryRange memory_range = {};
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memory_range.memory = checker_texture.texture_image_memory;
+    memory_range.memory = texture->image_memory;
     memory_range.offset = 0;
     memory_range.size = VK_WHOLE_SIZE;
     vkFlushMappedMemoryRanges(device, 1, &memory_range);
 
-    vkUnmapMemory(device, checker_texture.texture_image_memory);
+    vkUnmapMemory(device, texture->image_memory);
 
-    // we can clear the image data:
-    delete[] test_image.data;
+    return true;
+}
 
-    //
-    // TRANSITION
-    //
+bool Scene::transition_textures()
+{
+    VkResult result;
+    auto device = _ctx->device;
 
     VkFence submit_fence = {};
     VkFenceCreateInfo fence_create_info = {};
@@ -733,25 +705,33 @@ bool Scene::create_procedural_textures()
 
     vkBeginCommandBuffer(cmd, &begin_info);
 
-    VkImageMemoryBarrier layout_transition_barrier = {};
-    layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    layout_transition_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-    layout_transition_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.image = checker_texture.texture_image;
-    layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    std::vector<VkImageMemoryBarrier> layout_transition_barriers = {};
+    layout_transition_barriers.reserve(_textures.size());
+    layout_transition_barriers.resize(_textures.size());
+    size_t i = 0;
+    for ( auto &t : _textures)
+    {
+        layout_transition_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        layout_transition_barriers[i].srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        layout_transition_barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        layout_transition_barriers[i].oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+        layout_transition_barriers[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        layout_transition_barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        layout_transition_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        layout_transition_barriers[i].image = t.second.image;
+        layout_transition_barriers[i].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        ++i;
+    }
 
-    Log("#     Transition\n");
+    Log("#     Transition all textures\n");
     vkCmdPipelineBarrier(cmd,
-        VK_PIPELINE_STAGE_HOST_BIT, //VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,//VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
         0,
         0, nullptr,
         0, nullptr,
-        1, &layout_transition_barrier);
+        (uint32_t)layout_transition_barriers.size(), 
+        layout_transition_barriers.data());
 
     vkEndCommandBuffer(cmd);
 
@@ -773,23 +753,76 @@ bool Scene::create_procedural_textures()
 
     vkDestroyFence(device, submit_fence, nullptr);
 
-    VkImageViewCreateInfo texture_image_view_create_info = {};
-    texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    texture_image_view_create_info.image = checker_texture.texture_image;
-    texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    texture_image_view_create_info.format = VK_FORMAT_R32G32B32_SFLOAT;
-    texture_image_view_create_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-    texture_image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    texture_image_view_create_info.subresourceRange.baseMipLevel = 0;
-    texture_image_view_create_info.subresourceRange.levelCount = 1;
-    texture_image_view_create_info.subresourceRange.baseArrayLayer = 0;
-    texture_image_view_create_info.subresourceRange.layerCount = 1;
+    return true;
+}
 
-    Log("#     Create Image View\n");
-    result = vkCreateImageView(device, &texture_image_view_create_info, nullptr, &checker_texture.texture_view);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
+bool Scene::create_procedural_textures()
+{
+    Log("#     Compute Procedural Texture\n");
+    
+    utils::loaded_image checker_image;
+    utils::create_checker_image(&checker_image);
+
+    auto &checker_texture = _textures["checker"];
+    checker_texture.format = VK_FORMAT_R32G32B32_SFLOAT;
+    checker_texture.extent = { checker_image.width, checker_image.height, 1};
+    if (!create_texture_2d(checker_image.data, checker_image.size, &checker_texture))
         return false;
+    
+    delete[] checker_image.data;
+
+
+    utils::loaded_image default_image;
+    utils::create_default_image(&default_image);
+
+    auto &default_texture = _textures["default"];
+    default_texture.format = VK_FORMAT_R8G8B8A8_UNORM;// VK_FORMAT_R8G8B8_UINT;
+    default_texture.extent = { default_image.width, default_image.height, 1 };
+    if (!create_texture_2d(default_image.data, default_image.size, &default_texture))
+        return false;
+
+    delete[] default_image.data;
+
+    //
+    // TRANSITION
+    //
+
+    if (!transition_textures())
+        return false;
+
+    //
+    // TEXTURE VIEWS
+    //
+
+    VkResult result;
+
+    for (auto &t : _textures)
+    {
+        VkImageViewCreateInfo texture_image_view_create_info = {};
+        texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        texture_image_view_create_info.image = t.second.image;
+        texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        texture_image_view_create_info.format = t.second.format;
+        texture_image_view_create_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+        texture_image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        texture_image_view_create_info.subresourceRange.baseMipLevel = 0;
+        texture_image_view_create_info.subresourceRange.levelCount = 1;
+        texture_image_view_create_info.subresourceRange.baseArrayLayer = 0;
+        texture_image_view_create_info.subresourceRange.layerCount = 1;
+
+        Log("#     Create Image View\n");
+        result = vkCreateImageView(_ctx->device, &texture_image_view_create_info, nullptr, &t.second.view);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+    
+    return true;
+}
+
+bool Scene::create_texture_samplers()
+{
+    VkResult result;
 
     VkSamplerCreateInfo sampler_create_info = {};
     sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -807,7 +840,7 @@ bool Scene::create_procedural_textures()
     sampler_create_info.unnormalizedCoordinates = VK_FALSE;
 
     Log("#     Create Sampler\n");
-    result = vkCreateSampler(device, &sampler_create_info, nullptr, &checker_texture.sampler);
+    result = vkCreateSampler(_ctx->device, &sampler_create_info, nullptr, &_samplers[0]);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -820,10 +853,14 @@ void Scene::destroy_textures()
     for (auto t : _textures)
     {
         auto tex = t.second;
-        vkDestroySampler(_ctx->device, tex.sampler, nullptr);
-        vkDestroyImageView(_ctx->device, tex.texture_view, nullptr);
-        vkDestroyImage(_ctx->device, tex.texture_image, nullptr);
-        vkFreeMemory(_ctx->device, tex.texture_image_memory, nullptr);
+        vkDestroyImageView(_ctx->device, tex.view, nullptr);
+        vkDestroyImage(_ctx->device, tex.image, nullptr);
+        vkFreeMemory(_ctx->device, tex.image_memory, nullptr);
+    }
+
+    for (auto s : _samplers)
+    {
+        vkDestroySampler(_ctx->device, s, nullptr);
     }
 }
 
@@ -978,8 +1015,8 @@ bool Scene::create_default_descriptor_set_layout()
     vkUpdateDescriptorSets(_ctx->device, 1, &scene_ubo_write_descriptor_set, 0, nullptr);
 
     VkDescriptorImageInfo descriptor_image_info = {};
-    descriptor_image_info.sampler = _textures["checker"].sampler;
-    descriptor_image_info.imageView = _textures["checker"].texture_view;
+    descriptor_image_info.sampler = _samplers[0];
+    descriptor_image_info.imageView = _textures["default"].view; //_textures["checker"].view;
     descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
     VkWriteDescriptorSet write_descriptor_for_checker_texture_sampler = {};
@@ -989,6 +1026,9 @@ bool Scene::create_default_descriptor_set_layout()
     write_descriptor_for_checker_texture_sampler.dstArrayElement = 0;
     write_descriptor_for_checker_texture_sampler.descriptorCount = 1;
     write_descriptor_for_checker_texture_sampler.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    //VK_DESCRIPTOR_TYPE_SAMPLER
+    //VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+    // TODO: find how to pass a fixed sampler, and change image view for each object.
     write_descriptor_for_checker_texture_sampler.pImageInfo = &descriptor_image_info;
     write_descriptor_for_checker_texture_sampler.pBufferInfo = nullptr;
     write_descriptor_for_checker_texture_sampler.pTexelBufferView = nullptr;

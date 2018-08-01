@@ -280,6 +280,49 @@ namespace utils
 #endif
     }
 
+    void create_checker_image(loaded_image *checker_image)
+    {
+        checker_image->width = 512;
+        checker_image->height = 512;
+        checker_image->size = sizeof(float) * checker_image->width * checker_image->height * 3;
+        checker_image->data = (void *) new float[checker_image->width * checker_image->height * 3];
+
+        for (uint32_t x = 0; x < checker_image->width; ++x)
+        {
+            for (uint32_t y = 0; y < checker_image->height; ++y)
+            {
+                float g = 0.3f;
+                if (x % 40 < 20 && y % 40 < 20) { g = 1; }
+                if (x % 40 >= 20 && y % 40 >= 20) { g = 1; }
+
+                float *pixel = ((float *)checker_image->data) + (x * checker_image->height * 3) + (y * 3);
+                pixel[0] = g * 1.0f;// 0.4f;
+                pixel[1] = g * 1.0f;// 0.5f;
+                pixel[2] = g * 1.0f;// 0.7f;
+            }
+        }
+    }
+
+    void create_default_image(loaded_image *default_image)
+    {
+        default_image->width = 2;
+        default_image->height = 2;
+        default_image->size = sizeof(uint8_t) * default_image->width * default_image->height * 4;
+        default_image->data = (void *) new uint8_t[default_image->width * default_image->height * 4];
+
+        for (uint32_t x = 0; x < default_image->width; ++x)
+        {
+            for (uint32_t y = 0; y < default_image->height; ++y)
+            {
+                uint8_t *pixel = ((uint8_t *)default_image->data) + 4 * (x * default_image->height + y);
+                pixel[0] = 187;
+                pixel[1] = 187;
+                pixel[2] = 187;
+                pixel[3] = 255;
+
+            }
+        }
+    }
 } // namespace utils
 
 //

@@ -114,6 +114,7 @@ private:
     void destroy_global_object_buffers();
     
     bool create_procedural_textures();
+    bool create_texture_samplers();
     void destroy_textures();
 
     bool create_shader_module(const std::string &file_path, VkShaderModule *shader_module);
@@ -147,7 +148,7 @@ private:
         material_id_t material_id = "default";
         
         // hardcoded
-        texture_id_t diffuse_texture;
+        texture_id_t diffuse_texture = "default";
     };
 
     std::vector<_object_t> _objects;
@@ -195,13 +196,20 @@ private:
 
     struct _texture_t
     {
-        VkImage         texture_image = VK_NULL_HANDLE;
-        VkDeviceMemory  texture_image_memory = {};
-        VkImageView     texture_view = VK_NULL_HANDLE;
-        VkSampler       sampler = VK_NULL_HANDLE;
+        VkImage         image = VK_NULL_HANDLE;
+        VkDeviceMemory  image_memory = {};
+        VkImageView     view = VK_NULL_HANDLE;
+        VkFormat        format = VK_FORMAT_UNDEFINED;
+        VkExtent3D      extent = {0,0,0};
     };
     
+    // TODO: take array of desc_structs
+    bool create_texture_2d(void *data, size_t size, _texture_t *texture);
+    bool transition_textures();
+
     std::unordered_map<texture_id_t, _texture_t> _textures;
+
+    std::array<VkSampler,1> _samplers;
 
     struct _material_t
     {
