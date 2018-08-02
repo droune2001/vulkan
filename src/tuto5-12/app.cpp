@@ -14,6 +14,8 @@
 #include <array>
 #include <chrono>
 #include <sstream>
+#include <random>
+#include <functional>
 
 #define WINDOW_WIDTH 1600
 #define WINDOW_HEIGHT 900
@@ -120,7 +122,7 @@ void VulkanApplication::BuildScene()
     _scene->init(_r->render_pass());
 
     Scene::light_description_t light = {};
-    light.color = glm::vec3(1,0.5,1);
+    light.color = glm::vec3(1,1,1); //glm::vec3(1,0.5,1);
     light.position = glm::vec3(4,4,2);
     _scene->add_light(light);
 
@@ -139,7 +141,7 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = icosphere.first.data();
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
         obj_desc.indices = icosphere.second.data();
-        obj_desc.position = glm::vec3(-2.5f, 0.0f, -1.0f);
+        obj_desc.position = glm::vec3(-2.5f, 0.0f, -2.0f);
         obj_desc.material = "default";
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
@@ -152,7 +154,7 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
-        obj_desc.position = glm::vec3(2.5f, 0.0f, 1.0f);
+        obj_desc.position = glm::vec3(2.5f, 0.0f, 3.0f);
         obj_desc.material = "default";
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
@@ -180,7 +182,7 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
-        obj_desc.position = glm::vec3(-5.0f, 0.0f, 0.0f);
+        obj_desc.position = glm::vec3(-5.5f, 0.0f, 0.0f);
         obj_desc.material = "default";
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
@@ -194,7 +196,7 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
-        obj_desc.position = glm::vec3(5.0f, 0.0f, 0.0f);
+        obj_desc.position = glm::vec3(5.5f, 0.0f, 0.0f);
         obj_desc.material = "default";
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
@@ -208,23 +210,27 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
-        obj_desc.position = glm::vec3(0.0f, 0.0f, -5.0f);
+        obj_desc.position = glm::vec3(0.0f, 0.0f, -5.5f);
         obj_desc.material = "default";
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
     }
 
-    for (uint32_t i = 0; i < 19; ++i)
+    for (uint32_t i = 0; i < 18; ++i)
     {
-        for (uint32_t j = 0; j < 19; ++j)
+        for (uint32_t j = 0; j < 18; ++j)
         {
-            IndexedMesh obj = make_flat_cube(0.2f, 0.2f, 0.2f);//make_icosphere(2);
+            // TODO: add c++ random to move cubes up and down.
+            auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            auto real_rand = std::bind(std::uniform_real_distribution<float>(0,1), std::mt19937(seed));
+
+            IndexedMesh obj = make_flat_cube(0.5f, 0.1f, 0.5f);
             Scene::object_description_t obj_desc = {};
             obj_desc.vertexCount = (uint32_t)obj.first.size();
             obj_desc.vertices = obj.first.data();
             obj_desc.indexCount = (uint32_t)obj.second.size();
             obj_desc.indices = obj.second.data();
-            obj_desc.position = glm::vec3(-4.0f+i*0.5f, -4.0f, -4.0f+j*0.5f);
+            obj_desc.position = glm::vec3(-4.0f+i*0.5f, -4.0f+0.4f*real_rand(), -4.0f+j*0.5f);
             obj_desc.material = "default";
             obj_desc.diffuse_texture = "default";
             _scene->add_object(obj_desc);

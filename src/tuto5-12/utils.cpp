@@ -183,55 +183,6 @@ IndexedMesh make_flat_cube(float width, float height, float depth)
     return {vertices, indices};
 }
 
-//
-// CUBE
-//
-
-// TODO
-namespace cube
-{
-    static const VertexList vertices =
-    {
-        // +Z, CCW looking at center, starting at -1,-1
-        { { -1, -1,  1, 1 },{ 0, 0, 1 },{ 0, 1 } },
-        { { 1, -1,  1, 1 },{ 0, 0, 1 },{ 1, 1 } },
-        { { 1,  1,  1, 1 },{ 0, 0, 1 },{ 1, 0 } },
-        { { -1,  1,  1, 1 },{ 0, 0, 1 },{ 0, 0 } },
-        // -Z, CCW looking at center, starting at 1,-1
-        { { 1, -1, -1, 1 },{ 0, 0, -1 },{ 0, 1 } },
-        { { -1, -1, -1, 1 },{ 0, 0, -1 },{ 1, 1 } },
-        { { -1,  1, -1, 1 },{ 0, 0, -1 },{ 1, 0 } },
-        { { 1,  1, -1, 1 },{ 0, 0, -1 },{ 0, 0 } },
-    };
-
-    static const TriangleList triangles =
-    {
-        { 0,1,2 },{ 0,2,3 }, // CCW +Z
-    { 4,5,6 },{ 4,6,7 }, // CCW -Z
-    { 8,9,10 },{ 8,10,11 },
-    { 12,13,14 },{ 12,14,15 },
-    { 16,17,18 },{ 16,18,19 },
-    { 20,21,22 },{ 20,22,23 }
-    };
-}
-
-IndexedMesh make_cube()
-{
-    VertexList vertices = flat_cube::vertices;
-    TriangleList triangles = flat_cube::triangles;
-
-    IndexList indices;
-    indices.resize(triangles.size() * 3);
-    for (auto t : triangles)
-    {
-        indices.push_back(t.vertex_index[0]);
-        indices.push_back(t.vertex_index[1]);
-        indices.push_back(t.vertex_index[2]);
-    }
-
-    return { vertices, indices };
-}
-
 
 namespace utils
 {
@@ -305,8 +256,8 @@ namespace utils
 
     void create_default_image(loaded_image *default_image)
     {
-        default_image->width = 2;
-        default_image->height = 2;
+        default_image->width = 16;
+        default_image->height = 16;
         default_image->size = sizeof(uint8_t) * default_image->width * default_image->height * 4;
         default_image->data = (void *) new uint8_t[default_image->width * default_image->height * 4];
 
@@ -319,7 +270,6 @@ namespace utils
                 pixel[1] = 187;
                 pixel[2] = 187;
                 pixel[3] = 255;
-
             }
         }
     }

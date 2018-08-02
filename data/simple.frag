@@ -21,7 +21,18 @@ vec3 saturate(vec3 v)
 
 float saturate(float v)
 {
-	return max(0.0, min(1.0, v));
+	return clamp(v, 0.0, 1.0);
+}
+
+vec3 sRGB_to_Linear(vec3 v)
+{
+	return vec3(pow(v.x, 2.2), pow(v.y, 2.2), pow(v.z, 2.2));
+}
+
+vec3 Linear_to_sRGB(vec3 v)
+{
+	const float i = 1.0/2.2;
+	return vec3(pow(v.x, i), pow(v.y, i), pow(v.z, i));
 }
 
 void main() 
@@ -29,36 +40,46 @@ void main()
 	float light_radius = 10.0;
 	float dist2 = dot(IN.to_light,IN.to_light);
 	float att = saturate(1.0 - dist2/(light_radius*light_radius));
-	//att *= att;
-	
-	
+	att *= att;
+	vec3 light_diffuse_intensty = att * sRGB_to_Linear(IN.lColor.xyz);
+	vec3 light_specular_intensty = light_diffuse_intensty;
 	
     vec3 L = normalize( IN.to_light );
     vec3 V = normalize( IN.to_camera );
+	vec3 H = normalize( V + L );
     vec3 N = normalize( IN.normal );
-	vec3 R = normalize(reflect(L, N));
+	vec3 R = normalize( reflect(L, N) );
 	
-    float NdotL = max( dot( N, L ), 0.0f );
-    float NdotV = max( dot( N, V ), 0.0f );
-	float RdotV = max( dot( R, V ), 0.0f );
-    
-	vec3 albedo = texture(diffuse_tex_sampler,IN.uv).rgb;
+    float NdotL = max( dot( N, L ), 0.0 );
+    float NdotV = max( dot( N, V ), 0.001 );
+	float NdotH = max( dot( N, H ), 0.001 );
 	
-	vec3 diffuse = NdotL * albedo; // IN.vColor.xyz *
+	vec3 mat_diffuse_reflectance = sRGB_to_Linear(texture(diffuse_tex_sampler,IN.uv).rgb)* sRGB_to_Linear(IN.vColor.xyz);
+	const float mat_shininess = 1024.0;
+	const float energy_conservation = (8*mat_shininess)/(8*3.14159);
+	vec3 mat_specular_reflectance = energy_conservation * vec3(1,1,1);
 	
-	float spec = NdotL * pow(RdotV,128);
-	
-	vec3 light_intensity = att * IN.lColor.xyz;
+	vec3 diffuse = NdotL * mat_diffuse_reflectance * light_diffuse_intensty;
+	vec3 specular = NdotL * pow(NdotH,mat_shininess) * mat_specular_reflectance * light_specular_intensty;
 	
 	float NdotUp = max( dot( N, vec3(0,1,0) ), 0.0 );
-	vec3 sky_color = vec3(0.39, 0.58, 0.92);
-	vec3 sky     = NdotUp * sky_color * albedo;
+	vec3 sky_color = sRGB_to_Linear(vec3(0.39, 0.58, 0.92));
+	vec3 sky = NdotUp * sky_color * mat_diffuse_reflectance;
 	
-	vec3 ambient = vec3(1,1,1) * albedo;
+	vec3 ambient = vec3(1,1,1) * mat_diffuse_reflectance;
 	
-    uFragColor = vec4(saturate(
-		0.05 * ambient +
+	vec3 out_color = Linear_to_sRGB(saturate(
+		//0.05 * ambient +
 		0.2 * sky + 
-		0.75 * light_intensity * ( 1.0 * diffuse + 1.0 * spec )), 
-		IN.vColor.a);
+		1.0 * diffuse + 
+		1.0 * specular
+		));
+		
+    uFragColor = vec4(out_color, IN.vColor.a);
+	
+	//uFragColor = vec4(0.5*(N+1),1);
+	//uFragColor = vec4(0.5*(V+1),1);
+	//uFragColor = vec4(0.5*(L+1),1);
+	//uFragColor = vec4(0.5*(R+1),1);
+	//uFragColor = vec4(NdotL, NdotL, NdotL, 1);
 }

@@ -42,7 +42,7 @@ public:
 
         material_id_t material = "default";
         // hardcoded
-        texture_id_t diffuse_texture;
+        texture_id_t diffuse_texture = "default";
     };
 
     struct light_description_t

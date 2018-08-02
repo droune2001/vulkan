@@ -1016,7 +1016,7 @@ bool Scene::create_default_descriptor_set_layout()
 
     VkDescriptorImageInfo descriptor_image_info = {};
     descriptor_image_info.sampler = _samplers[0];
-    descriptor_image_info.imageView = _textures["default"].view; //_textures["checker"].view;
+    descriptor_image_info.imageView = _textures["checker"].view; //_textures["checker"].view;
     descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
     VkWriteDescriptorSet write_descriptor_for_checker_texture_sampler = {};
