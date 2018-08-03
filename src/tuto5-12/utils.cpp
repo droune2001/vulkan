@@ -238,18 +238,23 @@ namespace utils
         checker_image->size = sizeof(float) * checker_image->width * checker_image->height * 3;
         checker_image->data = (void *) new float[checker_image->width * checker_image->height * 3];
 
-        for (uint32_t x = 0; x < checker_image->width; ++x)
+        for (uint32_t y = 0; y < checker_image->height; ++y)
         {
-            for (uint32_t y = 0; y < checker_image->height; ++y)
-            {
-                float g = 0.3f;
-                if (x % 40 < 20 && y % 40 < 20) { g = 1; }
-                if (x % 40 >= 20 && y % 40 >= 20) { g = 1; }
+            float dy = (float)y / (float)checker_image->height;
 
-                float *pixel = ((float *)checker_image->data) + (x * checker_image->height * 3) + (y * 3);
-                pixel[0] = g * 1.0f;// 0.4f;
-                pixel[1] = g * 1.0f;// 0.5f;
-                pixel[2] = g * 1.0f;// 0.7f;
+            for (uint32_t x = 0; x < checker_image->width; ++x)
+            {
+                float dx = (float)x / (float)checker_image->width; 
+
+                float *pixel = ((float *)checker_image->data) + 3 * (y * checker_image->width + x);
+        
+                float g = 0.3f;
+                if (x % 40 < 20 && y % 40 < 20) { g = 1.0f; }
+                if (x % 40 >= 20 && y % 40 >= 20) { g = 1.0f; }
+
+                pixel[0] = g * (1.0f-dx);
+                pixel[1] = g * (dx) * (1.0f - dy);
+                pixel[2] = g * dx * dy;
             }
         }
     }

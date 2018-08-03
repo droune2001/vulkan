@@ -36,7 +36,7 @@ void main()
 
     gl_Position = Scene_UBO.proj_matrix * modelView * pos;
 
-    OUT.vColor = vec4( 1, 0.5, 1, 1 ); // TODO: add vertex color in attribs
+    OUT.vColor = vec4( 1, 1, 1, 1 ); // TODO: add vertex color in attribs
 	OUT.lColor = Scene_UBO.light_color;
     OUT.uv = uv;
     OUT.normal = normal;//( inverse( transpose( modelView ) ) * vec4( normal, 0.0 )).xyz;

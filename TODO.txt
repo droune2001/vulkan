@@ -1,4 +1,27 @@
 - more than one texture = put sampler in object ubo.
+- separate sampler and texture:
+
+#extension GL_KHR_vulkan_glsl : enable // probably not needed
+layout(set=0, binding = 3) uniform texture2D my_tex;   // VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+layout(set=0, binding = 4) uniform sampler my_sampler; // VK_DESCRIPTOR_TYPE_SAMPLER
+
+vec4 rgba = texture( sampler2D( my_tex, my_sampler), texcoords);
+
+for each material
+ begin pipeline
+  bind per-material stuff = 
+  = camera
+  = lights
+  = sampler
+  for each object
+   bind per-object stuff
+   = dynamic ubo descriptor
+   = material overrides descriptor (textures + mat coeffs)
+   draw object
+  end
+ end
+end
+
 - many lights = handle array of struct in scene ubo (size?)
 - more objects material params = handle more than model_matrix.
 

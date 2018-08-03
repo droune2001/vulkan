@@ -161,6 +161,7 @@ void VulkanApplication::BuildScene()
     }
 
     // FLOOR
+    /*
     {
         IndexedMesh obj = make_flat_cube(10.0f, 1.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
@@ -173,6 +174,7 @@ void VulkanApplication::BuildScene()
         obj_desc.diffuse_texture = "checker";
         _scene->add_object(obj_desc);
     }
+    */
 
     // LEFT WALL
     {
@@ -216,21 +218,21 @@ void VulkanApplication::BuildScene()
         _scene->add_object(obj_desc);
     }
 
-    for (uint32_t i = 0; i < 18; ++i)
+    for (uint32_t i = 0; i < 19; ++i)
     {
-        for (uint32_t j = 0; j < 18; ++j)
+        for (uint32_t j = 0; j < 19; ++j)
         {
             // TODO: add c++ random to move cubes up and down.
             auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
             auto real_rand = std::bind(std::uniform_real_distribution<float>(0,1), std::mt19937(seed));
 
-            IndexedMesh obj = make_flat_cube(0.5f, 0.1f, 0.5f);
+            IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
             Scene::object_description_t obj_desc = {};
             obj_desc.vertexCount = (uint32_t)obj.first.size();
             obj_desc.vertices = obj.first.data();
             obj_desc.indexCount = (uint32_t)obj.second.size();
             obj_desc.indices = obj.second.data();
-            obj_desc.position = glm::vec3(-4.0f+i*0.5f, -4.0f+0.4f*real_rand(), -4.0f+j*0.5f);
+            obj_desc.position = glm::vec3(-4.5f+i*0.5f, -5.0f+0.5f*real_rand(), -4.5f+j*0.5f);
             obj_desc.material = "default";
             obj_desc.diffuse_texture = "default";
             _scene->add_object(obj_desc);

@@ -149,6 +149,8 @@ private:
         
         // hardcoded
         texture_id_t diffuse_texture = "default";
+        texture_id_t specular_texture = "default_spec";
+        VkDescriptorSet texture_descriptor_set = VK_NULL_HANDLE;
     };
 
     std::vector<_object_t> _objects;
