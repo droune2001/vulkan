@@ -629,18 +629,20 @@ VulkanDebugCallback(
 
 void Renderer::SetupLayers()
 {
+    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
+    
     //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_api_dump" );
     //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_assistant_layer");
-    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_core_validation");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_core_validation"); // asp sur mon ordi maison
     //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_device_simulation");
     //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_monitor" );
-    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_object_tracker");
-    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_object_tracker");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_parameter_validation");
     //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_screenshot" );
-    _ctx.instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
+    //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_standard_validation");
     //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_swapchain" ); // pas sur mon portable. deprecated?
-    _ctx.instance_layers.push_back("VK_LAYER_GOOGLE_threading");
-    _ctx.instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects");
+    //_ctx.instance_layers.push_back("VK_LAYER_GOOGLE_threading");
+    //_ctx.instance_layers.push_back("VK_LAYER_GOOGLE_unique_objects");
     //_ctx.instance_layers.push_back("VK_LAYER_LUNARG_vktrace" );
     //_ctx.instance_layers.push_back("VK_LAYER_NV_optimus" );
     //_ctx.instance_layers.push_back("VK_LAYER_RENDERDOC_Capture" );

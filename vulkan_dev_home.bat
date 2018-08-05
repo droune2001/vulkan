@@ -13,6 +13,8 @@ set VULKAN_SDK_DIR=C:\VulkanSDK\%VULKAN_SDK_VERSION%
 set PATH=%VULKAN_SDK_DIR%\Bin;%PATH%
 set VULKAN_PATH=%VULKAN_SDK_DIR%\Bin
 
+set GLM_DIR=C:\home\dev\glm-0.9.9.0
+
 cd C:\home\dev\vulkan
 
 doskey DEV=devenv vc2017_home\vulkan.sln

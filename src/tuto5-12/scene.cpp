@@ -1257,11 +1257,11 @@ bool Scene::create_default_material(VkRenderPass rp)
     _material_t &default_material = _materials["default"];
 
     Log("#     Create Default Vertex Shader\n");
-    if (!create_shader_module("./vert.spv", &default_material.vs))
+    if (!create_shader_module("./simple.vert.spv", &default_material.vs))
         return false;
 
     Log("#     Create Default Fragment Shader\n");
-    if (!create_shader_module("./frag.spv", &default_material.fs))
+    if (!create_shader_module("./simple.frag.spv", &default_material.fs))
         return false;
 
     Log("#     Create Default Descriptor Set Layout\n");
