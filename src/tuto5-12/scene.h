@@ -21,6 +21,7 @@ public:
     ~Scene();
 
     using material_id_t = std::string;
+    using material_instance_id_t = std::string;
     using texture_id_t = std::string;
 
     struct vertex_t
@@ -38,11 +39,12 @@ public:
         uint32_t vertexCount = 0;
         vertex_t *vertices = nullptr;
 
+        // for each instance
         glm::vec3 position;
 
-        material_id_t material = "default";
-        // hardcoded
-        texture_id_t diffuse_texture = "default";
+        material_instance_id_t material = "white_rough"; // material parameters set
+        
+        //texture_id_t diffuse_texture = "default";
     };
 
     struct light_description_t
@@ -68,10 +70,24 @@ public:
         // a completer
     };
 
+    // TODO: make it an abstract class and derive for each material
+    struct material_instance_description_t
+    {
+        material_id_t material_id;
+        material_instance_id_t instance_id;
+        
+        texture_id_t base_tex = "default"; // diffuse or specular, depending on metalness.
+        texture_id_t specular_tex = "default_spec"; // x = roughness, y = metallic
+        glm::vec3 diffuse_color = glm::vec3(1,1,1);
+        float roughness = 0.1f;
+        float metalness = 0.0f;
+    };
+
     bool add_object(object_description_t od);
     bool add_light(light_description_t li);
     bool add_camera(camera_description_t ca);
     bool add_material(material_description_t ma);
+    bool add_material_instance(material_instance_description_t mi);
 
     bool init(VkRenderPass rp);
     void de_init();
@@ -227,6 +243,13 @@ private:
     };
 
     std::unordered_map<material_id_t, _material_t> _materials;
+
+
+    struct _material_instance_t
+    {
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE; // bind to set #2
+    };
+    std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
 
     //
     // ANIMATION

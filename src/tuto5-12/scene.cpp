@@ -1306,11 +1306,26 @@ bool Scene::add_material(material_description_t ma)
 {
     _material_t material = {};
 
-    // TODO
+    // TODO:
+    // load shaders, create descriptor layouts, create pipeline, ...
 
     _materials[ma.id] = material;
 
     return true;
 }
+
+bool Scene::add_material_instance(material_instance_description_t mi)
+{
+    _material_instance_t material_instance = {};
+
+    // TODO:
+    // get layout descriptions from material_id
+    // create descriptor set
+
+    _material_instances[mi.instance_id] = material_instance;
+
+    return true;
+}
+
 
 //
