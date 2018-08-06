@@ -84,8 +84,7 @@ bool Scene::add_object(object_description_t od)
     obj.index_buffer    = global_ibo.buffer;
     obj.index_offset    = global_ibo.offset;
     obj.material_id     = od.material;
-    obj.diffuse_texture = od.diffuse_texture;
-
+    
     Log(std::string("#    v: ") + std::to_string(od.vertexCount) + std::string(" i: ") + std::to_string(od.indexCount) + "\n");
 
     void *mapped = nullptr;

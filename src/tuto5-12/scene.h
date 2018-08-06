@@ -43,8 +43,6 @@ public:
         glm::vec3 position;
 
         material_instance_id_t material = "white_rough"; // material parameters set
-        
-        //texture_id_t diffuse_texture = "default";
     };
 
     struct light_description_t
