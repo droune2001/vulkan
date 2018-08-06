@@ -101,6 +101,17 @@ IndexedMesh make_icosphere(int subdivisions)
         triangles = subdivide(vertices, triangles);
     }
 
+#ifndef PI
+#define PI 3.14159f
+#endif
+    for (auto & vertex : vertices)
+    {
+        glm::vec3 unit = glm::normalize(vertex.p.xyz());
+        float u = (std::atan2(unit.x, std::fabsf(unit.z)) + PI) / PI * 0.5f;
+        float v = (std::acos(unit.y) + PI) / PI - 1.0f;
+        vertex.uv = { u, v };
+    }
+
     IndexList indices;
     indices.resize(triangles.size()*3);
     for (auto t : triangles)

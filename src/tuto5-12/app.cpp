@@ -121,10 +121,18 @@ void VulkanApplication::BuildScene()
     _scene = new Scene(_r->context());
     _scene->init(_r->render_pass());
 
+    //
+    // Lights
+    //
+
     Scene::light_description_t light = {};
     light.color = glm::vec3(1,1,1); //glm::vec3(1,0.5,1);
     light.position = glm::vec3(4,4,2);
     _scene->add_light(light);
+
+    //
+    // Cameras
+    //
 
     Scene::camera_description_t camera = {};
     camera.position = glm::vec3(10, 0, 0);
@@ -134,29 +142,37 @@ void VulkanApplication::BuildScene()
     camera.fovy = 45.0f;
     _scene->add_camera(camera);
 
-    // hardcoded, only one uber material for the moment, named "default"
-    //_scene->add_material();
+    //
+    // Materials
+    //
 
-    Scene::material_instance_description_t mi = {};
-    mi.instance_id = "white_rough";
-    mi.material_id = "default"; // not much choice for the moment
-    mi.diffuse_color = glm::vec3(1,1,1);
-    mi.roughness = 0.5f;
-    mi.metalness = 0.0f;
-    mi.base_tex = "default";
-    mi.specular_tex = "default_spec";
-    _scene->add_material_instance(mi);
+    {
+        Scene::material_instance_description_t mi = {};
+        mi.instance_id = "white_rough";
+        mi.material_id = "default"; // not much choice for the moment
+        mi.diffuse_color = glm::vec3(1, 1, 1);
+        mi.roughness = 0.5f;
+        mi.metalness = 0.0f;
+        mi.base_tex = "default";
+        mi.specular_tex = "default_spec";
+        _scene->add_material_instance(mi);
+    }
 
+    {
+        Scene::material_instance_description_t mi = {};
+        mi.instance_id = "red_shiny_checker";
+        mi.material_id = "default"; // not much choice for the moment
+        mi.diffuse_color = glm::vec3(1, 0, 0);
+        mi.roughness = 0.1f;
+        mi.metalness = 0.5f;
+        mi.base_tex = "checker";
+        mi.specular_tex = "checker_spec";
+        _scene->add_material_instance(mi);
+    }
 
-    Scene::material_instance_description_t mi6 = {};
-    mi6.instance_id = "red_shiny_checker";
-    mi6.material_id = "default"; // not much choice for the moment
-    mi6.diffuse_color = glm::vec3(1, 0, 0);
-    mi6.roughness = 0.1f;
-    mi6.metalness = 0.5f;
-    mi6.base_tex = "checker";
-    mi6.specular_tex = "checker_spec";
-    _scene->add_material_instance(mi6);
+    //
+    // Objects
+    //
 
     {
         IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
@@ -241,7 +257,6 @@ void VulkanApplication::BuildScene()
     {
         for (uint32_t j = 0; j < 19; ++j)
         {
-            // TODO: add c++ random to move cubes up and down.
             auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
             auto real_rand = std::bind(std::uniform_real_distribution<float>(0,1), std::mt19937((unsigned int)seed));
 
@@ -256,6 +271,5 @@ void VulkanApplication::BuildScene()
             _scene->add_object(obj_desc);
         }
     }
-
 }
 //
