@@ -271,5 +271,6 @@ void VulkanApplication::BuildScene()
             _scene->add_object(obj_desc);
         }
     }
+
 }
 //

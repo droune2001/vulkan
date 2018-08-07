@@ -91,6 +91,7 @@ public:
     void de_init();
     void update(float dt);
     void draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect);
+    
 
 private:
 
@@ -140,6 +141,19 @@ private:
     bool create_default_descriptor_set_layout();
     bool create_default_pipeline(VkRenderPass rp);
 
+
+    // utils
+
+    uint32_t find_memory_type(uint32_t memory_type_bits, VkMemoryPropertyFlags desired_memory_flags);
+    bool create_buffer(
+        VkBuffer *pBuffer,                          // [out]
+        VkDeviceMemory *pBufferMemory,              // [out]
+        VkDeviceSize size,                          // [in]
+        VkBufferUsageFlags usage_flags,             // [in]
+        VkMemoryPropertyFlags memory_property_flags // [in]
+    );
+    bool copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset = 0, VkDeviceSize dst_offset = 0);
+
 private:
 
     vulkan_context *_ctx = nullptr;
@@ -180,6 +194,7 @@ private:
     bool _global_object_ubo_created = false; //
     bool _global_object_vbo_created = false; // lazy creation
     bool _global_object_ibo_created = false; //
+    bool _global_staging_vbo_created = false;
 
     //
     // LIGHTS 

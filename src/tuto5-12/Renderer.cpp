@@ -926,6 +926,37 @@ bool Renderer::InitCommandBuffer()
     if (result != VK_SUCCESS)
         return false;
 
+
+
+
+    Log("#  Create Transfer Command Pool\n");
+    {
+        VkCommandPoolCreateInfo pool_create_info = {};
+        pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        pool_create_info.queueFamilyIndex = _ctx.transfer.family_index;
+        pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | // commands will be short lived, might be reset of freed often.
+            VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // we are going to reset
+
+        result = vkCreateCommandPool(_ctx.device, &pool_create_info, nullptr, &_ctx.transfer.command_pool);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+
+    Log("#  Allocate 1 Transfer Command Buffer\n");
+    {
+        VkCommandBufferAllocateInfo command_buffer_allocate_info{};
+        command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        command_buffer_allocate_info.commandPool = _ctx.transfer.command_pool;
+        command_buffer_allocate_info.commandBufferCount = 1;
+        command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
+
+        result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, &_ctx.transfer.command_buffer);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+
     return true;
 }
 
@@ -933,6 +964,9 @@ void Renderer::DeInitCommandBuffer()
 {
     Log("#  Destroy Graphics Command Pool\n");
     vkDestroyCommandPool(_ctx.device, _ctx.graphics.command_pool, nullptr);
+
+    Log("#  Destroy Transfer Command Pool\n");
+    vkDestroyCommandPool(_ctx.device, _ctx.transfer.command_pool, nullptr);
 }
 
 bool Renderer::InitDepthStencilImage()

@@ -74,6 +74,7 @@ bool Scene::add_object(object_description_t od)
     auto &global_vbo = get_global_object_vbo();
     auto &global_ibo = get_global_object_ibo();
     auto &global_ubo = get_global_object_ubo();
+    auto &staging_buffer = get_global_staging_vbo();
 
     _object_t obj = {};
     obj.position        = od.position;
@@ -89,11 +90,11 @@ bool Scene::add_object(object_description_t od)
 
     void *mapped = nullptr;
 
-    Log("#    Map Vertex Buffer\n");
+    Log("#    Map (Staging) Vertex Buffer\n");
     size_t vertex_data_size = od.vertexCount * sizeof(vertex_t);
 
     Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
-    result = vkMapMemory(device, global_vbo.memory, global_vbo.offset, vertex_data_size/*VK_WHOLE_SIZE*/, 0, &mapped);
+    result = vkMapMemory(device, staging_buffer.memory, 0, vertex_data_size, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -102,10 +103,11 @@ bool Scene::add_object(object_description_t od)
     memcpy(vertices, od.vertices, vertex_data_size);
 
     Log("#    UnMap Vertex Buffer\n");
-    vkUnmapMemory(device, global_vbo.memory);
+    vkUnmapMemory(device, staging_buffer.memory);
+
+    copy_buffer(_global_staging_vbo.buffer, _global_object_vbo.buffer, vertex_data_size, 0, global_vbo.offset);
 
     global_vbo.offset += (uint32_t)vertex_data_size;
-
 
 
 
@@ -113,7 +115,7 @@ bool Scene::add_object(object_description_t od)
     size_t index_data_size = od.indexCount * sizeof(index_t);
 
     Log("#     offset: " + std::to_string(global_ibo.offset) + std::string(" size: ") + std::to_string(index_data_size) + "\n");
-    result = vkMapMemory(device, global_ibo.memory, global_ibo.offset, index_data_size/*VK_WHOLE_SIZE*/, 0, &mapped);
+    result = vkMapMemory(device, staging_buffer.memory, 0, index_data_size, 0, &mapped);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -122,9 +124,16 @@ bool Scene::add_object(object_description_t od)
     memcpy(indices, od.indices, index_data_size);
 
     Log("#    UnMap Index Buffer\n");
-    vkUnmapMemory(device, global_ibo.memory);
+    vkUnmapMemory(device, staging_buffer.memory);
+
+    copy_buffer(_global_staging_vbo.buffer, _global_object_ibo.buffer, index_data_size, 0, global_ibo.offset);
 
     global_ibo.offset += (uint32_t)index_data_size;
+
+
+
+
+
 
     Log("#    Compute ModelMatrix and put it in the aligned buffer\n");
     glm::mat4* model_mat = (glm::mat4*)(((uint64_t)_model_matrices + (_objects.size() * _dynamic_alignment)));
@@ -213,10 +222,118 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
 
 // =====================================================
 
-bool Scene::create_global_object_buffers()
+uint32_t Scene::find_memory_type(uint32_t memory_type_bits, VkMemoryPropertyFlags desired_memory_flags)
+{
+    auto mem_props = _ctx->physical_device_memory_properties;
+    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
+    {
+        if (memory_type_bits & 1)
+        {
+            if ((mem_props.memoryTypes[i].propertyFlags & desired_memory_flags) == desired_memory_flags)
+            {
+                return i;
+            }
+        }
+        memory_type_bits = memory_type_bits >> 1;
+    }
+
+    return 0; // assert?
+}
+
+bool Scene::create_buffer(
+    VkBuffer *pBuffer,                          // [out]
+    VkDeviceMemory *pBufferMemory,              // [out]
+    VkDeviceSize size,                          // [in]
+    VkBufferUsageFlags usage_flags,             // [in]
+    VkMemoryPropertyFlags memory_property_flags // [in]
+    )
 {
     VkResult result;
 
+    VkBufferCreateInfo buffer_create_info = {};
+    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_info.size = size;
+    buffer_create_info.usage = usage_flags;
+    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    Log("#      Create Buffer\n");
+    result = vkCreateBuffer(_ctx->device, &buffer_create_info, nullptr, pBuffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkMemoryRequirements buffer_memory_requirements = {};
+    vkGetBufferMemoryRequirements(_ctx->device, *pBuffer, &buffer_memory_requirements);
+
+    VkMemoryAllocateInfo memory_allocate_info = {};
+    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_info.allocationSize = buffer_memory_requirements.size;
+    memory_allocate_info.memoryTypeIndex = find_memory_type(buffer_memory_requirements.memoryTypeBits, memory_property_flags);
+
+    Log("#      Allocate Buffer Memory\n");
+    result = vkAllocateMemory(_ctx->device, &memory_allocate_info, nullptr, pBufferMemory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    Log("#      Bind Buffer Memory\n");
+    result = vkBindBufferMemory(_ctx->device, *pBuffer, *pBufferMemory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+bool Scene::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset, VkDeviceSize dst_offset)
+{
+    VkResult result;
+
+    auto &cmd = _ctx->transfer.command_buffer;
+
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    result = vkBeginCommandBuffer(cmd, &begin_info);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkBufferCopy copy_region = {};
+    copy_region.srcOffset = src_offset;
+    copy_region.dstOffset = dst_offset;
+    copy_region.size = size;
+
+    vkCmdCopyBuffer(cmd, src, dst, 1, &copy_region);
+
+    result = vkEndCommandBuffer(cmd);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &cmd;
+
+    // no fence, would use it if we were doing multiple transfer simultaneously.
+    result = vkQueueSubmit(_ctx->transfer.queue, 1, &submit_info, VK_NULL_HANDLE);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkQueueWaitIdle(_ctx->transfer.queue);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+// ===========================================================================
+
+bool Scene::create_global_object_buffers()
+{
     // Find the memory alignment for the object matrices;
     size_t min_ubo_alignment = _ctx->physical_device_properties.limits.minUniformBufferOffsetAlignment;
     _dynamic_alignment = sizeof(glm::mat4);
@@ -232,136 +349,51 @@ bool Scene::create_global_object_buffers()
         *model_mat_for_obj_i = glm::mat4(1);
     }
 
-    std::array<VkBufferCreateInfo, 4> buffer_create_infos = {};
     // VBO
-    buffer_create_infos[0].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_infos[0].size = 4 * 1024 * 1024;// od.vertexCount * sizeof(vertex_t);
-    buffer_create_infos[0].usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; // <-- VBO
-    buffer_create_infos[0].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    // IBO
-    buffer_create_infos[1].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_infos[1].size = 4 * 1024 * 1024; // od.indexCount * sizeof(index_t);
-    buffer_create_infos[1].usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; // <-- IBO
-    buffer_create_infos[1].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    // UBO
-    buffer_create_infos[2].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_infos[2].size = _dynamic_buffer_size;// 1024 aligned matrices
-    buffer_create_infos[2].usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;   // <-- UBO
-    buffer_create_infos[2].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    // STA
-    buffer_create_infos[3].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_infos[3].size = 8 * 1024 * 1024;
-    buffer_create_infos[3].usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;   // <-- Staging
-    buffer_create_infos[3].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    // VBO
-    Log("#     Create Buffer VBO\n");
-    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[0], nullptr, &_global_object_vbo.buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-    // IBO
-    Log("#     Create Buffer IBO\n");
-    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[1], nullptr, &_global_object_ibo.buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-    // UBO
-    Log("#     Create Buffer UBO\n");
-    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[2], nullptr, &_global_object_ubo.buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-    // STA
-    Log("#     Create Staging UBO\n");
-    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[3], nullptr, &_global_staging_vbo.buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#     Get Global Object V/I/U Buffer Memory Requirements(size and type)\n");
-    std::array<VkMemoryRequirements, 4> buffer_memory_requirements = {};
-    vkGetBufferMemoryRequirements(_ctx->device, _global_object_vbo.buffer, &buffer_memory_requirements[0]);
-    vkGetBufferMemoryRequirements(_ctx->device, _global_object_ibo.buffer, &buffer_memory_requirements[1]);
-    vkGetBufferMemoryRequirements(_ctx->device, _global_object_ubo.buffer, &buffer_memory_requirements[2]);
-    vkGetBufferMemoryRequirements(_ctx->device, _global_staging_vbo.buffer, &buffer_memory_requirements[3]);
-
-    VkMemoryPropertyFlags desired_memory_flags_sta = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-    std::array<VkMemoryAllocateInfo, 4> memory_allocate_infos = {};
-    memory_allocate_infos[0].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_infos[0].allocationSize = buffer_memory_requirements[0].size;
-    memory_allocate_infos[0].memoryTypeIndex = find_memory_type(buffer_memory_requirements[0].memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    memory_allocate_infos[1].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_infos[1].allocationSize = buffer_memory_requirements[1].size;
-    memory_allocate_infos[1].memoryTypeIndex = find_memory_type(buffer_memory_requirements[1].memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    memory_allocate_infos[2].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_infos[2].allocationSize = buffer_memory_requirements[2].size;
-    memory_allocate_infos[2].memoryTypeIndex = find_memory_type(buffer_memory_requirements[2].memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    memory_allocate_infos[3].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_infos[3].allocationSize = buffer_memory_requirements[3].size;
-    memory_allocate_infos[3].memoryTypeIndex = find_memory_type(buffer_memory_requirements[3].memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    // FIND MEMORY TYPE
-    for (size_t m = 0; m < buffer_memory_requirements.size(); ++m)
-    {
-        uint32_t memory_type_bits = buffer_memory_requirements[m].memoryTypeBits;
-        VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        auto mem_props = _ctx->physical_device_memory_properties;
-        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
-        {
-            if (memory_type_bits & 1)
-            {
-                if ((mem_props.memoryTypes[i].propertyFlags & desired_memory_flags) == desired_memory_flags)
-                {
-                    memory_allocate_infos[m].memoryTypeIndex = i;
-                    break;
-                }
-            }
-            memory_type_bits = memory_type_bits >> 1;
-        }
-    }
-    //=================================
-
-    Log("#     Allocate Global Object V/I/U Buffer Memory\n");
-    result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[0], nullptr, &_global_object_vbo.memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[1], nullptr, &_global_object_ibo.memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[2], nullptr, &_global_object_ubo.memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#     Bind Global Object V/I/U Buffer Memory\n");
-    result = vkBindBufferMemory(_ctx->device, _global_object_vbo.buffer, _global_object_vbo.memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkBindBufferMemory(_ctx->device, _global_object_ibo.buffer, _global_object_ibo.memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkBindBufferMemory(_ctx->device, _global_object_ubo.buffer, _global_object_ubo.memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
+    Log("#     Create Global Object\'s VBO\n");
+    if (!create_buffer(
+        &_global_object_vbo.buffer, 
+        &_global_object_vbo.memory, 
+        4 * 1024 * 1024, 
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
 
     _global_object_vbo_created = true;
+
+    // IBO
+    Log("#     Create Global Object\'s IBO\n");
+    if (!create_buffer(
+        &_global_object_ibo.buffer,
+        &_global_object_ibo.memory,
+        4 * 1024 * 1024,
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        return false;
+
     _global_object_ibo_created = true;
+
+    Log("#     Create Global Object\'s UBO\n");
+    if (!create_buffer(
+        &_global_object_ubo.buffer,
+        &_global_object_ubo.memory,
+        _dynamic_buffer_size,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
+
     _global_object_ubo_created = true;
+
+    Log("#     Create Staging Buffer for VBO/IBO\n");
+    if (!create_buffer(
+        &_global_staging_vbo.buffer,
+        &_global_staging_vbo.memory,
+        8 * 1024 * 1024,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
+
+    _global_staging_vbo_created = true;
 
     return true;
 }
@@ -372,15 +404,18 @@ void Scene::destroy_global_object_buffers()
     vkFreeMemory(_ctx->device, _global_object_vbo.memory, nullptr);
     vkFreeMemory(_ctx->device, _global_object_ibo.memory, nullptr);
     vkFreeMemory(_ctx->device, _global_object_ubo.memory, nullptr);
+    vkFreeMemory(_ctx->device, _global_staging_vbo.memory, nullptr);
 
     Log("#    Destroy Global Object Buffers\n");
     vkDestroyBuffer(_ctx->device, _global_object_vbo.buffer, nullptr);
     vkDestroyBuffer(_ctx->device, _global_object_ibo.buffer, nullptr);
     vkDestroyBuffer(_ctx->device, _global_object_ubo.buffer, nullptr);
+    vkDestroyBuffer(_ctx->device, _global_staging_vbo.buffer, nullptr);
 
     _global_object_vbo_created = false;
     _global_object_ibo_created = false;
     _global_object_ubo_created = false;
+    _global_staging_vbo_created = false;
 }
 
 // lazy creation - can do it at the beginning.
@@ -423,7 +458,18 @@ Scene::uniform_buffer_t &Scene::get_global_object_ubo()
     return _global_object_ubo;
 }
 
+Scene::vertex_buffer_object_t & Scene::get_global_staging_vbo()
+{
+    if (!_global_staging_vbo_created)
+    {
+        if (!create_global_object_buffers())
+        {
+            assert("could not create staging buffer");
+        }
+    }
 
+    return _global_staging_vbo;
+}
 
 
 
@@ -463,23 +509,8 @@ bool Scene::create_scene_ubo()
     VkMemoryAllocateInfo uniform_buffer_allocate_info = {};
     uniform_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     uniform_buffer_allocate_info.allocationSize = uniform_buffer_memory_requirements.size;
-
-    uint32_t uniform_memory_type_bits = uniform_buffer_memory_requirements.memoryTypeBits;
-    VkMemoryPropertyFlags uniform_desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    auto mem_props = _ctx->physical_device_memory_properties;
-    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
-    {
-        VkMemoryType memory_type = mem_props.memoryTypes[i];
-        if (uniform_memory_type_bits & 1)
-        {
-            if ((memory_type.propertyFlags & uniform_desired_memory_flags) == uniform_desired_memory_flags) {
-                uniform_buffer_allocate_info.memoryTypeIndex = i;
-                break;
-            }
-        }
-        uniform_memory_type_bits = uniform_memory_type_bits >> 1;
-    }
-
+    uniform_buffer_allocate_info.memoryTypeIndex = find_memory_type(uniform_buffer_memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    
     Log("#     Allocate Uniform Buffer Memory\n");
     result = vkAllocateMemory(_ctx->device, &uniform_buffer_allocate_info, nullptr, &_scene_ubo.memory);
     ErrorCheck(result);
