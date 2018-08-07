@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Resource Files\Shader Sources">
+      <UniqueIdentifier>{0c7bc890-5341-47bf-9a6a-1fe1115f6644}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Compiled Shaders">
+      <UniqueIdentifier>{a5a71331-2eec-47d6-ac44-0ef8730bb015}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\tuto5-12\build_options.h">
@@ -83,5 +89,13 @@
     <ClCompile Include="..\src\tuto5-12\scene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\data\simple.frag">
+      <Filter>Resource Files\Shader Sources</Filter>
+    </None>
+    <None Include="..\data\simple.vert">
+      <Filter>Resource Files\Shader Sources</Filter>
+    </None>
   </ItemGroup>
 </Project>

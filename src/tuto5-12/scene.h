@@ -120,6 +120,7 @@ private:
     bool create_scene_ubo();
     void destroy_scene_ubo();
 
+    vertex_buffer_object_t & get_global_staging_vbo();
     vertex_buffer_object_t & get_global_object_vbo();
     vertex_buffer_object_t & get_global_object_ibo();
     uniform_buffer_t       & get_global_object_ubo();
@@ -175,6 +176,7 @@ private:
     uniform_buffer_t _global_object_ubo; // all objects model matrices in one buffer
     vertex_buffer_object_t _global_object_vbo; // all objects vertices in one buffer
     vertex_buffer_object_t _global_object_ibo; // all objects indices in one buffer
+    vertex_buffer_object_t _global_staging_vbo; // used for transfer.
     bool _global_object_ubo_created = false; //
     bool _global_object_vbo_created = false; // lazy creation
     bool _global_object_ibo_created = false; //
@@ -246,6 +248,11 @@ private:
     struct _material_instance_t
     {
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE; // bind to set #2
+        // set : 2
+        //   bindings:
+        //   0 : ubo with material vec4s
+        //   1 : diffuse texture2d
+        //   2 : specular texture2d
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
 

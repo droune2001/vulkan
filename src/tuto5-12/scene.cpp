@@ -232,22 +232,27 @@ bool Scene::create_global_object_buffers()
         *model_mat_for_obj_i = glm::mat4(1);
     }
 
-    std::array<VkBufferCreateInfo, 3> buffer_create_infos = {};
+    std::array<VkBufferCreateInfo, 4> buffer_create_infos = {};
     // VBO
     buffer_create_infos[0].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_create_infos[0].size = 4 * 1024 * 1024;// od.vertexCount * sizeof(vertex_t);
-    buffer_create_infos[0].usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; // <-- VBO
+    buffer_create_infos[0].usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; // <-- VBO
     buffer_create_infos[0].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     // IBO
     buffer_create_infos[1].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_create_infos[1].size = 4 * 1024 * 1024; // od.indexCount * sizeof(index_t);
-    buffer_create_infos[1].usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT; // <-- IBO
+    buffer_create_infos[1].usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; // <-- IBO
     buffer_create_infos[1].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     // UBO
     buffer_create_infos[2].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_create_infos[2].size = _dynamic_buffer_size;// 1024 aligned matrices
-    buffer_create_infos[2].usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
+    buffer_create_infos[2].usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;   // <-- UBO
     buffer_create_infos[2].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    // STA
+    buffer_create_infos[3].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_infos[3].size = 8 * 1024 * 1024;
+    buffer_create_infos[3].usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;   // <-- Staging
+    buffer_create_infos[3].sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     // VBO
     Log("#     Create Buffer VBO\n");
@@ -267,27 +272,45 @@ bool Scene::create_global_object_buffers()
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
+    // STA
+    Log("#     Create Staging UBO\n");
+    result = vkCreateBuffer(_ctx->device, &buffer_create_infos[3], nullptr, &_global_staging_vbo.buffer);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
 
     Log("#     Get Global Object V/I/U Buffer Memory Requirements(size and type)\n");
-    std::array<VkMemoryRequirements, 3> buffer_memory_requirements = {};
+    std::array<VkMemoryRequirements, 4> buffer_memory_requirements = {};
     vkGetBufferMemoryRequirements(_ctx->device, _global_object_vbo.buffer, &buffer_memory_requirements[0]);
     vkGetBufferMemoryRequirements(_ctx->device, _global_object_ibo.buffer, &buffer_memory_requirements[1]);
     vkGetBufferMemoryRequirements(_ctx->device, _global_object_ubo.buffer, &buffer_memory_requirements[2]);
+    vkGetBufferMemoryRequirements(_ctx->device, _global_staging_vbo.buffer, &buffer_memory_requirements[3]);
 
-    std::array<VkMemoryAllocateInfo, 3> memory_allocate_infos = {};
+    VkMemoryPropertyFlags desired_memory_flags_sta = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    std::array<VkMemoryAllocateInfo, 4> memory_allocate_infos = {};
     memory_allocate_infos[0].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memory_allocate_infos[0].allocationSize = buffer_memory_requirements[0].size;
+    memory_allocate_infos[0].memoryTypeIndex = find_memory_type(buffer_memory_requirements[0].memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     memory_allocate_infos[1].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memory_allocate_infos[1].allocationSize = buffer_memory_requirements[1].size;
+    memory_allocate_infos[1].memoryTypeIndex = find_memory_type(buffer_memory_requirements[1].memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     memory_allocate_infos[2].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memory_allocate_infos[2].allocationSize = buffer_memory_requirements[2].size;
+    memory_allocate_infos[2].memoryTypeIndex = find_memory_type(buffer_memory_requirements[2].memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
+    memory_allocate_infos[3].sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_infos[3].allocationSize = buffer_memory_requirements[3].size;
+    memory_allocate_infos[3].memoryTypeIndex = find_memory_type(buffer_memory_requirements[3].memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    // FIND MEMORY TYPE
     for (size_t m = 0; m < buffer_memory_requirements.size(); ++m)
     {
         uint32_t memory_type_bits = buffer_memory_requirements[m].memoryTypeBits;
-        VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT; // TODO: ON device, use staging buffer
+        VkMemoryPropertyFlags desired_memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         auto mem_props = _ctx->physical_device_memory_properties;
         for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
         {
@@ -302,7 +325,8 @@ bool Scene::create_global_object_buffers()
             memory_type_bits = memory_type_bits >> 1;
         }
     }
-    
+    //=================================
+
     Log("#     Allocate Global Object V/I/U Buffer Memory\n");
     result = vkAllocateMemory(_ctx->device, &memory_allocate_infos[0], nullptr, &_global_object_vbo.memory);
     ErrorCheck(result);
