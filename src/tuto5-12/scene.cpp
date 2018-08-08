@@ -1007,7 +1007,8 @@ bool Scene::create_texture_samplers()
     sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_create_info.mipLodBias = 0;
-    sampler_create_info.anisotropyEnable = VK_FALSE;
+    sampler_create_info.anisotropyEnable = VK_TRUE;
+    sampler_create_info.maxAnisotropy = 16;
     sampler_create_info.minLod = 0;
     sampler_create_info.maxLod = 5;
     sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;

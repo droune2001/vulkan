@@ -378,7 +378,9 @@ bool Renderer::IsDeviceSuitable(VkPhysicalDevice dev)
 #endif
     return physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
         && physical_device_features.geometryShader
-        && physical_device_features.tessellationShader;
+        && physical_device_features.tessellationShader
+        && physical_device_features.samplerAnisotropy
+        && physical_device_features.fillModeNonSolid;
 }
 
 bool Renderer::SelectQueueFamilyIndices()
@@ -669,7 +671,8 @@ void Renderer::SetupExtensions()
 
 void Renderer::SetupFeatures()
 {
-    _ctx.features.fillModeNonSolid = 1;
+    _ctx.features.fillModeNonSolid = VK_TRUE;
+    _ctx.features.samplerAnisotropy = VK_TRUE;
 }
 
 void Renderer::SetupDebug()
