@@ -13,6 +13,7 @@
 #define MAX_CAMERAS 16
 
 struct vulkan_context;
+struct vulkan_queue;
 
 class Scene
 {
@@ -162,8 +163,12 @@ private:
         VkMemoryPropertyFlags memory_property_flags // [in]
     );
     bool copy_buffer_to_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset = 0, VkDeviceSize dst_offset = 0);
-    bool copy_buffer_to_image(VkBuffer src, VkImage dst, VkDeviceSize size, VkDeviceSize src_offset = 0, VkDeviceSize dst_offset = 0);
+    bool copy_buffer_to_image(VkBuffer src, VkImage dst, VkExtent3D extent);
     bool transition_texture(VkImage *pImage, VkImageLayout old_layout, VkImageLayout new_layout);
+    bool copy_data_to_staging_buffer(staging_buffer_t buffer, void *data, VkDeviceSize size);
+
+    VkCommandBuffer begin_single_time_commands(const vulkan_queue &queue);
+    void end_single_time_commands(VkCommandBuffer cmd, const vulkan_queue &queue);
 
 private:
 
@@ -247,8 +252,7 @@ private:
         VkExtent3D      extent = {0,0,0};
     };
     
-    // TODO: take array of desc_structs
-    bool create_texture_2d(void *data, size_t size, _texture_t *texture);
+    bool create_texture_2d(_texture_t *texture);
     bool transition_textures();
 
     std::unordered_map<texture_id_t, _texture_t> _textures;

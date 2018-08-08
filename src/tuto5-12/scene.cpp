@@ -285,56 +285,305 @@ bool Scene::create_buffer(
     return true;
 }
 
-bool Scene::copy_buffer_to_image(VkBuffer src, VkImage dst, VkDeviceSize size, VkDeviceSize src_offset, VkDeviceSize dst_offset)
+VkCommandBuffer Scene::begin_single_time_commands(const vulkan_queue &queue)
+{
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // TODO: or create a temp command buffer
+    auto &cmd = queue.command_buffer;
+
+    vkBeginCommandBuffer(cmd, &begin_info);
+
+    return cmd;
+}
+
+void Scene::end_single_time_commands(VkCommandBuffer cmd, const vulkan_queue &queue)
 {
     VkResult result;
 
+    vkEndCommandBuffer(cmd);
 
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &cmd;
+    result = vkQueueSubmit(queue.queue, 1, &submit_info, VK_NULL_HANDLE);
+    ErrorCheck(result);
+    result = vkQueueWaitIdle(queue.queue);
+    ErrorCheck(result);
+
+    vkResetCommandBuffer(cmd, 0);
+
+    // opt free temp command buffer.
+}
+
+bool Scene::copy_buffer_to_image(VkBuffer src, VkImage dst, VkExtent3D extent )
+{
+    auto cmd = begin_single_time_commands(_ctx->transfer);
+    {
+        VkBufferImageCopy image_copy_region = {};
+        image_copy_region.bufferOffset = 0;
+        image_copy_region.bufferRowLength = 0;
+        image_copy_region.bufferImageHeight = 0;
+        image_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        image_copy_region.imageSubresource.mipLevel = 0;
+        image_copy_region.imageSubresource.baseArrayLayer = 0;
+        image_copy_region.imageSubresource.layerCount = 1;
+        image_copy_region.imageOffset = {0,0,0};
+        image_copy_region.imageExtent = extent;
+
+        vkCmdCopyBufferToImage(cmd, src, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy_region);
+    }
+    end_single_time_commands(cmd, _ctx->transfer);
 
     return true;
 }
 
 bool Scene::copy_buffer_to_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset, VkDeviceSize dst_offset)
 {
-    VkResult result;
+    auto cmd = begin_single_time_commands(_ctx->transfer);
+    {
+        VkBufferCopy copy_region = {};
+        copy_region.srcOffset = src_offset;
+        copy_region.dstOffset = dst_offset;
+        copy_region.size = size;
 
-    auto &cmd = _ctx->transfer.command_buffer;
+        vkCmdCopyBuffer(cmd, src, dst, 1, &copy_region);
+    }
+    end_single_time_commands(cmd, _ctx->transfer);
+
+    return true;
+}
+
+bool Scene::create_texture_2d(_texture_t *texture)
+{
+    VkResult result;
+    auto device = _ctx->device;
+
+    VkImageCreateInfo texture_create_info = {};
+    texture_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    texture_create_info.imageType = VK_IMAGE_TYPE_2D;
+    texture_create_info.format = texture->format;
+    texture_create_info.extent = texture->extent;
+    texture_create_info.mipLevels = 1;
+    texture_create_info.arrayLayers = 1;
+    texture_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    texture_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+    texture_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    texture_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    texture_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // we will transfer the data from another buffer
+
+    Log("#     Create Image\n");
+    result = vkCreateImage(device, &texture_create_info, nullptr, &texture->image);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    VkMemoryRequirements texture_memory_requirements = {};
+    vkGetImageMemoryRequirements(device, texture->image, &texture_memory_requirements);
+
+    VkMemoryAllocateInfo texture_image_allocate_info = {};
+    texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    texture_image_allocate_info.allocationSize = texture_memory_requirements.size;
+    texture_image_allocate_info.memoryTypeIndex = find_memory_type(
+        texture_memory_requirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); // on the device
+
+    Log("#     Allocate Memory\n");
+    result = vkAllocateMemory(device, &texture_image_allocate_info, nullptr, &texture->image_memory);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    result = vkBindImageMemory(device, texture->image, texture->image_memory, 0);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+bool Scene::copy_data_to_staging_buffer(staging_buffer_t buffer, void *data, VkDeviceSize size)
+{
+    VkResult result;
+    auto device = _ctx->device;
+
+    Log("#     Map/Fill/Flush/UnMap staging buffer.\n");
+    void *image_mapped;
+    result = vkMapMemory(device, buffer.memory, 0, size, 0, &image_mapped);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    memcpy(image_mapped, data, size);
+
+    VkMappedMemoryRange memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memory_range.memory = buffer.memory;
+    memory_range.offset = 0;
+    memory_range.size = size;
+    vkFlushMappedMemoryRanges(device, 1, &memory_range);
+
+    vkUnmapMemory(device, buffer.memory);
+
+    return true;
+}
+
+bool Scene::transition_texture(VkImage *pImage, VkImageLayout old_layout, VkImageLayout new_layout)
+{
+    VkAccessFlags src_access_mask = VK_ACCESS_HOST_WRITE_BIT;
+    VkAccessFlags dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
+    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_HOST_BIT;
+    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+
+    if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED
+        && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+    {
+        src_access_mask = 0;
+        dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+        && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+    {
+        src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
+        src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dst_stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else
+    {
+        return false;
+    }
+
+    VkResult result;
+    auto device = _ctx->device;
+
+    VkFence submit_fence = {};
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(device, &fence_create_info, nullptr, &submit_fence);
 
     VkCommandBufferBeginInfo begin_info = {};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    result = vkBeginCommandBuffer(cmd, &begin_info);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
 
-    VkBufferCopy copy_region = {};
-    copy_region.srcOffset = src_offset;
-    copy_region.dstOffset = dst_offset;
-    copy_region.size = size;
+    auto &cmd = _ctx->graphics.command_buffer;
 
-    vkCmdCopyBuffer(cmd, src, dst, 1, &copy_region);
+    vkBeginCommandBuffer(cmd, &begin_info);
 
-    result = vkEndCommandBuffer(cmd);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
+    VkImageMemoryBarrier layout_transition_barrier = {};
+    layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    layout_transition_barrier.srcAccessMask = src_access_mask;
+    layout_transition_barrier.dstAccessMask = dst_access_mask;
+    layout_transition_barrier.oldLayout = old_layout;
+    layout_transition_barrier.newLayout = new_layout;
+    layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.image = *pImage;
+    layout_transition_barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
+    Log("#     Transition texture\n");
+    vkCmdPipelineBarrier(cmd,
+        src_stage_mask,
+        dst_stage_mask,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1,
+        &layout_transition_barrier);
+
+    vkEndCommandBuffer(cmd);
+
+    VkPipelineStageFlags wait_stage_mask[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = wait_stage_mask;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &cmd;
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
+    result = vkQueueSubmit(_ctx->graphics.queue, 1, &submit_info, submit_fence);
 
-    // no fence, would use it if we were doing multiple transfer simultaneously.
-    result = vkQueueSubmit(_ctx->transfer.queue, 1, &submit_info, VK_NULL_HANDLE);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
+    vkWaitForFences(device, 1, &submit_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &submit_fence);
+    vkResetCommandBuffer(cmd, 0);
 
-    result = vkQueueWaitIdle(_ctx->transfer.queue);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
+    vkDestroyFence(device, submit_fence, nullptr);
+
+    return true;
+}
+
+bool Scene::transition_textures()
+{
+    VkResult result;
+    auto device = _ctx->device;
+
+    VkFence submit_fence = {};
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(device, &fence_create_info, nullptr, &submit_fence);
+
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    auto &cmd = _ctx->graphics.command_buffer;
+
+    vkBeginCommandBuffer(cmd, &begin_info);
+
+    std::vector<VkImageMemoryBarrier> layout_transition_barriers = {};
+    layout_transition_barriers.reserve(_textures.size());
+    layout_transition_barriers.resize(_textures.size());
+    size_t i = 0;
+    for (auto &t : _textures)
+    {
+        layout_transition_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        layout_transition_barriers[i].srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        layout_transition_barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        layout_transition_barriers[i].oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+        layout_transition_barriers[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        layout_transition_barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        layout_transition_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        layout_transition_barriers[i].image = t.second.image;
+        layout_transition_barriers[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        ++i;
+    }
+
+    Log("#     Transition all textures\n");
+    vkCmdPipelineBarrier(cmd,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        (uint32_t)layout_transition_barriers.size(),
+        layout_transition_barriers.data());
+
+    vkEndCommandBuffer(cmd);
+
+    VkPipelineStageFlags wait_stage_mask[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = wait_stage_mask;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &cmd;
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
+    result = vkQueueSubmit(_ctx->graphics.queue, 1, &submit_info, submit_fence);
+
+    vkWaitForFences(device, 1, &submit_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &submit_fence);
+    vkResetCommandBuffer(cmd, 0);
+
+    vkDestroyFence(device, submit_fence, nullptr);
 
     return true;
 }
@@ -671,247 +920,6 @@ bool Scene::update_all_objects_ubos()
     return true;
 }
 
-bool Scene::create_texture_2d(void *data, size_t size, _texture_t *texture)
-{
-    VkResult result;
-    auto device = _ctx->device;
-
-    VkImageCreateInfo texture_create_info = {};
-    texture_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    texture_create_info.imageType = VK_IMAGE_TYPE_2D;
-    texture_create_info.format = texture->format;
-    texture_create_info.extent = texture->extent;
-    texture_create_info.mipLevels = 1;
-    texture_create_info.arrayLayers = 1;
-    texture_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    texture_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-    texture_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-    texture_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    texture_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // we will fill it so dont flush content when changing layout.
-
-    Log("#     Create Image\n");
-    result = vkCreateImage(device, &texture_create_info, nullptr, &texture->image);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    VkMemoryRequirements texture_memory_requirements = {};
-    vkGetImageMemoryRequirements(device, texture->image, &texture_memory_requirements);
-
-    VkMemoryAllocateInfo texture_image_allocate_info = {};
-    texture_image_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    texture_image_allocate_info.allocationSize = texture_memory_requirements.size;
-
-    uint32_t texture_memory_type_bits = texture_memory_requirements.memoryTypeBits;
-    VkMemoryPropertyFlags tDesiredMemoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT; // TODO: use staging buffer
-    for (uint32_t i = 0; i < 32; ++i) 
-    {
-        VkMemoryType memory_type = _ctx->physical_device_memory_properties.memoryTypes[i];
-        if (texture_memory_type_bits & 1)
-        {
-            if ((memory_type.propertyFlags & tDesiredMemoryFlags) == tDesiredMemoryFlags)
-            {
-                texture_image_allocate_info.memoryTypeIndex = i;
-                break;
-            }
-        }
-        texture_memory_type_bits = texture_memory_type_bits >> 1;
-    }
-
-    Log("#     Allocate Memory\n");
-    result = vkAllocateMemory(device, &texture_image_allocate_info, nullptr, &texture->image_memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    result = vkBindImageMemory(device, texture->image, texture->image_memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#     Map/Fill/Flush/UnMap\n");
-    void *image_mapped;
-    result = vkMapMemory(device, texture->image_memory, 0, VK_WHOLE_SIZE, 0, &image_mapped);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    memcpy(image_mapped, data, size);
-
-    VkMappedMemoryRange memory_range = {};
-    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memory_range.memory = texture->image_memory;
-    memory_range.offset = 0;
-    memory_range.size = VK_WHOLE_SIZE;
-    vkFlushMappedMemoryRanges(device, 1, &memory_range);
-
-    vkUnmapMemory(device, texture->image_memory);
-
-
-    transition_texture(&texture->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    copy_buffer_to_image(_texture_staging_buffer.buffer, texture->image, size);
-    transition_texture(&texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    return true;
-}
-
-bool Scene::transition_texture(VkImage *pImage, VkImageLayout old_layout, VkImageLayout new_layout)
-{
-    VkAccessFlags src_access_mask = VK_ACCESS_HOST_WRITE_BIT;
-    VkAccessFlags dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
-    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_HOST_BIT;
-    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
-
-    if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED 
-     && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) 
-    {
-        src_access_mask = 0;
-        dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    }
-    else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 
-          && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) 
-    {
-        src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
-        src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        dst_stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-    else 
-    {
-        return false;
-    }
-
-    VkResult result;
-    auto device = _ctx->device;
-
-    VkFence submit_fence = {};
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    vkCreateFence(device, &fence_create_info, nullptr, &submit_fence);
-
-    VkCommandBufferBeginInfo begin_info = {};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    auto &cmd = _ctx->graphics.command_buffer;
-
-    vkBeginCommandBuffer(cmd, &begin_info);
-
-    VkImageMemoryBarrier layout_transition_barrier = {};
-    layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    layout_transition_barrier.srcAccessMask = src_access_mask;
-    layout_transition_barrier.dstAccessMask = dst_access_mask;
-    layout_transition_barrier.oldLayout = old_layout;
-    layout_transition_barrier.newLayout = new_layout;
-    layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    layout_transition_barrier.image = *pImage;
-    layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-    
-    Log("#     Transition texture\n");
-    vkCmdPipelineBarrier(cmd,
-        src_stage_mask,
-        dst_stage_mask,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1,
-        &layout_transition_barrier);
-
-    vkEndCommandBuffer(cmd);
-
-    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.pWaitDstStageMask = wait_stage_mask;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &cmd;
-    submit_info.signalSemaphoreCount = 0;
-    submit_info.pSignalSemaphores = nullptr;
-    result = vkQueueSubmit(_ctx->graphics.queue, 1, &submit_info, submit_fence);
-
-    vkWaitForFences(device, 1, &submit_fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(device, 1, &submit_fence);
-    vkResetCommandBuffer(cmd, 0);
-
-    vkDestroyFence(device, submit_fence, nullptr);
-
-    return true;
-}
-
-bool Scene::transition_textures()
-{
-    VkResult result;
-    auto device = _ctx->device;
-
-    VkFence submit_fence = {};
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    vkCreateFence(device, &fence_create_info, nullptr, &submit_fence);
-
-    VkCommandBufferBeginInfo begin_info = {};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    auto &cmd = _ctx->graphics.command_buffer;
-
-    vkBeginCommandBuffer(cmd, &begin_info);
-
-    std::vector<VkImageMemoryBarrier> layout_transition_barriers = {};
-    layout_transition_barriers.reserve(_textures.size());
-    layout_transition_barriers.resize(_textures.size());
-    size_t i = 0;
-    for ( auto &t : _textures)
-    {
-        layout_transition_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        layout_transition_barriers[i].srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-        layout_transition_barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        layout_transition_barriers[i].oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-        layout_transition_barriers[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        layout_transition_barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        layout_transition_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        layout_transition_barriers[i].image = t.second.image;
-        layout_transition_barriers[i].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-        ++i;
-    }
-
-    Log("#     Transition all textures\n");
-    vkCmdPipelineBarrier(cmd,
-        VK_PIPELINE_STAGE_HOST_BIT,
-        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        (uint32_t)layout_transition_barriers.size(), 
-        layout_transition_barriers.data());
-
-    vkEndCommandBuffer(cmd);
-
-    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.pWaitDstStageMask = wait_stage_mask;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &cmd;
-    submit_info.signalSemaphoreCount = 0;
-    submit_info.pSignalSemaphores = nullptr;
-    result = vkQueueSubmit(_ctx->graphics.queue, 1, &submit_info, submit_fence);
-
-    vkWaitForFences(device, 1, &submit_fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(device, 1, &submit_fence);
-    vkResetCommandBuffer(cmd, 0);
-
-    vkDestroyFence(device, submit_fence, nullptr);
-
-    return true;
-}
-
 bool Scene::create_procedural_textures()
 {
     Log("#     Create Texture Staging Buffer.\n");
@@ -922,35 +930,39 @@ bool Scene::create_procedural_textures()
 
     Log("#     Compute Procedural Texture\n");
     
+    //
+    // CHECKER IMAGE
+    //
     utils::loaded_image checker_image;
     utils::create_checker_image(&checker_image);
 
     auto &checker_texture = _textures["checker"];
     checker_texture.format = VK_FORMAT_R32G32B32_SFLOAT;
     checker_texture.extent = { checker_image.width, checker_image.height, 1};
-    if (!create_texture_2d(checker_image.data, checker_image.size, &checker_texture))
-        return false;
-    
+
+    create_texture_2d(&checker_texture);
+    copy_data_to_staging_buffer(_texture_staging_buffer, checker_image.data, checker_image.size);
+    transition_texture(&checker_texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copy_buffer_to_image(_texture_staging_buffer.buffer, checker_texture.image, checker_texture.extent);
+    transition_texture(&checker_texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     delete[] checker_image.data;
 
-
+    //
+    // FLAT IMAGE
+    //
     utils::loaded_image default_image;
     utils::create_default_image(&default_image);
 
     auto &default_texture = _textures["default"];
     default_texture.format = VK_FORMAT_R8G8B8A8_UNORM;// VK_FORMAT_R8G8B8_UINT;
     default_texture.extent = { default_image.width, default_image.height, 1 };
-    if (!create_texture_2d(default_image.data, default_image.size, &default_texture))
-        return false;
 
+    create_texture_2d(&default_texture);
+    copy_data_to_staging_buffer(_texture_staging_buffer, default_image.data, default_image.size);
+    transition_texture(&default_texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copy_buffer_to_image(_texture_staging_buffer.buffer, default_texture.image, default_texture.extent);
+    transition_texture(&default_texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     delete[] default_image.data;
-
-    //
-    // TRANSITION
-    //
-
-    if (!transition_textures())
-        return false;
 
     //
     // TEXTURE VIEWS
@@ -1019,6 +1031,10 @@ void Scene::destroy_textures()
         vkDestroyImage(_ctx->device, tex.image, nullptr);
         vkFreeMemory(_ctx->device, tex.image_memory, nullptr);
     }
+
+    // staging buffer
+    vkDestroyBuffer(_ctx->device, _texture_staging_buffer.buffer, nullptr);
+    vkFreeMemory(_ctx->device, _texture_staging_buffer.memory, nullptr);
 
     for (auto s : _samplers)
     {
