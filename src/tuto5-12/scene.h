@@ -31,17 +31,19 @@ public:
         glm::vec3 n;
         glm::vec2 uv;
 
-        static VkVertexInputBindingDescription &binding_description()
+        static uint32_t binding_description_count() { return 1; }
+        static VkVertexInputBindingDescription * binding_descriptions()
         {
             static VkVertexInputBindingDescription vertex_binding_description = {};
             vertex_binding_description.binding = 0;
             vertex_binding_description.stride = sizeof(Scene::vertex_t);
             vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-            return vertex_binding_description;
+            return &vertex_binding_description;
         }
         
-        static std::array<VkVertexInputAttributeDescription, 3> &attribute_description()
+        static uint32_t attribute_description_count() { return 3; }
+        static VkVertexInputAttributeDescription * attribute_descriptions()
         {
             static std::array<VkVertexInputAttributeDescription, 3> vertex_attribute_description = {};
             vertex_attribute_description[0].location = 0;
@@ -59,7 +61,7 @@ public:
             vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
             vertex_attribute_description[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
 
-            return vertex_attribute_description;
+            return vertex_attribute_description.data();
         }
     };
     using index_t = uint16_t;

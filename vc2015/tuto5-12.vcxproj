@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="..\src\tuto5-12\app.h" />
     <ClInclude Include="..\src\tuto5-12\build_options.h" />
+    <ClInclude Include="..\src\tuto5-12\initializers.h" />
     <ClInclude Include="..\src\tuto5-12\platform.h" />
     <ClInclude Include="..\src\tuto5-12\Renderer.h" />
     <ClInclude Include="..\src\tuto5-12\scene.h" />
@@ -33,6 +34,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\tuto5-12\app.cpp" />
+    <ClCompile Include="..\src\tuto5-12\initializers.cpp" />
     <ClCompile Include="..\src\tuto5-12\main.cpp" />
     <ClCompile Include="..\src\tuto5-12\Renderer.cpp" />
     <ClCompile Include="..\src\tuto5-12\scene.cpp" />

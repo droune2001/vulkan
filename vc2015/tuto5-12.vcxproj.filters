@@ -51,6 +51,9 @@
     <ClInclude Include="..\src\tuto5-12\scene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\tuto5-12\initializers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\tuto5-12\main.cpp">
@@ -83,13 +86,12 @@
     <ClCompile Include="..\src\tuto5-12\scene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\tuto5-12\initializers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\data\simple.frag">
-      <Filter>Resource Files\Shaders Source</Filter>
-    </None>
-    <None Include="..\data\simple.vert">
-      <Filter>Resource Files\Shaders Source</Filter>
-    </None>
+    <CustomBuild Include="..\data\simple.frag" />
+    <CustomBuild Include="..\data\simple.vert" />
   </ItemGroup>
 </Project>

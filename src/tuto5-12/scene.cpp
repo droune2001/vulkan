@@ -4,6 +4,7 @@
 #include "Renderer.h"
 #include "Shared.h"
 #include "utils.h"
+#include "initializers.h"
 
 #include <array>
 #include <string>
@@ -323,15 +324,7 @@ bool Scene::copy_buffer_to_image(VkBuffer src, VkImage dst, VkExtent3D extent )
 {
     auto cmd = begin_single_time_commands(_ctx->transfer);
     {
-        VkBufferImageCopy image_copy_region = {};
-        image_copy_region.bufferOffset = 0;
-        image_copy_region.bufferRowLength = 0;
-        image_copy_region.bufferImageHeight = 0;
-        image_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        image_copy_region.imageSubresource.mipLevel = 0;
-        image_copy_region.imageSubresource.baseArrayLayer = 0;
-        image_copy_region.imageSubresource.layerCount = 1;
-        image_copy_region.imageOffset = {0,0,0};
+        VkBufferImageCopy image_copy_region = vk::init::transfer::buffer_image_copy();
         image_copy_region.imageExtent = extent;
 
         vkCmdCopyBufferToImage(cmd, src, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy_region);
@@ -972,18 +965,10 @@ bool Scene::create_procedural_textures()
 
     for (auto &t : _textures)
     {
-        VkImageViewCreateInfo texture_image_view_create_info = {};
-        texture_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        VkImageViewCreateInfo texture_image_view_create_info = vk::init::image::image_view_create_info();
         texture_image_view_create_info.image = t.second.image;
-        texture_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
         texture_image_view_create_info.format = t.second.format;
-        texture_image_view_create_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-        texture_image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        texture_image_view_create_info.subresourceRange.baseMipLevel = 0;
-        texture_image_view_create_info.subresourceRange.levelCount = 1;
-        texture_image_view_create_info.subresourceRange.baseArrayLayer = 0;
-        texture_image_view_create_info.subresourceRange.layerCount = 1;
-
+        
         Log("#     Create Image View\n");
         result = vkCreateImageView(_ctx->device, &texture_image_view_create_info, nullptr, &t.second.view);
         ErrorCheck(result);
@@ -1272,10 +1257,10 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertex_input_state_create_info.vertexBindingDescriptionCount = 1;
-    vertex_input_state_create_info.pVertexBindingDescriptions = &vertex_t::binding_description();
-    vertex_input_state_create_info.vertexAttributeDescriptionCount = 3;
-    vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_t::attribute_description().data();
+    vertex_input_state_create_info.vertexBindingDescriptionCount = vertex_t::binding_description_count();
+    vertex_input_state_create_info.pVertexBindingDescriptions = vertex_t::binding_descriptions();
+    vertex_input_state_create_info.vertexAttributeDescriptionCount = vertex_t::attribute_description_count();
+    vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_t::attribute_descriptions();
 
     // vertex topology config = triangles
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {};
@@ -1283,13 +1268,7 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     input_assembly_state_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     input_assembly_state_create_info.primitiveRestartEnable = VK_FALSE;
 
-    VkViewport viewport = {};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = 512.0f; // dynamic, will set the correct size later.
-    viewport.height = 512.0f;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
+    VkViewport viewport = vk::init::pipeline::viewport(); // dynamic, will set the correct size later.
 
     VkRect2D scissors = {};
     scissors.offset = { 0, 0 };
@@ -1302,70 +1281,21 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     viewport_state_create_info.scissorCount = 1;
     viewport_state_create_info.pScissors = &scissors;
 
-    VkPipelineRasterizationStateCreateInfo raster_state_create_info = {};
-    raster_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    raster_state_create_info.depthClampEnable = VK_FALSE;
-    raster_state_create_info.rasterizerDiscardEnable = VK_FALSE;
-    raster_state_create_info.polygonMode = VK_POLYGON_MODE_FILL; //VK_POLYGON_MODE_LINE;// VK_POLYGON_MODE_FILL;
-    raster_state_create_info.cullMode = VK_CULL_MODE_NONE;
-    raster_state_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;// VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    raster_state_create_info.depthBiasEnable = VK_FALSE;
-    raster_state_create_info.depthBiasConstantFactor = 0;
-    raster_state_create_info.depthBiasClamp = 0;
-    raster_state_create_info.depthBiasSlopeFactor = 0;
-    raster_state_create_info.lineWidth = 1;
+    VkPipelineRasterizationStateCreateInfo raster_state_create_info = vk::init::pipeline::raster_state_create_info();
+    raster_state_create_info.polygonMode = VK_POLYGON_MODE_FILL; //VK_POLYGON_MODE_LINE;
+    raster_state_create_info.cullMode = VK_CULL_MODE_NONE;// VK_CULL_MODE_BACK_BIT;
+    raster_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    
+    VkPipelineMultisampleStateCreateInfo multisample_state_create_info = vk::init::pipeline::multisample_state_create_info_NO_MSAA();
 
-    VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {};
-    multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multisample_state_create_info.sampleShadingEnable = VK_FALSE;
-    multisample_state_create_info.minSampleShading = 0;
-    multisample_state_create_info.pSampleMask = nullptr;
-    multisample_state_create_info.alphaToCoverageEnable = VK_FALSE;
-    multisample_state_create_info.alphaToOneEnable = VK_FALSE;
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = vk::init::pipeline::depth_stencil_state_create_info();
 
-    VkStencilOpState noOP_stencil_state = {};
-    noOP_stencil_state.failOp = VK_STENCIL_OP_KEEP;
-    noOP_stencil_state.passOp = VK_STENCIL_OP_KEEP;
-    noOP_stencil_state.depthFailOp = VK_STENCIL_OP_KEEP;
-    noOP_stencil_state.compareOp = VK_COMPARE_OP_ALWAYS;
-    noOP_stencil_state.compareMask = 0;
-    noOP_stencil_state.writeMask = 0;
-    noOP_stencil_state.reference = 0;
+    VkPipelineColorBlendAttachmentState color_blend_attachment_state = vk::init::pipeline::color_blend_attachment_state_NO_BLEND();
 
-    VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
-    depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil_state_create_info.depthTestEnable = VK_TRUE;
-    depth_stencil_state_create_info.depthWriteEnable = VK_TRUE;
-    depth_stencil_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-    depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
-    depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;
-    depth_stencil_state_create_info.front = noOP_stencil_state;
-    depth_stencil_state_create_info.back = noOP_stencil_state;
-    depth_stencil_state_create_info.minDepthBounds = 0;
-    depth_stencil_state_create_info.maxDepthBounds = 0;
-
-    VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
-    color_blend_attachment_state.blendEnable = VK_FALSE;
-    color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-    color_blend_attachment_state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-    color_blend_attachment_state.colorBlendOp = VK_BLEND_OP_ADD;
-    color_blend_attachment_state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    color_blend_attachment_state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    color_blend_attachment_state.alphaBlendOp = VK_BLEND_OP_ADD;
-    color_blend_attachment_state.colorWriteMask = 0xf; // all components.
-
-    VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
-    color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    color_blend_state_create_info.logicOpEnable = VK_FALSE;
-    color_blend_state_create_info.logicOp = VK_LOGIC_OP_CLEAR;
+    VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = vk::init::pipeline::color_blend_state_create_info();
     color_blend_state_create_info.attachmentCount = 1;
     color_blend_state_create_info.pAttachments = &color_blend_attachment_state;
-    color_blend_state_create_info.blendConstants[0] = 0.0;
-    color_blend_state_create_info.blendConstants[1] = 0.0;
-    color_blend_state_create_info.blendConstants[2] = 0.0;
-    color_blend_state_create_info.blendConstants[3] = 0.0;
-
+    
     std::array<VkDynamicState, 2> dynamic_state = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info = {};
     dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
