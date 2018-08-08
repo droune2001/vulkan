@@ -74,9 +74,9 @@ bool VulkanApplication::loop()
     while (_w->Update())
     {
         // CPU Logic calculations
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(timer.now() - last_time_for_dt);
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(timer.now() - last_time_for_dt);
         last_time_for_dt = timer.now();
-        float dt = duration.count() / 1000.0f;
+        float dt = duration.count() / 1000000.0f;
 
         ++frame_counter;
         if (last_time + std::chrono::seconds(1) < timer.now())
