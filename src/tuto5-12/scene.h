@@ -31,7 +31,36 @@ public:
         glm::vec3 n;
         glm::vec2 uv;
 
-        // TODO: add pipeline descriptors for attribute inputs
+        static VkVertexInputBindingDescription &binding_description()
+        {
+            static VkVertexInputBindingDescription vertex_binding_description = {};
+            vertex_binding_description.binding = 0;
+            vertex_binding_description.stride = sizeof(Scene::vertex_t);
+            vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+            return vertex_binding_description;
+        }
+        
+        static std::array<VkVertexInputAttributeDescription, 3> &attribute_description()
+        {
+            static std::array<VkVertexInputAttributeDescription, 3> vertex_attribute_description = {};
+            vertex_attribute_description[0].location = 0;
+            vertex_attribute_description[0].binding = 0;
+            vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
+            vertex_attribute_description[0].offset = offsetof(Scene::vertex_t, p); //0;
+
+            vertex_attribute_description[1].location = 1;
+            vertex_attribute_description[1].binding = 0;
+            vertex_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
+            vertex_attribute_description[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
+
+            vertex_attribute_description[2].location = 2;
+            vertex_attribute_description[2].binding = 0;
+            vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
+            vertex_attribute_description[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
+
+            return vertex_attribute_description;
+        }
     };
     using index_t = uint16_t;
 

@@ -1270,37 +1270,12 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     shader_stage_create_infos[1].pName = "main";        // shader entry point function name
     shader_stage_create_infos[1].pSpecializationInfo = nullptr;
 
-
-    // TODO: put in model
-
-    VkVertexInputBindingDescription vertex_binding_description = {};
-    vertex_binding_description.binding = 0;
-    vertex_binding_description.stride = sizeof(Scene::vertex_t);
-    vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    // bind input to location=0/1/2, binding=0
-    VkVertexInputAttributeDescription vertex_attribute_description[3] = {};
-    vertex_attribute_description[0].location = 0;
-    vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
-    vertex_attribute_description[0].offset = offsetof(Scene::vertex_t, p); //0;
-
-    vertex_attribute_description[1].location = 1;
-    vertex_attribute_description[1].binding = 0;
-    vertex_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
-    vertex_attribute_description[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
-
-    vertex_attribute_description[2].location = 2;
-    vertex_attribute_description[2].binding = 0;
-    vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
-    vertex_attribute_description[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
-
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertex_input_state_create_info.vertexBindingDescriptionCount = 1;
-    vertex_input_state_create_info.pVertexBindingDescriptions = &vertex_binding_description;
+    vertex_input_state_create_info.pVertexBindingDescriptions = &vertex_t::binding_description();
     vertex_input_state_create_info.vertexAttributeDescriptionCount = 3;
-    vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_attribute_description;
+    vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_t::attribute_description().data();
 
     // vertex topology config = triangles
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {};

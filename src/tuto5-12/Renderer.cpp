@@ -669,12 +669,6 @@ void Renderer::SetupExtensions()
     _ctx.device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
-void Renderer::SetupFeatures()
-{
-    _ctx.features.fillModeNonSolid = VK_TRUE;
-    _ctx.features.samplerAnisotropy = VK_TRUE;
-}
-
 void Renderer::SetupDebug()
 {
     // moved as a member of class and created here to be able to pass it to instance_create_info
@@ -721,6 +715,12 @@ bool Renderer::InitDebug() { return true; }
 void Renderer::DeInitDebug() {}
 
 #endif // BUILD_ENABLE_VULKAN_DEBUG
+
+void Renderer::SetupFeatures()
+{
+    _ctx.features.fillModeNonSolid = VK_TRUE;
+    _ctx.features.samplerAnisotropy = VK_TRUE;
+}
 
 bool Renderer::InitVma()
 {
@@ -1032,7 +1032,7 @@ bool Renderer::InitDepthStencilImage()
     image_create_info.pQueueFamilyIndices = nullptr;
     image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // will have to change layout after
 
-                                                                 // NOTE(nfauvet): only create a handle to the image, like glGenTexture.
+    // NOTE(nfauvet): only create a handle to the image, like glGenTexture.
     result = vkCreateImage(_ctx.device, &image_create_info, nullptr, &_depth_stencil_image);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
