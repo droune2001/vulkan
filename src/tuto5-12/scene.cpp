@@ -105,7 +105,7 @@ bool Scene::add_object(object_description_t od)
     Log("#    UnMap Vertex Buffer\n");
     vkUnmapMemory(device, staging_buffer.memory);
 
-    copy_buffer(_global_staging_vbo.buffer, _global_object_vbo.buffer, vertex_data_size, 0, global_vbo.offset);
+    copy_buffer_to_buffer(_global_staging_vbo.buffer, _global_object_vbo.buffer, vertex_data_size, 0, global_vbo.offset);
 
     global_vbo.offset += (uint32_t)vertex_data_size;
 
@@ -126,7 +126,7 @@ bool Scene::add_object(object_description_t od)
     Log("#    UnMap Index Buffer\n");
     vkUnmapMemory(device, staging_buffer.memory);
 
-    copy_buffer(_global_staging_vbo.buffer, _global_object_ibo.buffer, index_data_size, 0, global_ibo.offset);
+    copy_buffer_to_buffer(_global_staging_vbo.buffer, _global_object_ibo.buffer, index_data_size, 0, global_ibo.offset);
 
     global_ibo.offset += (uint32_t)index_data_size;
 
@@ -285,7 +285,16 @@ bool Scene::create_buffer(
     return true;
 }
 
-bool Scene::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset, VkDeviceSize dst_offset)
+bool Scene::copy_buffer_to_image(VkBuffer src, VkImage dst, VkDeviceSize size, VkDeviceSize src_offset, VkDeviceSize dst_offset)
+{
+    VkResult result;
+
+
+
+    return true;
+}
+
+bool Scene::copy_buffer_to_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset, VkDeviceSize dst_offset)
 {
     VkResult result;
 
@@ -738,6 +747,99 @@ bool Scene::create_texture_2d(void *data, size_t size, _texture_t *texture)
 
     vkUnmapMemory(device, texture->image_memory);
 
+
+    transition_texture(&texture->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copy_buffer_to_image(_texture_staging_buffer.buffer, texture->image, size);
+    transition_texture(&texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    return true;
+}
+
+bool Scene::transition_texture(VkImage *pImage, VkImageLayout old_layout, VkImageLayout new_layout)
+{
+    VkAccessFlags src_access_mask = VK_ACCESS_HOST_WRITE_BIT;
+    VkAccessFlags dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
+    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_HOST_BIT;
+    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+
+    if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED 
+     && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) 
+    {
+        src_access_mask = 0;
+        dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 
+          && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) 
+    {
+        src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
+        src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dst_stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else 
+    {
+        return false;
+    }
+
+    VkResult result;
+    auto device = _ctx->device;
+
+    VkFence submit_fence = {};
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(device, &fence_create_info, nullptr, &submit_fence);
+
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    auto &cmd = _ctx->graphics.command_buffer;
+
+    vkBeginCommandBuffer(cmd, &begin_info);
+
+    VkImageMemoryBarrier layout_transition_barrier = {};
+    layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    layout_transition_barrier.srcAccessMask = src_access_mask;
+    layout_transition_barrier.dstAccessMask = dst_access_mask;
+    layout_transition_barrier.oldLayout = old_layout;
+    layout_transition_barrier.newLayout = new_layout;
+    layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    layout_transition_barrier.image = *pImage;
+    layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    
+    Log("#     Transition texture\n");
+    vkCmdPipelineBarrier(cmd,
+        src_stage_mask,
+        dst_stage_mask,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1,
+        &layout_transition_barrier);
+
+    vkEndCommandBuffer(cmd);
+
+    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = wait_stage_mask;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &cmd;
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
+    result = vkQueueSubmit(_ctx->graphics.queue, 1, &submit_info, submit_fence);
+
+    vkWaitForFences(device, 1, &submit_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &submit_fence);
+    vkResetCommandBuffer(cmd, 0);
+
+    vkDestroyFence(device, submit_fence, nullptr);
+
     return true;
 }
 
@@ -812,6 +914,12 @@ bool Scene::transition_textures()
 
 bool Scene::create_procedural_textures()
 {
+    Log("#     Create Texture Staging Buffer.\n");
+    VkDeviceSize max_texture_size = 4096 * 4096 * 4 * sizeof(float); // 4K RGBA Float
+    if (!create_buffer(&_texture_staging_buffer.buffer, &_texture_staging_buffer.memory, max_texture_size,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
+
     Log("#     Compute Procedural Texture\n");
     
     utils::loaded_image checker_image;

@@ -29,6 +29,8 @@ public:
         glm::vec4 p;
         glm::vec3 n;
         glm::vec2 uv;
+
+        // TODO: add pipeline descriptors for attribute inputs
     };
     using index_t = uint16_t;
 
@@ -95,6 +97,13 @@ public:
 
 private:
 
+    struct staging_buffer_t
+    {
+        VkBuffer        buffer = VK_NULL_HANDLE;
+        VkDeviceMemory  memory = VK_NULL_HANDLE;
+        // TODO: store reserved size
+    };
+
     struct uniform_buffer_t
     {
         VkBuffer        buffer = VK_NULL_HANDLE;
@@ -152,7 +161,9 @@ private:
         VkBufferUsageFlags usage_flags,             // [in]
         VkMemoryPropertyFlags memory_property_flags // [in]
     );
-    bool copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset = 0, VkDeviceSize dst_offset = 0);
+    bool copy_buffer_to_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset = 0, VkDeviceSize dst_offset = 0);
+    bool copy_buffer_to_image(VkBuffer src, VkImage dst, VkDeviceSize size, VkDeviceSize src_offset = 0, VkDeviceSize dst_offset = 0);
+    bool transition_texture(VkImage *pImage, VkImageLayout old_layout, VkImageLayout new_layout);
 
 private:
 
@@ -241,6 +252,7 @@ private:
     bool transition_textures();
 
     std::unordered_map<texture_id_t, _texture_t> _textures;
+    staging_buffer_t _texture_staging_buffer;
 
     std::array<VkSampler,1> _samplers;
 
