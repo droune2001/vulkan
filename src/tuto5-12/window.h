@@ -72,7 +72,7 @@ public:
     // ==== WSI/WINDOW ============
     std::string _window_name;
     VkExtent2D _surface_size = { 512,512 };
-    uint32_t _swapchain_image_count = 2;
+    uint32_t _swapchain_image_count = 3;
     VkSurfaceKHR _surface = VK_NULL_HANDLE;
     VkSurfaceCapabilitiesKHR _surface_caps = {};
     VkSurfaceFormatKHR _surface_format = {};
