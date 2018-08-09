@@ -14,6 +14,6 @@ int main(int argc, char **argv)
     app.run();
 
     Log("### DONE - Press any key...\n");
-    getchar();
+    //getchar();
     return 0;
 }

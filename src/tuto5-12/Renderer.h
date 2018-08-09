@@ -103,6 +103,9 @@ private:
     bool InitSwapChainFrameBuffers();
     void DeInitSwapChainFrameBuffers();
 
+    bool InitSynchronizations();
+    void DeInitSynchronizations();
+
 private:
 
     vulkan_context _ctx;
@@ -123,8 +126,9 @@ private:
 
     VkRenderPass _render_pass = VK_NULL_HANDLE;
 
-
-    VkSemaphore _render_complete_semaphore = VK_NULL_HANDLE;
-    VkSemaphore _present_complete_semaphore = VK_NULL_HANDLE;
-    VkFence _render_fence = VK_NULL_HANDLE;
+    uint32_t current_frame = 0;
+    static constexpr uint32_t MAX_PARALLEL_FRAMES = 3;
+    std::array<VkSemaphore, MAX_PARALLEL_FRAMES> _render_complete_semaphores = {};
+    std::array<VkSemaphore, MAX_PARALLEL_FRAMES> _present_complete_semaphores = {};
+    std::array<VkFence, MAX_PARALLEL_FRAMES>     _render_fences = {};
 };

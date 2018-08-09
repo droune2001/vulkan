@@ -42,10 +42,6 @@ bool Window::InitVulkanWindowSpecifics(vulkan_context *ctx)
     if (!InitSwapChainImages())
         return false;
 
-    Log("#    Init Synchronizations\n");
-    if (!InitSynchronizations())
-        return false;
-
     return true;
 }
 
@@ -57,9 +53,6 @@ void Window::DeleteWindow()
 
 bool Window::DeInitVulkanWindowSpecifics(vulkan_context *ctx)
 {
-    Log("#   Destroy Synchronizations\n");
-    DeInitSynchronizations();
-
     Log("#  Destroy SwapChain Images\n");
     DeInitSwapChainImages();
 
@@ -96,47 +89,21 @@ void Window::BeginRender(VkSemaphore wait_semaphore)
 {
     VkResult result;
 
-    // version using semaphore
-    //result = vkAcquireNextImageKHR(
-    //    device(), _swapchain, UINT64_MAX, 
-    //    wait_semaphore, VK_NULL_HANDLE, 
-    //    &_active_swapchain_image_id);
-
-    //// version using fence
-    //result = vkAcquireNextImageKHR(
-    //    device(), _swapchain, UINT64_MAX,
-    //    VK_NULL_HANDLE, _swapchain_image_available_fence,
-    //    &_active_swapchain_image_id);
-
-    // version using BOTH!!!
+    // Signal a semaphore when the presentation engine is done reading the swap
+    // image we just acquired (happens later). This semaphore is used to wait
+    // before writing (end of fragment shader) to the swap chain.
     result = vkAcquireNextImageKHR(
         device(), _swapchain, UINT64_MAX,
-        wait_semaphore, _swapchain_image_available_fence,
+        wait_semaphore, VK_NULL_HANDLE,
         &_active_swapchain_image_id);
 
-    ErrorCheck(result);
-
-    // <------------------------------------------------- FENCE wait for swap image
-
-    result = vkWaitForFences(device(), 1, &_swapchain_image_available_fence, VK_TRUE, UINT64_MAX ); // wait forever
-    ErrorCheck(result);
-
-    result = vkResetFences(device(), 1, &_swapchain_image_available_fence);
-    ErrorCheck(result);
-
-    // <------------------------------------------------- WAIT for queue
-
-    result = vkQueueWaitIdle(_ctx->graphics.queue);
     ErrorCheck(result);
 }
 
 void Window::EndRender(std::vector<VkSemaphore> wait_semaphores)
 {
     VkResult result;
-
     VkResult present_result = VkResult::VK_RESULT_MAX_ENUM;
-
-    // <------------------------------------------------- Wait on semaphores before presenting
 
     VkPresentInfoKHR present_info = {};
     present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -411,26 +378,6 @@ void Window::DeInitSwapChainImages()
     {
         vkDestroyImageView(device(), _swapchain_image_views[i], nullptr);
     }
-}
-
-bool Window::InitSynchronizations()
-{
-    VkResult result;
-
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-    result = vkCreateFence(device(), &fence_create_info, nullptr, &_swapchain_image_available_fence);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    return true;
-}
-
-void Window::DeInitSynchronizations()
-{
-    vkDestroyFence(device(), _swapchain_image_available_fence, nullptr);
 }
 
 //

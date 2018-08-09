@@ -55,9 +55,6 @@ private:
     bool InitSwapChainImages();
     void DeInitSwapChainImages();
 
-    bool InitSynchronizations();
-    void DeInitSynchronizations();
-
     VkDevice device();
 
 public:
@@ -83,6 +80,5 @@ public:
     std::vector<VkImage> _swapchain_images;
     std::vector<VkImageView> _swapchain_image_views;
     uint32_t _active_swapchain_image_id = UINT32_MAX;
-    VkFence _swapchain_image_available_fence = VK_NULL_HANDLE;
     // ============================
 };

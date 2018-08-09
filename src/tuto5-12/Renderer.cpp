@@ -24,10 +24,6 @@ Renderer::Renderer(Window *w) : _w(w)
 
 Renderer::~Renderer()
 {
-    vkDestroyFence(_ctx.device, _render_fence, nullptr);
-    vkDestroySemaphore(_ctx.device, _render_complete_semaphore, nullptr);
-    vkDestroySemaphore(_ctx.device, _present_complete_semaphore, nullptr);
-
     //
     // SCENE
     //
@@ -129,25 +125,15 @@ bool Renderer::InitContext()
     if (!InitSceneVulkan())
         return false;
 
-    VkResult result;
-
-    //Log("# Create the \"render complete\" and \"present complete\" semaphores\n");
-    VkSemaphoreCreateInfo semaphore_create_info = {};
-    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &_render_complete_semaphore);
-    ErrorCheck(result);
-    result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &_present_complete_semaphore);
-    ErrorCheck(result);
-
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    vkCreateFence(_ctx.device, &fence_create_info, nullptr, &_render_fence);
-
     return true;
 }
 
 bool Renderer::InitSceneVulkan()
 {
+    Log("#    Init Synchronization Primitives\n");
+    if (!InitSynchronizations())
+        return false;
+
     Log("#    Init CommandBuffer\n");
     if (!InitCommandBuffer())
         return false;
@@ -169,17 +155,20 @@ bool Renderer::InitSceneVulkan()
 
 void Renderer::DeInitSceneVulkan()
 {
-    Log("#   Destroy FrameBuffers\n");
+    Log("#    Destroy FrameBuffers\n");
     DeInitSwapChainFrameBuffers();
 
-    Log("#   Destroy Render Pass\n");
+    Log("#    Destroy Render Pass\n");
     DeInitRenderPass();
 
-    Log("#   Destroy Depth/Stencil\n");
+    Log("#    Destroy Depth/Stencil\n");
     DeInitDepthStencilImage();
 
-    Log("#   Destroy Command Buffer\n");
+    Log("#    Destroy Command Buffer\n");
     DeInitCommandBuffer();
+
+    Log("#    Destroy Synchronization Primitives\n");
+    DeInitSynchronizations();
 }
 
 bool Renderer::InitInstance()
@@ -774,14 +763,76 @@ void Renderer::DeInitVma()
     vmaDestroyAllocator(_allocator);
 }
 
+bool Renderer::InitSynchronizations()
+{
+    VkResult result;
+
+    Log("#     Create two semaphores and a fence per parallel frame\n");
+    for (uint32_t i = 0; i < MAX_PARALLEL_FRAMES; ++i)
+    {
+        
+        VkSemaphoreCreateInfo semaphore_create_info = {};
+        semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &_render_complete_semaphores[i]);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+
+        result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &_present_complete_semaphores[i]);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+
+        VkFenceCreateInfo fence_create_info = {};
+        fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT; // we are starting the rendering by a wait on a fence.
+        result = vkCreateFence(_ctx.device, &fence_create_info, nullptr, &_render_fences[i]);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+
+    return true;
+}
+
+void Renderer::DeInitSynchronizations()
+{
+    for (uint32_t i = 0; i < MAX_PARALLEL_FRAMES; ++i)
+    {
+        vkDestroyFence(_ctx.device, _render_fences[i], nullptr);
+        vkDestroySemaphore(_ctx.device, _render_complete_semaphores[i], nullptr);
+        vkDestroySemaphore(_ctx.device, _present_complete_semaphores[i], nullptr);
+    }
+}
+
+
+
+
+
+
+
+
+
+//
+// DRAW
+//
+
 void Renderer::Draw(float dt)
 {
     _scene->update(dt);
 
     VkResult result;
 
-    // Begin render (acquire image, wait for queue ready)
-    _w->BeginRender(_present_complete_semaphore);
+    // CPU wait for the end of the previous same parallel frame.
+    // If we want to render frame 1 of 2 parallel frames, wait for
+    // the end of the previous frame 1.
+    vkWaitForFences(_ctx.device, 1, &_render_fences[current_frame], VK_TRUE, UINT64_MAX);
+    vkResetFences(_ctx.device, 1, &_render_fences[current_frame]);
+
+    // Begin render = acquire image and set semaphore to be signaled when presenting
+    // engine is done reading that frame.
+    _w->BeginRender(_present_complete_semaphores[current_frame]);
 
     auto &cmd = _ctx.graphics.command_buffer;
 
@@ -843,28 +894,29 @@ void Renderer::Draw(float dt)
     ErrorCheck(result);
 
     // Submit command buffer
-    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT ??
+    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &_present_complete_semaphore;
+    // the pipeline stage COLOR_ATTACH_OUTPUT has to wait for the semaphore saying
+    //  that the FBO is available to write to = finished reading by the present engine.
+    submit_info.pWaitSemaphores = &_present_complete_semaphores[current_frame];
     submit_info.pWaitDstStageMask = wait_stage_mask;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &cmd;
-    submit_info.signalSemaphoreCount = 1; // signals this semaphore when the render is complete GPU side.
-    submit_info.pSignalSemaphores = &_render_complete_semaphore;
+    // signals this semaphore when the render is complete GPU side
+    // so that the presentation can begin presenting.
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &_render_complete_semaphores[current_frame];
 
-    result = vkQueueSubmit(_ctx.graphics.queue, 1, &submit_info, _render_fence);
+    result = vkQueueSubmit(_ctx.graphics.queue, 1, &submit_info, _render_fences[current_frame]);
     ErrorCheck(result);
 
-    // <------------------------------------------------- Wait on Fence
+    // Present the frame after having waited on the rendering to be finished.
+    _w->EndRender({ _render_complete_semaphores[current_frame] });
 
-    vkWaitForFences(_ctx.device, 1, &_render_fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(_ctx.device, 1, &_render_fence);
-
-    // <------------------------------------------------- Wait on semaphores before presenting
-
-    _w->EndRender({ _render_complete_semaphore });
+    // Next parallel frame.
+    current_frame = (current_frame + 1) % MAX_PARALLEL_FRAMES;
 }
 
 
@@ -1103,7 +1155,7 @@ bool Renderer::InitRenderPass()
         attachements[ATTACH_INDEX_DEPTH].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // format EXPECTED (render pass DOES NOT do it for you)
         attachements[ATTACH_INDEX_DEPTH].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // renderpass DOES transform into it at the end.
 
-                                                                                                         // color
+        // color
         attachements[ATTACH_INDEX_COLOR].flags = 0;
         attachements[ATTACH_INDEX_COLOR].format = _w->surface_format(); // bc we are rendering directly to the screen
         attachements[ATTACH_INDEX_COLOR].samples = VK_SAMPLE_COUNT_1_BIT; // needs to be the same for all attachements
@@ -1144,8 +1196,12 @@ bool Renderer::InitRenderPass()
     VkSubpassDependency dependency = {};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // between the previous (acquire) command
     dependency.dstSubpass = 0;                   // and the first subpass
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    // Our first subpass will wait for the COLOR_ATTACH_OUTPUT to begin, so the
+    // auto transition will happen after the swap chain image is ready to write,
+    // because we put a semaphore wait on that same stage in the submit info.
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; 
     dependency.srcAccessMask = 0;
+    // the operations waiting are read/write operations on the out color.
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     //| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
