@@ -24,6 +24,10 @@ Renderer::Renderer(Window *w) : _w(w)
 
 Renderer::~Renderer()
 {
+    vkDestroyFence(_ctx.device, _render_fence, nullptr);
+    vkDestroySemaphore(_ctx.device, _render_complete_semaphore, nullptr);
+    vkDestroySemaphore(_ctx.device, _present_complete_semaphore, nullptr);
+
     //
     // SCENE
     //
@@ -124,6 +128,20 @@ bool Renderer::InitContext()
     Log("#   Init Scene Specific Vulkan\n");
     if (!InitSceneVulkan())
         return false;
+
+    VkResult result;
+
+    //Log("# Create the \"render complete\" and \"present complete\" semaphores\n");
+    VkSemaphoreCreateInfo semaphore_create_info = {};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &_render_complete_semaphore);
+    ErrorCheck(result);
+    result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &_present_complete_semaphore);
+    ErrorCheck(result);
+
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(_ctx.device, &fence_create_info, nullptr, &_render_fence);
 
     return true;
 }
@@ -762,19 +780,8 @@ void Renderer::Draw(float dt)
 
     VkResult result;
 
-    // Re create each time??? cant we reset them???
-    //Log("# Create the \"render complete\" and \"present complete\" semaphores\n");
-    VkSemaphore render_complete_semaphore = VK_NULL_HANDLE;
-    VkSemaphore present_complete_semaphore = VK_NULL_HANDLE;
-    VkSemaphoreCreateInfo semaphore_create_info = {};
-    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &render_complete_semaphore);
-    ErrorCheck(result);
-    result = vkCreateSemaphore(_ctx.device, &semaphore_create_info, nullptr, &present_complete_semaphore);
-    ErrorCheck(result);
-
     // Begin render (acquire image, wait for queue ready)
-    _w->BeginRender(present_complete_semaphore);
+    _w->BeginRender(_present_complete_semaphore);
 
     auto &cmd = _ctx.graphics.command_buffer;
 
@@ -830,62 +837,34 @@ void Renderer::Draw(float dt)
         vkCmdEndRenderPass(cmd);
 
 
-#if 0 // NO NEED to transition at the end, if already specified in the render pass.
-        // Transition color from OPTIMAL to PRESENT
-        VkImageMemoryBarrier pre_present_layout_transition_barrier = {};
-        pre_present_layout_transition_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        pre_present_layout_transition_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        pre_present_layout_transition_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        pre_present_layout_transition_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; //VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        pre_present_layout_transition_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        pre_present_layout_transition_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        pre_present_layout_transition_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        pre_present_layout_transition_barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-        pre_present_layout_transition_barrier.image = w->GetVulkanActiveImage();
-
-        vkCmdPipelineBarrier(command_buffer,
-            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &pre_present_layout_transition_barrier);
-#endif
+    // NO NEED to transition from OPTIMAL to PRESENT at the end, if already specified in the render pass.
     }
     result = vkEndCommandBuffer(cmd); // compiles the command buffer
     ErrorCheck(result);
-
-    VkFence render_fence = {};
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    vkCreateFence(_ctx.device, &fence_create_info, nullptr, &render_fence);
 
     // Submit command buffer
     VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT ??
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &present_complete_semaphore;
+    submit_info.pWaitSemaphores = &_present_complete_semaphore;
     submit_info.pWaitDstStageMask = wait_stage_mask;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &cmd;
     submit_info.signalSemaphoreCount = 1; // signals this semaphore when the render is complete GPU side.
-    submit_info.pSignalSemaphores = &render_complete_semaphore;
+    submit_info.pSignalSemaphores = &_render_complete_semaphore;
 
-    result = vkQueueSubmit(_ctx.graphics.queue, 1, &submit_info, render_fence);
+    result = vkQueueSubmit(_ctx.graphics.queue, 1, &submit_info, _render_fence);
     ErrorCheck(result);
 
     // <------------------------------------------------- Wait on Fence
 
-    vkWaitForFences(_ctx.device, 1, &render_fence, VK_TRUE, UINT64_MAX);
-    vkDestroyFence(_ctx.device, render_fence, nullptr);
+    vkWaitForFences(_ctx.device, 1, &_render_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(_ctx.device, 1, &_render_fence);
 
     // <------------------------------------------------- Wait on semaphores before presenting
 
-    _w->EndRender({ render_complete_semaphore });
-
-    vkDestroySemaphore(_ctx.device, render_complete_semaphore, nullptr);
-    vkDestroySemaphore(_ctx.device, present_complete_semaphore, nullptr);
+    _w->EndRender({ _render_complete_semaphore });
 }
 
 

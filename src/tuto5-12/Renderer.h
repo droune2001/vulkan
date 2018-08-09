@@ -122,4 +122,9 @@ private:
     bool _stencil_available = false;
 
     VkRenderPass _render_pass = VK_NULL_HANDLE;
+
+
+    VkSemaphore _render_complete_semaphore = VK_NULL_HANDLE;
+    VkSemaphore _present_complete_semaphore = VK_NULL_HANDLE;
+    VkFence _render_fence = VK_NULL_HANDLE;
 };
