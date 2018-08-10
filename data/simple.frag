@@ -7,13 +7,16 @@
 //
 layout( set = 0, binding = 1 ) uniform scene_ubo
 {
-	vec4 sky_color;
+    vec4 sky_color;
     vec4 light_color;
-	float light_radius;
-	// + light type, outer/inner cone angles?
-	// + camera lens properties?
+    float light_radius;
+    // + light type, outer/inner cone angles?
+    // + camera lens properties?
 } Scene_UBO;
 
+//
+// SHADER/PIPELINE
+//
 layout( set = 0, binding = 2 ) uniform sampler tex_sampler;
 
 //
@@ -28,8 +31,8 @@ layout( set = 1, binding = 1 ) uniform texture2D spec_tex; // x = roughness, y =
 layout( set = 2, binding = 1 ) uniform object_ubo
 {
     vec4 base; // xyz = albedo or specular. a = alpha
-	float roughness;
-	float metallic;
+    float roughness;
+    float metallic;
 } Object_UBO;
 
 //
@@ -116,11 +119,11 @@ vec3 cooktorrance_specular( in float NdotL, in float NdotV, in float NdotH, in v
 
 void main() 
 {
-	vec3 sky_color = Scene_UBO.sky_color.rgb;//sRGB_to_Linear(vec3(0.39, 0.58, 0.92));
-	vec3 light_color = Scene_UBO.light_color.rgb;//sRGB_to_Linear(IN.lColor.xyz);
-	float light_radius = Scene_UBO.light_radius;//10.0;
+    vec3 sky_color = Scene_UBO.sky_color.rgb;//sRGB_to_Linear(vec3(0.39, 0.58, 0.92));
+    vec3 light_color = Scene_UBO.light_color.rgb;//sRGB_to_Linear(IN.lColor.xyz);
+    float light_radius = Scene_UBO.light_radius;//10.0;
 
-	vec4 sampled_base = texture(sampler2D(base_tex, tex_sampler), IN.uv);
+    vec4 sampled_base = texture(sampler2D(base_tex, tex_sampler), IN.uv);
     vec4 sampled_spec = texture(sampler2D(spec_tex, tex_sampler), IN.uv);
 
     //vec3 base = sRGB_to_Linear(texture(tex_sampler,IN.uv).rgb)* sRGB_to_Linear(IN.vColor.xyz);

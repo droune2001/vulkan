@@ -148,11 +148,8 @@ void VulkanApplication::BuildScene()
 
     {
         Scene::material_instance_description_t mi = {};
-        mi.instance_id = "white_rough";
+        mi.instance_id = "rough_plastic";
         mi.material_id = "default"; // not much choice for the moment
-        mi.diffuse_color = glm::vec3(1, 1, 1);
-        mi.roughness = 0.5f;
-        mi.metalness = 0.0f;
         mi.base_tex = "default";
         mi.specular_tex = "default_spec";
         _scene->add_material_instance(mi);
@@ -160,11 +157,8 @@ void VulkanApplication::BuildScene()
 
     {
         Scene::material_instance_description_t mi = {};
-        mi.instance_id = "red_shiny_checker";
+        mi.instance_id = "half_metal_checker";
         mi.material_id = "default"; // not much choice for the moment
-        mi.diffuse_color = glm::vec3(1, 0, 0);
-        mi.roughness = 0.1f;
-        mi.metalness = 0.5f;
         mi.base_tex = "checker";
         mi.specular_tex = "checker_spec";
         _scene->add_material_instance(mi);
@@ -182,7 +176,9 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
         obj_desc.indices = icosphere.second.data();
         obj_desc.position = glm::vec3(-2.5f, 0.0f, -2.0f);
-        obj_desc.material = "white_rough";
+        obj_desc.material = "rough_plastic";
+        obj_desc.base_color = glm::vec4(1,0,0,1); // red tint
+        obj_desc.specular = glm::vec4(1,1,0,0); // no modification
         _scene->add_object(obj_desc);
     }
 
@@ -194,7 +190,9 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.position = glm::vec3(2.5f, 0.0f, 3.0f);
-        obj_desc.material = "red_shiny_checker";
+        obj_desc.material = "half_metal_checker";
+        obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
+        obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
 
@@ -223,7 +221,9 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.position = glm::vec3(-5.5f, 0.0f, 0.0f);
-        obj_desc.material = "red_shiny_checker";
+        obj_desc.material = "half_metal_checker";
+        obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
+        obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
 
@@ -236,7 +236,9 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.position = glm::vec3(5.5f, 0.0f, 0.0f);
-        obj_desc.material = "red_shiny_checker";
+        obj_desc.material = "half_metal_checker";
+        obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
+        obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
 
@@ -249,7 +251,9 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.position = glm::vec3(0.0f, 0.0f, -5.5f);
-        obj_desc.material = "red_shiny_checker";
+        obj_desc.material = "half_metal_checker";
+        obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
+        obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
 
@@ -267,7 +271,12 @@ void VulkanApplication::BuildScene()
             obj_desc.indexCount = (uint32_t)obj.second.size();
             obj_desc.indices = obj.second.data();
             obj_desc.position = glm::vec3(-4.5f+i*0.5f, -5.0f+0.5f*real_rand(), -4.5f+j*0.5f);
-            obj_desc.material = "white_rough";
+            obj_desc.material = "rough_plastic";
+            float r = 0.2f + 0.8f * real_rand();
+            float g = 0.2f + 0.8f * real_rand();
+            float b = 0.2f + 0.8f * real_rand();
+            obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
+            obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
             _scene->add_object(obj_desc);
         }
     }

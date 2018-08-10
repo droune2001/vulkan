@@ -74,9 +74,13 @@ public:
         vertex_t *vertices = nullptr;
 
         // for each instance
-        glm::vec3 position;
+        glm::vec3 position = glm::vec3(0, 0, 0);
 
         material_instance_id_t material = "white_rough"; // material parameters set
+
+        // material overrides.
+        glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
+        glm::vec4 specular = glm::vec4(0.5, 0.0, 0.0, 0.0); // roughness, metallic, 0, 0
     };
 
     struct light_description_t
@@ -222,13 +226,15 @@ private:
         // for animation
         glm::vec3 position = glm::vec3(0,0,0);
         glm::vec4 base_color = glm::vec4(0.5,0.5,0.5,1.0);
-        glm::vec4 specular = glm::vec4(0.5,0.0,0.0,0.0); // roughness, metallic, 0, 0
+        glm::vec4 specular = glm::vec4(1,1,0,0); // roughness, metallic, 0, 0
 
-        material_id_t material_id = "default";
+        material_instance_id_t material_ref;
+
+        //material_id_t material_id = "default";
         
         // hardcoded
-        texture_id_t diffuse_texture = "default";
-        texture_id_t specular_texture = "default_spec";
+        //texture_id_t diffuse_texture = "default";
+        //texture_id_t specular_texture = "default_spec";
 
         // set #2 binding #0 model_matrix       : VS
         //        binding #1 material overrides : FS
@@ -286,6 +292,7 @@ private:
         // set = 0
         // binding = 0: camera position, light position : VS
         // binding = 1: light color, sky_color          : FS
+        // binding = 2: tex sampler                     : FS
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     };
 
@@ -334,7 +341,8 @@ private:
         texture_id_t base_tex;
         texture_id_t spec_tex;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-        // set = 1 binding = 0 { texture2d base; texture2d spec; }
+        // set = 1 binding = 0 texture2d base; 
+        //         binding = 1 texture2d spec;
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
 
