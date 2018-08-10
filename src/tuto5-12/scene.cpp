@@ -57,14 +57,17 @@ void Scene::de_init()
     destroy_textures();
 
     Log("#   Destroy Uniform Buffers\n");
-    if (_global_object_vbo_created || _global_object_ibo_created || _global_object_ubo_created)
+    if (_global_object_vbo_created 
+     || _global_object_ibo_created 
+     || _global_object_matrices_ubo_created
+     || _global_object_material_ubo_created)
     {
         destroy_global_object_buffers();
     }
     if (_scene_ubo_created) destroy_scene_ubo();
 }
 
-bool Scene::add_object(object_description_t od)
+bool Scene::add_object(object_description_t desc)
 {
     Log("#   Add Object\n");
 
@@ -74,72 +77,77 @@ bool Scene::add_object(object_description_t od)
     // with lazy init
     auto &global_vbo = get_global_object_vbo();
     auto &global_ibo = get_global_object_ibo();
-    auto &global_ubo = get_global_object_ubo();
+    auto &global_matrices_ubo = get_global_object_matrices_ubo();
+    auto &global_material_ubo = get_global_object_material_ubo();
     auto &staging_buffer = get_global_staging_vbo();
 
     _object_t obj = {};
-    obj.position        = od.position;
-    obj.vertexCount     = od.vertexCount;
+    obj.position        = desc.position;
+    obj.vertexCount     = desc.vertexCount;
     obj.vertex_buffer   = global_vbo.buffer;
     obj.vertex_offset   = global_vbo.offset;
-    obj.indexCount      = od.indexCount;
+    obj.indexCount      = desc.indexCount;
     obj.index_buffer    = global_ibo.buffer;
     obj.index_offset    = global_ibo.offset;
-    obj.material_id     = od.material;
+    obj.material_ref    = desc.material;
+    obj.base_color      = desc.base_color;
+    obj.specular        = desc.specular;
     
-    Log(std::string("#    v: ") + std::to_string(od.vertexCount) + std::string(" i: ") + std::to_string(od.indexCount) + "\n");
+    Log(std::string("#    v: ") + std::to_string(desc.vertexCount) + std::string(" i: ") + std::to_string(desc.indexCount) + "\n");
 
     void *mapped = nullptr;
 
-    Log("#    Map (Staging) Vertex Buffer\n");
-    size_t vertex_data_size = od.vertexCount * sizeof(vertex_t);
+    {
+        Log("#    Map (Staging) Vertex Buffer\n");
+        size_t vertex_data_size = desc.vertexCount * sizeof(vertex_t);
 
-    Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
-    result = vkMapMemory(device, staging_buffer.memory, 0, vertex_data_size, 0, &mapped);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
+        Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
+        result = vkMapMemory(device, staging_buffer.memory, 0, vertex_data_size, 0, &mapped);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
 
-    vertex_t *vertices = (vertex_t*)mapped;
-    memcpy(vertices, od.vertices, vertex_data_size);
+        vertex_t *vertices = (vertex_t*)mapped;
+        memcpy(vertices, desc.vertices, vertex_data_size);
 
-    Log("#    UnMap Vertex Buffer\n");
-    vkUnmapMemory(device, staging_buffer.memory);
+        Log("#    UnMap Vertex Buffer\n");
+        vkUnmapMemory(device, staging_buffer.memory);
 
-    copy_buffer_to_buffer(_global_staging_vbo.buffer, _global_object_vbo.buffer, vertex_data_size, 0, global_vbo.offset);
+        copy_buffer_to_buffer(_global_staging_vbo.buffer, _global_object_vbo.buffer, vertex_data_size, 0, global_vbo.offset);
 
-    global_vbo.offset += (uint32_t)vertex_data_size;
+        global_vbo.offset += (uint32_t)vertex_data_size;
+    }
 
+    {
+        Log("#    Map Index Buffer\n");
+        size_t index_data_size = desc.indexCount * sizeof(index_t);
 
+        Log("#     offset: " + std::to_string(global_ibo.offset) + std::string(" size: ") + std::to_string(index_data_size) + "\n");
+        result = vkMapMemory(device, staging_buffer.memory, 0, index_data_size, 0, &mapped);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
 
-    Log("#    Map Index Buffer\n");
-    size_t index_data_size = od.indexCount * sizeof(index_t);
+        index_t *indices = (index_t*)mapped;
+        memcpy(indices, desc.indices, index_data_size);
 
-    Log("#     offset: " + std::to_string(global_ibo.offset) + std::string(" size: ") + std::to_string(index_data_size) + "\n");
-    result = vkMapMemory(device, staging_buffer.memory, 0, index_data_size, 0, &mapped);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
+        Log("#    UnMap Index Buffer\n");
+        vkUnmapMemory(device, staging_buffer.memory);
 
-    index_t *indices = (index_t*)mapped;
-    memcpy(indices, od.indices, index_data_size);
+        copy_buffer_to_buffer(_global_staging_vbo.buffer, _global_object_ibo.buffer, index_data_size, 0, global_ibo.offset);
 
-    Log("#    UnMap Index Buffer\n");
-    vkUnmapMemory(device, staging_buffer.memory);
-
-    copy_buffer_to_buffer(_global_staging_vbo.buffer, _global_object_ibo.buffer, index_data_size, 0, global_ibo.offset);
-
-    global_ibo.offset += (uint32_t)index_data_size;
-
-
-
-
-
+        global_ibo.offset += (uint32_t)index_data_size;
+    }
 
     Log("#    Compute ModelMatrix and put it in the aligned buffer\n");
-    glm::mat4* model_mat = (glm::mat4*)(((uint64_t)_model_matrices + (_objects.size() * _dynamic_alignment)));
-    *model_mat = glm::translate(glm::mat4(1), od.position);
-  
+    glm::mat4* model_mat = (glm::mat4*)((uint64_t)global_matrices_ubo.host_data + (_objects.size() * global_matrices_ubo.alignment));
+    *model_mat = glm::translate(glm::mat4(1), desc.position);
+
+    Log("#    Fill Material Overrides into its aligned buffer\n");
+    _material_override_t *materials = (_material_override_t*)((uint64_t)global_material_ubo.host_data + (_objects.size() * global_material_ubo.alignment));
+    materials->base_color = desc.base_color;
+    materials->specular = desc.specular;
+
     _objects.push_back(obj);
 
     return true;
@@ -163,7 +171,7 @@ bool Scene::add_camera(camera_description_t ca)
     camera.p = glm::perspective(ca.fovy, ca.aspect, ca.near_plane, ca.far_plane);
     camera.p[1][1] *= -1.0f;
 
-    _cameras.push_back(camera);
+    _cameras[ca.camera_id] = camera;
 
     return true;
 }
@@ -585,19 +593,64 @@ bool Scene::transition_textures()
 
 bool Scene::create_global_object_buffers()
 {
-    // Find the memory alignment for the object matrices;
-    size_t min_ubo_alignment = _ctx->physical_device_properties.limits.minUniformBufferOffsetAlignment;
-    _dynamic_alignment = sizeof(glm::mat4);
-    if (min_ubo_alignment > 0) 
+    Log("#     Create Global Matrices Object\'s UBO\n");
     {
-        _dynamic_alignment = (_dynamic_alignment + min_ubo_alignment - 1) & ~(min_ubo_alignment - 1);
+        // Find the memory alignment for the object matrices;
+        dynamic_uniform_buffer_t &mtx_ubo = _global_object_matrices_ubo;
+        size_t min_ubo_alignment = _ctx->physical_device_properties.limits.minUniformBufferOffsetAlignment;
+        mtx_ubo.alignment = sizeof(glm::mat4);
+        if (min_ubo_alignment > 0)
+        {
+            mtx_ubo.alignment = (mtx_ubo.alignment + min_ubo_alignment - 1) & ~(min_ubo_alignment - 1);
+        }
+        mtx_ubo.size = MAX_NB_OBJECTS * mtx_ubo.alignment;
+        mtx_ubo.host_data = utils::aligned_alloc(mtx_ubo.size, mtx_ubo.alignment);
+        for (size_t i = 0; i < MAX_NB_OBJECTS; ++i)
+        {
+            glm::mat4 *model_mat_for_obj_i = (glm::mat4*)((uint64_t)mtx_ubo.host_data + (i * mtx_ubo.alignment));
+            *model_mat_for_obj_i = glm::mat4(1);
+        }
+
+
+        if (!create_buffer(
+            &mtx_ubo.buffer,
+            &mtx_ubo.memory,
+            mtx_ubo.size,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+            return false;
+
+        _global_object_matrices_ubo_created = true;
     }
-     _dynamic_buffer_size = MAX_NB_OBJECTS * _dynamic_alignment;
-    _model_matrices = (glm::mat4*)utils::aligned_alloc(_dynamic_buffer_size, _dynamic_alignment);
-    for (size_t i = 0; i < MAX_NB_OBJECTS; ++i)
+
+    Log("#     Create Global Materials Object\'s UBO\n");
     {
-        glm::mat4 *model_mat_for_obj_i = (glm::mat4*)((uint64_t)_model_matrices + (i * _dynamic_alignment));
-        *model_mat_for_obj_i = glm::mat4(1);
+        // Find the memory alignment for the object matrices;
+        dynamic_uniform_buffer_t &mtx_ubo = _global_object_matrices_ubo;
+        size_t min_ubo_alignment = _ctx->physical_device_properties.limits.minUniformBufferOffsetAlignment;
+        mtx_ubo.alignment = sizeof(glm::mat4);
+        if (min_ubo_alignment > 0)
+        {
+            mtx_ubo.alignment = (mtx_ubo.alignment + min_ubo_alignment - 1) & ~(min_ubo_alignment - 1);
+        }
+        mtx_ubo.size = MAX_NB_OBJECTS * mtx_ubo.alignment;
+        mtx_ubo.host_data = utils::aligned_alloc(mtx_ubo.size, mtx_ubo.alignment);
+        for (size_t i = 0; i < MAX_NB_OBJECTS; ++i)
+        {
+            glm::mat4 *model_mat_for_obj_i = (glm::mat4*)((uint64_t)mtx_ubo.host_data + (i * mtx_ubo.alignment));
+            *model_mat_for_obj_i = glm::mat4(1);
+        }
+
+
+        if (!create_buffer(
+            &mtx_ubo.buffer,
+            &mtx_ubo.memory,
+            mtx_ubo.size,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+            return false;
+
+        _global_object_matrices_ubo_created = true;
     }
 
     // VBO
@@ -623,17 +676,6 @@ bool Scene::create_global_object_buffers()
         return false;
 
     _global_object_ibo_created = true;
-
-    Log("#     Create Global Object\'s UBO\n");
-    if (!create_buffer(
-        &_global_object_ubo.buffer,
-        &_global_object_ubo.memory,
-        _dynamic_buffer_size,
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-        return false;
-
-    _global_object_ubo_created = true;
 
     Log("#     Create Staging Buffer for VBO/IBO\n");
     if (!create_buffer(

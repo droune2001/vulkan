@@ -89,8 +89,10 @@ public:
         glm::vec3 position = glm::vec3(0,0,0);
     };
 
+    using camera_id_t = std::string;
     struct camera_description_t
     {
+        camera_id_t camera_id;
         glm::vec3 position = glm::vec3(10,0,0);
         float fovy = 90.0f;
         float aspect = 4.0f / 3.0f;
@@ -144,7 +146,15 @@ private:
     {
         VkBuffer        buffer = VK_NULL_HANDLE;
         VkDeviceMemory  memory = VK_NULL_HANDLE;
-        // TODO: store reserved size
+    };
+
+    struct dynamic_uniform_buffer_t
+    {
+        void *          host_data = nullptr;
+        size_t          alignment = 0;
+        size_t          size = 0;
+        VkBuffer        buffer = VK_NULL_HANDLE;
+        VkDeviceMemory  memory = VK_NULL_HANDLE;
     };
 
     // VBO/IBO to handle multiple objects.
@@ -169,7 +179,8 @@ private:
     vertex_buffer_object_t & get_global_staging_vbo();
     vertex_buffer_object_t & get_global_object_vbo();
     vertex_buffer_object_t & get_global_object_ibo();
-    uniform_buffer_t       & get_global_object_ubo();
+    dynamic_uniform_buffer_t & get_global_object_matrices_ubo();
+    dynamic_uniform_buffer_t & get_global_object_material_ubo();
 
     bool create_global_object_buffers();
     void destroy_global_object_buffers();
@@ -213,6 +224,12 @@ private:
     // OBJECTS
     //
 
+    struct _material_override_t
+    {
+        glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
+        glm::vec4 specular = glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+    };
+
     struct _object_t
     {
         uint32_t vertexCount = 0;
@@ -225,16 +242,10 @@ private:
         
         // for animation
         glm::vec3 position = glm::vec3(0,0,0);
-        glm::vec4 base_color = glm::vec4(0.5,0.5,0.5,1.0);
-        glm::vec4 specular = glm::vec4(1,1,0,0); // roughness, metallic, 0, 0
+        glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
+        glm::vec4 specular = glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
 
         material_instance_id_t material_ref;
-
-        //material_id_t material_id = "default";
-        
-        // hardcoded
-        //texture_id_t diffuse_texture = "default";
-        //texture_id_t specular_texture = "default_spec";
 
         // set #2 binding #0 model_matrix       : VS
         //        binding #1 material overrides : FS
@@ -243,17 +254,16 @@ private:
 
     std::vector<_object_t> _objects;
     
-    glm::mat4 *_model_matrices = nullptr; // not a vector, need to align memory.
-    size_t _dynamic_alignment = 0;
-    size_t _dynamic_buffer_size = 0;
-    uniform_buffer_t _global_object_ubo; // all objects model matrices in one buffer
+    dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
+    dynamic_uniform_buffer_t _global_object_material_ubo; // all objects material overrides in one buffer
     vertex_buffer_object_t _global_object_vbo; // all objects vertices in one buffer
     vertex_buffer_object_t _global_object_ibo; // all objects indices in one buffer
     vertex_buffer_object_t _global_staging_vbo; // used for transfer.
-    bool _global_object_ubo_created = false; //
-    bool _global_object_vbo_created = false; // lazy creation
-    bool _global_object_ibo_created = false; //
-    bool _global_staging_vbo_created = false;
+    bool _global_object_matrices_ubo_created = false; //
+    bool _global_object_material_ubo_created = false; //
+    bool _global_object_vbo_created = false;          // for lazy creation
+    bool _global_object_ibo_created = false;          //
+    bool _global_staging_vbo_created = false;         //
 
     //
     // LIGHTS 
@@ -277,8 +287,7 @@ private:
         glm::mat4 v = glm::mat4(1); // view matrix
         glm::mat4 p = glm::mat4(1); // proj matrix
     };
-    using _camera_id_t = std::string;
-    std::unordered_map<_camera_id_t, _camera_t> _cameras;
+    std::unordered_map<camera_id_t, _camera_t> _cameras;
 
     //
     // VIEW / SCENE
