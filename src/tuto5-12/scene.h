@@ -219,14 +219,20 @@ private:
         uint32_t vertex_offset = 0;
         VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
         
+        // for animation
         glm::vec3 position = glm::vec3(0,0,0);
+        glm::vec4 base_color = glm::vec4(0.5,0.5,0.5,1.0);
+        glm::vec4 specular = glm::vec4(0.5,0.0,0.0,0.0); // roughness, metallic, 0, 0
 
         material_id_t material_id = "default";
         
         // hardcoded
         texture_id_t diffuse_texture = "default";
         texture_id_t specular_texture = "default_spec";
-        VkDescriptorSet texture_descriptor_set = VK_NULL_HANDLE;
+
+        // set #2 binding #0 model_matrix       : VS
+        //        binding #1 material overrides : FS
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     };
 
     std::vector<_object_t> _objects;
@@ -265,8 +271,24 @@ private:
         glm::mat4 v = glm::mat4(1); // view matrix
         glm::mat4 p = glm::mat4(1); // proj matrix
     };
+    using _camera_id_t = std::string;
+    std::unordered_map<_camera_id_t, _camera_t> _cameras;
 
-    std::vector<_camera_t> _cameras;
+    //
+    // VIEW / SCENE
+    //
+
+    struct _view_t
+    {
+        _camera_id_t camera = "perspective";
+
+        // for the moment, it is the "scene"
+        // set = 0
+        // binding = 0: camera position, light position : VS
+        // binding = 1: light color, sky_color          : FS
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+    };
+
     uniform_buffer_t _scene_ubo;
     bool _scene_ubo_created = false;
 
@@ -297,9 +319,9 @@ private:
         VkShaderModule fs = VK_NULL_HANDLE;
 
         VkDescriptorPool      descriptor_pool = VK_NULL_HANDLE;
-        VkDescriptorSetLayout descriptor_set_layouts[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-        VkDescriptorSet       descriptor_sets[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-
+        // view, material, object
+        VkDescriptorSetLayout descriptor_set_layouts[3] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+        
         VkPipeline       pipeline = {};
         VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
     };
@@ -309,12 +331,10 @@ private:
 
     struct _material_instance_t
     {
-        VkDescriptorSet descriptor_set = VK_NULL_HANDLE; // bind to set #2
-        // set : 2
-        //   bindings:
-        //   0 : ubo with material vec4s
-        //   1 : diffuse texture2d
-        //   2 : specular texture2d
+        texture_id_t base_tex;
+        texture_id_t spec_tex;
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+        // set = 1 binding = 0 { texture2d base; texture2d spec; }
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
 

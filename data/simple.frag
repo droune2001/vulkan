@@ -3,18 +3,40 @@
 //#extension GL_KHR_vulkan_glsl : enable
 
 layout ( location = 0 ) in struct fragment_in {
-    vec4 vColor;
-    vec4 lColor;
     vec3 normal;
     vec2 uv;
     vec3 to_camera;
     vec3 to_light;
-    // TODO: add radius
 } IN;
 
-layout ( set = 0, binding = 1 ) uniform sampler2D tex_sampler;
+//layout ( set = 0, binding = 1 ) uniform sampler2D tex_sampler;
 //layout ( set = 2, binding = 2 ) uniform texture2D diffuse_tex;
 //layout ( set = 2, binding = 2 ) uniform texture2D specular_tex;
+
+layout( set = 0, binding = 1 ) uniform scene_ubo
+{
+	vec4 sky_color;
+    vec4 light_color;
+	float light_radius;
+	// + light type, outer/inner cone angles?
+	sampler2D tex_sampler;
+	// + camera lens properties?
+} Scene_UBO;
+
+layout( set = 1, binding = 0 ) uniform material_ubo
+{
+	uniform texture2D diffuse_tex; // xyz = albedo or specular. a = alpha
+	uniform texture2D specular_tex; // x = roughness, y = metallic
+} Material_UBO;
+
+layout( set = 2, binding = 1 ) uniform object_ubo
+{
+    vec4 base; // xyz = albedo or specular. a = alpha
+	float roughness;
+	float metallic;
+} Object_UBO;
+
+
 
 layout (location = 0) out vec4 uFragColor;
 
@@ -81,13 +103,23 @@ vec3 cooktorrance_specular( in float NdotL, in float NdotV, in float NdotH, in v
 
 void main() 
 {
-    float light_radius = 10.0;
+	vec3 sky_color = sRGB_to_Linear(vec3(0.39, 0.58, 0.92));
+	vec3 light_color = att * sRGB_to_Linear(IN.lColor.xyz);
+	float light_radius = 10.0;
+
+	//vec3 sampled_diffuse = texture( sampler2D( tex_sampler, diffuse_tex), IN.uv).rgb;
+    //vec3 sampled_specular = texture( sampler2D( tex_sampler, specular_tex), IN.uv).rgb;
+    vec3 base = sRGB_to_Linear(texture(tex_sampler,IN.uv).rgb)* sRGB_to_Linear(IN.vColor.xyz);
+    vec3 metallic = vec3(0.0); // TODO: sample from texture channel
+    float roughness = 0.2; // TODO: sample from texture channel
+
+
     float dist2 = dot(IN.to_light,IN.to_light);
     float att = saturate(1.0 - dist2/(light_radius*light_radius));
     att *= att;
-    vec3 light_color = att * sRGB_to_Linear(IN.lColor.xyz);
     
-    vec3 sky_color = sRGB_to_Linear(vec3(0.39, 0.58, 0.92));
+    
+    
     
     vec3 L = normalize( IN.to_light );
     vec3 V = normalize( IN.to_camera );
@@ -99,12 +131,7 @@ void main()
     float NdotH = max( dot( N, H ), 0.001 );
     float HdotV = max( dot( H, V ), 0.001 );
     
-    //vec3 sampled_diffuse = texture( sampler2D( tex_sampler, diffuse_tex), IN.uv).rgb;
-    //vec3 sampled_specular = texture( sampler2D( tex_sampler, specular_tex), IN.uv).rgb;
     
-    vec3 base = sRGB_to_Linear(texture(tex_sampler,IN.uv).rgb)* sRGB_to_Linear(IN.vColor.xyz);
-    vec3 metallic = vec3(0.0); // TODO: sample from texture channel
-    float roughness = 0.2; // TODO: sample from texture channel
     vec3 specular = mix(vec3(0.04), base, metallic); // f0
     
     // COOK TORRANCE

@@ -6,11 +6,11 @@ layout( set = 0, binding = 0 ) uniform scene_ubo
     mat4 view_matrix;
     mat4 proj_matrix;
 
-    vec4 light_color;
+    //vec4 light_color;
     vec4 light_position;
 } Scene_UBO;
 
-layout( set = 1, binding = 0 ) uniform object_ubo
+layout( set = 2, binding = 0 ) uniform object_ubo
 {
     mat4 model_matrix;
 } Object_UBO;
