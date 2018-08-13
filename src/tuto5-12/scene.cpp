@@ -13,7 +13,10 @@
 
 Scene::Scene(vulkan_context *c) : _ctx(c)
 {
-
+    _view_t v;
+    v.camera = "perspective";
+    v.descriptor_set = VK_NULL_HANDLE;
+    _views["perspective"] = v;
 }
 
 Scene::~Scene()
@@ -155,10 +158,11 @@ bool Scene::add_object(object_description_t desc)
 
 bool Scene::add_light(light_description_t li)
 {
-    _light_t light = {};
-    light.color = glm::vec4(li.color, 1);
+    _light_t light;
     light.position = glm::vec4(li.position, 1);
-    
+    light.color    = glm::vec4(li.color, 1);
+    //light.light_radius = ;
+    //light.sky_color = ;
     _lights.push_back(light);
 
     return true;
@@ -192,39 +196,56 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     // pipeline barrier pour flush ubo ??
 
     auto default_material = _materials["default"];
+    auto default_view = _views["perspective"];
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline);
 
-    // scene, one time
+    //
+    // SET 0
+    // scene/view bindings, one time
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout, 
         0, // bind to set #0
-        1, &default_material.descriptor_sets[0], 0, nullptr);
+        1, &default_view.descriptor_set, 0, nullptr);
 
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
-    for (size_t i = 0; i < _objects.size(); ++i)
+    for (auto m : _material_instances)
     {
-        const _object_t &obj = _objects[i];
+        //
+        // SET 1
+        //
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
+            1, // bind to set #1
+            1, &m.second.descriptor_set, 0, nullptr);
 
-        // Bind Attribs Vertex/Index
-        VkDeviceSize offsets = obj.vertex_offset;
-        vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets);
-        vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
+        for (size_t i = 0; i < _objects.size(); ++i)
+        {
+            const _object_t &obj = _objects[i];
 
-        // ith object offset into dynamic ubo
-        uint32_t dynamic_offset = static_cast<uint32_t>(i * _dynamic_alignment);
+            // Bind Attribs Vertex/Index
+            VkDeviceSize offsets = obj.vertex_offset;
+            vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets);
+            vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
 
-        // Bind Per-Object Uniforms
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout, 
-            1, // bind as set #1
-            1, &default_material.descriptor_sets[1], 
-            1, &dynamic_offset); // dynamic offsets
+            // ith object offset into dynamic ubo
+            std::array<uint32_t, 2> dynamic_offsets = {
+                static_cast<uint32_t>(i * _global_object_matrices_ubo.alignment),
+                static_cast<uint32_t>(i * _global_object_material_ubo.alignment),
+            };
 
-        vkCmdDrawIndexed(cmd, obj.indexCount, 1, 0, 0, 0);
+            //
+            // SET 2
+            // Bind Per-Object Uniforms
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
+                2, // bind as set #2
+                1, &obj.descriptor_set,
+                (uint32_t)dynamic_offsets.size(), dynamic_offsets.data()); // dynamic offsets
+
+            // TODO: draw instanced for... instances.
+            vkCmdDrawIndexed(cmd, obj.indexCount, 1, 0, 0, 0);
+        }
     }
-
-    
 
     // RENDER PASS END ---
 }
@@ -694,20 +715,23 @@ bool Scene::create_global_object_buffers()
 void Scene::destroy_global_object_buffers()
 {
     Log("#    Free Global Object Buffers Memory\n");
+    vkFreeMemory(_ctx->device, _global_object_matrices_ubo.memory, nullptr);
+    vkFreeMemory(_ctx->device, _global_object_material_ubo.memory, nullptr);
     vkFreeMemory(_ctx->device, _global_object_vbo.memory, nullptr);
     vkFreeMemory(_ctx->device, _global_object_ibo.memory, nullptr);
-    vkFreeMemory(_ctx->device, _global_object_ubo.memory, nullptr);
     vkFreeMemory(_ctx->device, _global_staging_vbo.memory, nullptr);
 
     Log("#    Destroy Global Object Buffers\n");
+    vkDestroyBuffer(_ctx->device, _global_object_matrices_ubo.buffer, nullptr);
+    vkDestroyBuffer(_ctx->device, _global_object_material_ubo.buffer, nullptr);
     vkDestroyBuffer(_ctx->device, _global_object_vbo.buffer, nullptr);
     vkDestroyBuffer(_ctx->device, _global_object_ibo.buffer, nullptr);
-    vkDestroyBuffer(_ctx->device, _global_object_ubo.buffer, nullptr);
     vkDestroyBuffer(_ctx->device, _global_staging_vbo.buffer, nullptr);
 
+    _global_object_matrices_ubo_created = false;
+    _global_object_material_ubo_created = false;
     _global_object_vbo_created = false;
     _global_object_ibo_created = false;
-    _global_object_ubo_created = false;
     _global_staging_vbo_created = false;
 }
 
@@ -738,17 +762,30 @@ Scene::vertex_buffer_object_t &Scene::get_global_object_ibo()
     return _global_object_ibo;
 }
 
-Scene::uniform_buffer_t &Scene::get_global_object_ubo()
+Scene::dynamic_uniform_buffer_t & Scene::get_global_object_matrices_ubo()
 {
-    if (!_global_object_ubo_created)
+    if (!_global_object_matrices_ubo_created)
     {
         if (!create_global_object_buffers())
         {
-            assert("could not create objects ubo");
+            assert("could not create objects matrices dynamic ubo");
         }
     }
 
-    return _global_object_ubo;
+    return _global_object_matrices_ubo;
+}
+
+Scene::dynamic_uniform_buffer_t & Scene::get_global_object_material_ubo()
+{
+    if (!_global_object_material_ubo_created)
+    {
+        if (!create_global_object_buffers())
+        {
+            assert("could not create objects material dynamic ubo");
+        }
+    }
+
+    return _global_object_material_ubo;
 }
 
 Scene::vertex_buffer_object_t & Scene::get_global_staging_vbo()
@@ -831,7 +868,10 @@ void Scene::destroy_scene_ubo()
 }
 
 
-
+void *Scene::get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx)
+{
+    return (void*)((uint64_t)buffer->host_data + (idx * buffer->alignment));
+}
 
 void Scene::animate_object(float dt)
 {
@@ -851,11 +891,13 @@ void Scene::animate_object(float dt)
     auto &obj_1 = _objects[1];
 
     // Aligned offset
-    glm::mat4* model_mat_obj_0 = (glm::mat4*)(((uint64_t)_model_matrices + (0 * _dynamic_alignment)));
-    glm::mat4* model_mat_obj_1 = (glm::mat4*)(((uint64_t)_model_matrices + (1 * _dynamic_alignment)));
+    glm::mat4* model_mat_obj_0 = (glm::mat4*)get_aligned(&_global_object_matrices_ubo, 0);
+    glm::mat4* model_mat_obj_1 = (glm::mat4*)get_aligned(&_global_object_matrices_ubo, 1);
 
     *model_mat_obj_0 = glm::translate(glm::mat4(1), obj_0.position + glm::vec3(obj_x, obj_y, obj_z));
     *model_mat_obj_1 = glm::translate(glm::mat4(1), obj_1.position + glm::vec3(-obj_x, obj_y, -obj_z));
+
+    // TODO: animate floor instance objects
 }
 
 void Scene::animate_camera(float dt)
@@ -889,6 +931,8 @@ void Scene::animate_camera(float dt)
     float ly = r * std::sin(as * accum_dt);
     float lz = r * std::cos(2.0f * as * accum_dt);
     _lights[0].position = glm::vec4(lx, ly, lz, 1.0f);
+
+    // TODO: vary color
 }
 
 bool Scene::update_scene_ubo()
@@ -907,12 +951,15 @@ bool Scene::update_scene_ubo()
         return false;
 
     //Log("#   Copy matrices, first time.\n");
-    memcpy(mapped, glm::value_ptr(camera.v), sizeof(camera.v));
-    memcpy(((float *)mapped + 16), glm::value_ptr(camera.p), sizeof(camera.p));
-    
-    memcpy(((float *)mapped + 32), glm::value_ptr(light.color), sizeof(light.color));
-    memcpy(((float *)mapped + 32 + 4), glm::value_ptr(light.position), sizeof(light.position));
 
+    // TODO: use offsetof
+    memcpy(mapped,                      glm::value_ptr(camera.v), sizeof(camera.v));
+    memcpy(((float *)mapped + 16),      glm::value_ptr(camera.p), sizeof(camera.p));
+    memcpy(((float *)mapped + 32),      glm::value_ptr(light.position), sizeof(light.position));
+    memcpy(((float *)mapped + 32 + 4),  glm::value_ptr(light.color), sizeof(light.color));
+    memcpy(((float *)mapped + 32 + 8),  glm::value_ptr(light.light_radius), sizeof(light.light_radius));
+    memcpy(((float *)mapped + 32 + 12), glm::value_ptr(light.sky_color), sizeof(light.sky_color));
+    
     VkMappedMemoryRange memory_range = {};
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memory_range.memory = _scene_ubo.memory;

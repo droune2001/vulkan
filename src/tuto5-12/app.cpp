@@ -125,9 +125,9 @@ void VulkanApplication::BuildScene()
     // Lights
     //
 
-    Scene::light_description_t light = {};
-    light.color = glm::vec3(1,1,1); //glm::vec3(1,0.5,1);
+    Scene::light_description_t light;
     light.position = glm::vec3(4,4,2);
+    light.color    = glm::vec3(1,1,1);
     _scene->add_light(light);
 
     //

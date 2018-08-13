@@ -89,6 +89,7 @@ public:
         glm::vec3 position = glm::vec3(0,0,0);
     };
 
+    using view_id_t = std::string;
     using camera_id_t = std::string;
     struct camera_description_t
     {
@@ -254,6 +255,7 @@ private:
 
     std::vector<_object_t> _objects;
     
+    void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
     dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
     dynamic_uniform_buffer_t _global_object_material_ubo; // all objects material overrides in one buffer
     vertex_buffer_object_t _global_object_vbo; // all objects vertices in one buffer
@@ -271,8 +273,12 @@ private:
 
     struct _light_t
     {
-        glm::vec4 color    = glm::vec4(1, 1, 1, 1);
-        glm::vec4 position = glm::vec4(0, 0, 0, 1);
+        // VS
+        glm::vec4 position     = glm::vec4(0, 0, 0, 1);
+        // FS
+        glm::vec4 color        = glm::vec4(1, 1, 1, 1);
+        glm::vec4 light_radius = glm::vec4(10.0, 1, 1, 1); // x = radius
+        glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
     };
 
     std::vector<_light_t> _lights;
@@ -295,7 +301,7 @@ private:
 
     struct _view_t
     {
-        _camera_id_t camera = "perspective";
+        camera_id_t camera = "perspective";
 
         // for the moment, it is the "scene"
         // set = 0
@@ -305,6 +311,7 @@ private:
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     };
 
+    std::unordered_map<view_id_t, _view_t> _views;
     uniform_buffer_t _scene_ubo;
     bool _scene_ubo_created = false;
 
