@@ -51,7 +51,9 @@ namespace utils
     };
 
     void create_checker_image(loaded_image *);
+    void create_checker_specular_image(loaded_image *);
     void create_default_image(loaded_image *);
+    void create_default_specular_image(loaded_image *);
 
 } // namespace utils
 

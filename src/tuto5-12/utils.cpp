@@ -270,6 +270,37 @@ namespace utils
         }
     }
 
+    void create_checker_specular_image(loaded_image *checker_image)
+    {
+        checker_image->width = 512;
+        checker_image->height = 512;
+        checker_image->size = sizeof(float) * checker_image->width * checker_image->height * 3;
+        checker_image->data = (void *) new float[checker_image->width * checker_image->height * 3];
+
+        for (uint32_t y = 0; y < checker_image->height; ++y)
+        {
+            float dy = (float)y / (float)checker_image->height;
+
+            for (uint32_t x = 0; x < checker_image->width; ++x)
+            {
+                float dx = (float)x / (float)checker_image->width;
+
+                float *pixel = ((float *)checker_image->data) + 3 * (y * checker_image->width + x);
+
+                float r = 0.01f;
+                if (x % 40 < 20 && y % 40 < 20) { r = 1.0f; }
+                if (x % 40 >= 20 && y % 40 >= 20) { r = 1.0f; }
+
+                // roughness
+                pixel[0] = r;
+                // metallic
+                pixel[1] = 1.0f;
+                // 
+                pixel[2] = 0.0f;
+            }
+        }
+    }
+
     void create_default_image(loaded_image *default_image)
     {
         default_image->width = 16;
@@ -286,6 +317,26 @@ namespace utils
                 pixel[1] = 187;
                 pixel[2] = 187;
                 pixel[3] = 255;
+            }
+        }
+    }
+
+    void create_default_specular_image(loaded_image *image)
+    {
+        image->width = 16;
+        image->height = 16;
+        image->size = sizeof(float) * image->width * image->height * 4;
+        image->data = (void *) new float[image->width * image->height * 4];
+
+        for (uint32_t x = 0; x < image->width; ++x)
+        {
+            for (uint32_t y = 0; y < image->height; ++y)
+            {
+                float *pixel = ((float*)image->data) + 4 * (x * image->height + y);
+                pixel[0] = 0.5f; // roughness
+                pixel[1] = 0.0f; // metallic
+                pixel[2] = 0;
+                pixel[3] = 0;
             }
         }
     }

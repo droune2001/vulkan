@@ -196,6 +196,8 @@ private:
     void destroy_materials();
 
     bool create_default_descriptor_set_layout();
+    bool create_all_descriptor_sets_pool();
+    bool create_scene_and_global_object_descriptor_sets();
     bool create_default_pipeline(VkRenderPass rp);
 
 
@@ -326,6 +328,10 @@ private:
         VkImageView     view = VK_NULL_HANDLE;
         VkFormat        format = VK_FORMAT_UNDEFINED;
         VkExtent3D      extent = {0,0,0};
+        // NOTE: we can put a descriptor in each texture.
+        // atm, we chose to put it in material instances,
+        // because we group together base+spec textures in
+        // a single set with predefined bindings.
     };
     
     bool create_texture_2d(_texture_t *texture);
@@ -357,7 +363,7 @@ private:
         texture_id_t base_tex;
         texture_id_t spec_tex;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-        // set = 1 binding = 0 texture2d base; 
+        // set = 1 binding = 0 texture2d base;
         //         binding = 1 texture2d spec;
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;

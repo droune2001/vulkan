@@ -151,7 +151,7 @@ void VulkanApplication::BuildScene()
         mi.instance_id = "rough_plastic";
         mi.material_id = "default"; // not much choice for the moment
         mi.base_tex = "default";
-        mi.specular_tex = "default_spec";
+        mi.specular_tex = "default_specular";
         _scene->add_material_instance(mi);
     }
 
@@ -160,7 +160,7 @@ void VulkanApplication::BuildScene()
         mi.instance_id = "half_metal_checker";
         mi.material_id = "default"; // not much choice for the moment
         mi.base_tex = "checker";
-        mi.specular_tex = "checker_spec";
+        mi.specular_tex = "checker_specular";
         _scene->add_material_instance(mi);
     }
 
