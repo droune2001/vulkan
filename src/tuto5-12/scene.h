@@ -130,6 +130,7 @@ public:
 
     bool init(VkRenderPass rp);
     void de_init();
+    bool compile(); // create descriptor sets once all ythe scene is built.
     void update(float dt);
     void draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect);
     
@@ -197,9 +198,8 @@ private:
 
     bool create_default_descriptor_set_layout();
     bool create_all_descriptor_sets_pool();
-    bool create_scene_and_global_object_descriptor_sets();
+    bool create_all_descriptor_sets();
     bool create_default_pipeline(VkRenderPass rp);
-
 
     // utils
 
@@ -249,11 +249,11 @@ private:
         glm::vec4 specular = glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
 
         material_instance_id_t material_ref;
-
-        // set #2 binding #0 model_matrix       : VS
-        //        binding #1 material overrides : FS
-        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     };
+
+    // set #2 binding #0 model_matrix       : VS
+    //        binding #1 material overrides : FS
+    VkDescriptorSet _global_objects_descriptor_set = VK_NULL_HANDLE;
 
     std::vector<_object_t> _objects;
     

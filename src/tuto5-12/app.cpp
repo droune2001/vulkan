@@ -135,6 +135,7 @@ void VulkanApplication::BuildScene()
     //
 
     Scene::camera_description_t camera = {};
+    camera.camera_id = "perspective";
     camera.position = glm::vec3(10, 0, 0);
     camera.near_plane = 0.1f;
     camera.far_plane = 20.0f;
@@ -256,7 +257,7 @@ void VulkanApplication::BuildScene()
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
-
+#if 1
     for (uint32_t i = 0; i < 19; ++i)
     {
         for (uint32_t j = 0; j < 19; ++j)
@@ -280,6 +281,7 @@ void VulkanApplication::BuildScene()
             _scene->add_object(obj_desc);
         }
     }
-
+#endif
+    _scene->compile();
 }
 //

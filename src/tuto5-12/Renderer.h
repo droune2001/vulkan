@@ -8,12 +8,14 @@
 class Window;
 class Scene;
 
+constexpr uint32_t MAX_PARALLEL_FRAMES = 3;
+
 struct vulkan_queue
 {
     VkQueue         queue = VK_NULL_HANDLE;
     uint32_t        family_index = UINT32_MAX;
     VkCommandPool   command_pool = VK_NULL_HANDLE;
-    VkCommandBuffer command_buffer = VK_NULL_HANDLE; // maybe many
+    std::array<VkCommandBuffer, MAX_PARALLEL_FRAMES> command_buffers = {}; // maybe many
 };
 
 struct vulkan_context
@@ -127,7 +129,6 @@ private:
     VkRenderPass _render_pass = VK_NULL_HANDLE;
 
     uint32_t current_frame = 0;
-    static constexpr uint32_t MAX_PARALLEL_FRAMES = 3;
     std::array<VkSemaphore, MAX_PARALLEL_FRAMES> _render_complete_semaphores = {};
     std::array<VkSemaphore, MAX_PARALLEL_FRAMES> _present_complete_semaphores = {};
     std::array<VkFence, MAX_PARALLEL_FRAMES>     _render_fences = {};

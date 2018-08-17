@@ -834,7 +834,8 @@ void Renderer::Draw(float dt)
     // engine is done reading that frame.
     _w->BeginRender(_present_complete_semaphores[current_frame]);
 
-    auto &cmd = _ctx.graphics.command_buffer;
+    //auto &cmd = _ctx.graphics.command_buffer; // TODO: need as many cmd buffers as swap images!
+    auto &cmd = _ctx.graphics.command_buffers[current_frame]; // TODO: need as many cmd buffers as swap images!
 
     // Record command buffer
     VkCommandBufferBeginInfo begin_info = {};
@@ -952,10 +953,10 @@ bool Renderer::InitCommandBuffer()
     VkCommandBufferAllocateInfo command_buffer_allocate_info{};
     command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     command_buffer_allocate_info.commandPool = _ctx.graphics.command_pool;
-    command_buffer_allocate_info.commandBufferCount = 1;
+    command_buffer_allocate_info.commandBufferCount = MAX_PARALLEL_FRAMES;
     command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
 
-    result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, &_ctx.graphics.command_buffer);
+    result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, _ctx.graphics.command_buffers.data());
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -982,10 +983,10 @@ bool Renderer::InitCommandBuffer()
         VkCommandBufferAllocateInfo command_buffer_allocate_info{};
         command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         command_buffer_allocate_info.commandPool = _ctx.transfer.command_pool;
-        command_buffer_allocate_info.commandBufferCount = 1;
+        command_buffer_allocate_info.commandBufferCount = MAX_PARALLEL_FRAMES;
         command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
 
-        result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, &_ctx.transfer.command_buffer);
+        result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, _ctx.transfer.command_buffers.data());
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;

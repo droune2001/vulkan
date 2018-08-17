@@ -287,14 +287,14 @@ namespace utils
 
                 float *pixel = ((float *)checker_image->data) + 3 * (y * checker_image->width + x);
 
-                float r = 0.01f;
-                if (x % 40 < 20 && y % 40 < 20) { r = 1.0f; }
-                if (x % 40 >= 20 && y % 40 >= 20) { r = 1.0f; }
+                float r = 0.5f;
+                float m = 0.0f;
+                if (x % 40 < 20 && y % 40 < 20) { r = 0.05f; m = 1.0f; }
+                if (x % 40 >= 20 && y % 40 >= 20) { r = 0.05f; m = 1.0f; }
 
-                // roughness
-                pixel[0] = r;
-                // metallic
-                pixel[1] = 1.0f;
+                
+                pixel[0] = r;// roughness
+                pixel[1] = m;// metallic
                 // 
                 pixel[2] = 0.0f;
             }
@@ -333,7 +333,7 @@ namespace utils
             for (uint32_t y = 0; y < image->height; ++y)
             {
                 float *pixel = ((float*)image->data) + 4 * (x * image->height + y);
-                pixel[0] = 0.5f; // roughness
+                pixel[0] = 0.2f; // roughness
                 pixel[1] = 0.0f; // metallic
                 pixel[2] = 0;
                 pixel[3] = 0;

@@ -219,9 +219,12 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
             1, // bind to set #1
             1, &m.second.descriptor_set, 0, nullptr);
 
+        // TODO: loop in objects per material instances
         for (size_t i = 0; i < _objects.size(); ++i)
         {
             const _object_t &obj = _objects[i];
+            if (obj.material_ref != m.first)
+                continue;
 
             // Bind Attribs Vertex/Index
             VkDeviceSize offsets = obj.vertex_offset;
@@ -239,7 +242,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
             // Bind Per-Object Uniforms
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
                 2, // bind as set #2
-                1, &obj.descriptor_set,
+                1, &_global_objects_descriptor_set, //obj.descriptor_set,
                 (uint32_t)dynamic_offsets.size(), dynamic_offsets.data()); // dynamic offsets
 
             // TODO: draw instanced for... instances.
@@ -322,7 +325,7 @@ VkCommandBuffer Scene::begin_single_time_commands(const vulkan_queue &queue)
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     // TODO: or create a temp command buffer
-    auto &cmd = queue.command_buffer;
+    auto &cmd = queue.command_buffers[0];
 
     vkBeginCommandBuffer(cmd, &begin_info);
 
@@ -493,7 +496,7 @@ bool Scene::transition_texture(VkImage *pImage, VkImageLayout old_layout, VkImag
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    auto &cmd = _ctx->graphics.command_buffer;
+    auto &cmd = _ctx->graphics.command_buffers[0];
 
     vkBeginCommandBuffer(cmd, &begin_info);
 
@@ -555,7 +558,7 @@ bool Scene::transition_textures()
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    auto &cmd = _ctx->graphics.command_buffer;
+    auto &cmd = _ctx->graphics.command_buffers[0];
 
     vkBeginCommandBuffer(cmd, &begin_info);
 
@@ -646,32 +649,33 @@ bool Scene::create_global_object_buffers()
 
     Log("#     Create Global Materials Object\'s UBO\n");
     {
-        // Find the memory alignment for the object matrices;
-        dynamic_uniform_buffer_t &mtx_ubo = _global_object_matrices_ubo;
+        // Find the memory alignment for the object material overrides
+        dynamic_uniform_buffer_t &mtl_ubo = _global_object_material_ubo;
         size_t min_ubo_alignment = _ctx->physical_device_properties.limits.minUniformBufferOffsetAlignment;
-        mtx_ubo.alignment = sizeof(glm::mat4);
+        mtl_ubo.alignment = sizeof(_material_override_t);
         if (min_ubo_alignment > 0)
         {
-            mtx_ubo.alignment = (mtx_ubo.alignment + min_ubo_alignment - 1) & ~(min_ubo_alignment - 1);
+            mtl_ubo.alignment = (mtl_ubo.alignment + min_ubo_alignment - 1) & ~(min_ubo_alignment - 1);
         }
-        mtx_ubo.size = MAX_NB_OBJECTS * mtx_ubo.alignment;
-        mtx_ubo.host_data = utils::aligned_alloc(mtx_ubo.size, mtx_ubo.alignment);
+        mtl_ubo.size = MAX_NB_OBJECTS * mtl_ubo.alignment;
+        mtl_ubo.host_data = utils::aligned_alloc(mtl_ubo.size, mtl_ubo.alignment);
         for (size_t i = 0; i < MAX_NB_OBJECTS; ++i)
         {
-            glm::mat4 *model_mat_for_obj_i = (glm::mat4*)((uint64_t)mtx_ubo.host_data + (i * mtx_ubo.alignment));
-            *model_mat_for_obj_i = glm::mat4(1);
+            _material_override_t *model_mat_for_obj_i = (_material_override_t*)((uint64_t)mtl_ubo.host_data + (i * mtl_ubo.alignment));
+            model_mat_for_obj_i->base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
+            model_mat_for_obj_i->specular = glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
         }
 
 
         if (!create_buffer(
-            &mtx_ubo.buffer,
-            &mtx_ubo.memory,
-            mtx_ubo.size,
+            &mtl_ubo.buffer,
+            &mtl_ubo.memory,
+            mtl_ubo.size,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
             return false;
 
-        _global_object_matrices_ubo_created = true;
+        _global_object_material_ubo_created = true;
     }
 
     // VBO
@@ -918,7 +922,8 @@ void Scene::animate_camera(float dt)
     _camera_anim.cameraZ += _camera_anim.cameraZDir * camera_speed * dt;
 
     // Update first camera position
-    _cameras[0].v = glm::lookAt(glm::vec3(0,0,_camera_anim.cameraZ), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+    auto &camera = _cameras["perspective"];
+    camera.v = glm::lookAt(glm::vec3(0,0,_camera_anim.cameraZ), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
     //
     // LIGHT anim
@@ -938,7 +943,7 @@ void Scene::animate_camera(float dt)
 bool Scene::update_scene_ubo()
 {
     auto &scene_ubo = get_scene_ubo();
-    auto camera = _cameras[0];
+    auto camera = _cameras["perspective"];
     auto light = _lights[0];
 
     VkResult result;
@@ -995,7 +1000,7 @@ bool Scene::update_all_objects_ubos()
         memory_ranges[0].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
         memory_ranges[0].memory = ubo.memory;
         memory_ranges[0].offset = 0;
-        memory_ranges[0].size = _objects.size() * ubo.alignment;// VK_WHOLE_SIZE;
+        memory_ranges[0].size = VK_WHOLE_SIZE;//_objects.size() * ubo.alignment;
 
         vkUnmapMemory(_ctx->device, ubo.memory);
     }
@@ -1012,10 +1017,10 @@ bool Scene::update_all_objects_ubos()
         memcpy(mapped, ubo_material.host_data, _objects.size() * ubo_material.alignment);
 
         // TODO: find out when this is really needed.
-        memory_ranges[0].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-        memory_ranges[0].memory = ubo_material.memory;
-        memory_ranges[0].offset = 0;
-        memory_ranges[0].size = _objects.size() * ubo_material.alignment;// VK_WHOLE_SIZE;
+        memory_ranges[1].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+        memory_ranges[1].memory = ubo_material.memory;
+        memory_ranges[1].offset = 0;
+        memory_ranges[1].size = VK_WHOLE_SIZE;//_objects.size() * ubo_material.alignment;
 
         vkUnmapMemory(_ctx->device, ubo_material.memory);
     }
@@ -1210,8 +1215,7 @@ bool Scene::create_default_descriptor_set_layout()
     
     // 4 SETS
     //    set = 0 (SCENE)
-    //        binding = 0 : camera matrices, light pos (UBO)(VS)
-    //        binding = 1 : light properties           (UBO)(FS) // same ubo?
+    //        binding = 0 : camera matrices, light pos (UBO)(VS+FS)
     //        binding = 2 : texture sampler            (SMP)(FS)
     //    set = 1 (MATERIAL instance)
     //        binding = 0 : base texture               (TEX)(FS)
@@ -1224,25 +1228,19 @@ bool Scene::create_default_descriptor_set_layout()
     // PER-SCENE
     //
     {
-        std::array<VkDescriptorSetLayoutBinding, 3> bindings = {};
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {};
 
         bindings[0].binding = 0;
         bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         bindings[0].descriptorCount = 1; // use >1 for arrays bound to a single binding.
-        bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         bindings[0].pImmutableSamplers = nullptr;
 
         bindings[1].binding = 1;
-        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
         bindings[1].descriptorCount = 1;
         bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        bindings[1].pImmutableSamplers = nullptr;
-
-        bindings[2].binding = 2;
-        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-        bindings[2].descriptorCount = 1;
-        bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        bindings[2].pImmutableSamplers = nullptr; // TODO: set my sampler here, no need to bind afterwards
+        bindings[1].pImmutableSamplers = nullptr; // TODO: set my sampler here, no need to bind afterwards
 
         VkDescriptorSetLayoutCreateInfo desc_set_layout_create_info = {};
         desc_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1327,7 +1325,7 @@ bool Scene::create_all_descriptor_sets_pool()
     // allocate just enough for what we'll need.
     std::array<VkDescriptorPoolSize, 4> pool_sizes = {};
     pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    pool_sizes[0].descriptorCount = 1; // scene ubo
+    pool_sizes[0].descriptorCount = 1; // scene camera + light ubo
 
     pool_sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     pool_sizes[1].descriptorCount = 2; // dynamic object ubos
@@ -1336,11 +1334,11 @@ bool Scene::create_all_descriptor_sets_pool()
     pool_sizes[2].descriptorCount = 1; // texture sampler;
 
     pool_sizes[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    pool_sizes[3].descriptorCount = _textures.size(); // textures, or tex/2 bc we pack base and spec together.
+    pool_sizes[3].descriptorCount = (uint32_t)_textures.size(); // textures, or tex/2 bc we pack base and spec together.
 
     VkDescriptorPoolCreateInfo pool_create_info = {};
     pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_create_info.maxSets = 3;
+    pool_create_info.maxSets = 9;
     pool_create_info.poolSizeCount = (uint32_t)pool_sizes.size();
     pool_create_info.pPoolSizes = pool_sizes.data();
 
@@ -1353,20 +1351,41 @@ bool Scene::create_all_descriptor_sets_pool()
     return true;
 }
 
-bool Scene::create_scene_and_global_object_descriptor_sets()
+bool Scene::create_all_descriptor_sets()
 {
-    _material_t &default_material = _materials["default"];
+    _material_t &material = _materials["default"]; // descriptor set layout is here
+    _view_t &view = _views["perspective"]; // scene descriptor set is here
 
     VkResult result;
 
     VkDescriptorSetAllocateInfo descriptor_allocate_info = {};
     descriptor_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_allocate_info.descriptorPool = default_material.descriptor_pool;
-    descriptor_allocate_info.descriptorSetCount = 2; // scene and obj sets
-    descriptor_allocate_info.pSetLayouts = default_material.descriptor_set_layouts; // [0] [1]
+    descriptor_allocate_info.descriptorPool = material.descriptor_pool;
+    descriptor_allocate_info.descriptorSetCount = 1;
+    descriptor_allocate_info.pSetLayouts = &material.descriptor_set_layouts[0];
 
-    Log("#      Allocate 2 Descriptor Sets\n");
-    result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, default_material.descriptor_sets); // [0] [1]
+    Log("#      Allocate Scene/View Descriptor Set\n");
+    result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &view.descriptor_set);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    // TODO: array of DS, instead of array of mat with each having a DS?
+    descriptor_allocate_info.descriptorSetCount = 1;
+    descriptor_allocate_info.pSetLayouts = &material.descriptor_set_layouts[1];
+    for (auto &m : _material_instances)
+    {
+        Log("#      Allocate Material Instance[n] Descriptor Set\n");
+        result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &m.second.descriptor_set);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+
+    Log("#      Allocate Object Instance Descriptor Sets\n");
+    descriptor_allocate_info.descriptorSetCount = 1;
+    descriptor_allocate_info.pSetLayouts = &material.descriptor_set_layouts[2];
+    result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &_global_objects_descriptor_set);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1377,66 +1396,162 @@ bool Scene::create_scene_and_global_object_descriptor_sets()
     // When a set is allocated all values are undefined and all 
     // descriptors are uninitialised. must init all statically used bindings:
 
+    std::vector<VkWriteDescriptorSet> write_descriptor_sets = {};
 
-    VkDescriptorBufferInfo scene_ubo_descriptor_buffer_info = {};
-    scene_ubo_descriptor_buffer_info.buffer = _scene_ubo.buffer;
-    scene_ubo_descriptor_buffer_info.offset = 0;
-    scene_ubo_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+    // 4 SETS
+    //    set = 0 (SCENE)
+    //        binding = 0 : camera matrices, light     (UBO)(VS+FS)
+    //        binding = 1 : texture sampler            (SMP)(FS)
+    //    set = 1 (MATERIAL instance)
+    //        binding = 0 : base texture               (TEX)(FS)
+    //        binding = 1 : spec texture               (TEX)(FS)
+    //    set = 2 (OBJECT instance)
+    //        binding = 0 : model matrix               (Dyn UBO)(VS)
+    //        binding = 1 : material overrides         (Dyn UBO)(FS) // same ubo?
 
-    VkWriteDescriptorSet scene_ubo_write_descriptor_set = {};
-    scene_ubo_write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    scene_ubo_write_descriptor_set.dstSet = default_material.descriptor_sets[0]; // <-- scene descriptor set
-    scene_ubo_write_descriptor_set.dstBinding = 0; // binding = 0 in shaders
-    scene_ubo_write_descriptor_set.dstArrayElement = 0;
-    scene_ubo_write_descriptor_set.descriptorCount = 1;
-    scene_ubo_write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    scene_ubo_write_descriptor_set.pImageInfo = nullptr;
-    scene_ubo_write_descriptor_set.pBufferInfo = &scene_ubo_descriptor_buffer_info;
-    scene_ubo_write_descriptor_set.pTexelBufferView = nullptr;
+    // SCENE UBO CAMERA = 0
+    {
+        Log("#      Update Descriptor Set (Scene CAMERA + LIGHT UBO)\n");
 
-    Log("#      Update Descriptor Set (Scene UBO)\n");
-    vkUpdateDescriptorSets(_ctx->device, 1, &scene_ubo_write_descriptor_set, 0, nullptr);
+        VkDescriptorBufferInfo descriptor_buffer_info = {};
+        descriptor_buffer_info.buffer = _scene_ubo.buffer;
+        descriptor_buffer_info.offset = 0;
+        descriptor_buffer_info.range = VK_WHOLE_SIZE;
 
-    VkDescriptorImageInfo descriptor_image_info = {};
-    descriptor_image_info.sampler = _samplers[0];
-    descriptor_image_info.imageView = _textures["checker"].view; //_textures["checker"].view;
-    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        VkWriteDescriptorSet write_descriptor_set = {};
+        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_set.dstSet = view.descriptor_set;
+        write_descriptor_set.dstBinding = 0;
+        write_descriptor_set.dstArrayElement = 0;
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write_descriptor_set.pImageInfo = nullptr;
+        write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+        write_descriptor_set.pTexelBufferView = nullptr;
 
-    VkWriteDescriptorSet write_descriptor_for_checker_texture_sampler = {};
-    write_descriptor_for_checker_texture_sampler.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_for_checker_texture_sampler.dstSet = default_material.descriptor_sets[0]; // <-- scene descriptor set
-    write_descriptor_for_checker_texture_sampler.dstBinding = 1; // binding = 1 on shaders
-    write_descriptor_for_checker_texture_sampler.dstArrayElement = 0;
-    write_descriptor_for_checker_texture_sampler.descriptorCount = 1;
-    write_descriptor_for_checker_texture_sampler.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    //VK_DESCRIPTOR_TYPE_SAMPLER
-    //VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
-    // TODO: find how to pass a fixed sampler, and change image view for each object.
-    write_descriptor_for_checker_texture_sampler.pImageInfo = &descriptor_image_info;
-    write_descriptor_for_checker_texture_sampler.pBufferInfo = nullptr;
-    write_descriptor_for_checker_texture_sampler.pTexelBufferView = nullptr;
+        write_descriptor_sets.push_back(write_descriptor_set);
+    }
 
-    Log("#      Update Descriptor Set (Scene texture sampler)\n");
-    vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_for_checker_texture_sampler, 0, nullptr);
+    // SAMPLER = 1
+    {
+        Log("#      Update Descriptor Set (Scene Global Sampler)\n");
 
-    VkDescriptorBufferInfo object_ubo_descriptor_buffer_info = {};
-    object_ubo_descriptor_buffer_info.buffer = _global_object_ubo.buffer;
-    object_ubo_descriptor_buffer_info.offset = 0;
-    object_ubo_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+        VkDescriptorImageInfo descriptor_image_info = {};
+        descriptor_image_info.sampler = _samplers[0];
 
-    VkWriteDescriptorSet object_ubo_write_descriptor_set = {};
-    object_ubo_write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    object_ubo_write_descriptor_set.dstSet = default_material.descriptor_sets[1]; // <-- object descriptor set
-    object_ubo_write_descriptor_set.dstBinding = 0; // binding = 0 in shaders
-    object_ubo_write_descriptor_set.dstArrayElement = 0;
-    object_ubo_write_descriptor_set.descriptorCount = 1;
-    object_ubo_write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    object_ubo_write_descriptor_set.pImageInfo = nullptr;
-    object_ubo_write_descriptor_set.pBufferInfo = &object_ubo_descriptor_buffer_info;
-    object_ubo_write_descriptor_set.pTexelBufferView = nullptr;
+        VkWriteDescriptorSet write_descriptor_set = {};
+        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_set.dstSet = view.descriptor_set;
+        write_descriptor_set.dstBinding = 1;
+        write_descriptor_set.dstArrayElement = 0;
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+        write_descriptor_set.pImageInfo = &descriptor_image_info;
+        write_descriptor_set.pBufferInfo = nullptr;
+        write_descriptor_set.pTexelBufferView = nullptr;
 
-    Log("#      Update Descriptor Set (Object UBO)\n");
-    vkUpdateDescriptorSets(_ctx->device, 1, &object_ubo_write_descriptor_set, 0, nullptr);
+        write_descriptor_sets.push_back(write_descriptor_set);
+    }
+
+    //
+    // MATERIAL INSTANCES, SET = 1
+    //
+
+    for (auto &m : _material_instances)
+    {
+        // BASE TEX = 0
+        {
+            VkDescriptorImageInfo descriptor_image_info = {};
+            descriptor_image_info.imageView = _textures[m.second.base_tex].view;
+            descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
+            VkWriteDescriptorSet write_descriptor_set = {};
+            write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write_descriptor_set.dstSet = m.second.descriptor_set;
+            write_descriptor_set.dstBinding = 0;
+            write_descriptor_set.dstArrayElement = 0;
+            write_descriptor_set.descriptorCount = 1;
+            write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            write_descriptor_set.pImageInfo = &descriptor_image_info;
+            write_descriptor_set.pBufferInfo = nullptr;
+            write_descriptor_set.pTexelBufferView = nullptr;
+
+            Log("#      Update Descriptor Set for Material Instance [n] BASE TEX\n");
+            write_descriptor_sets.push_back(write_descriptor_set);
+        }
+
+        // SPEC TEX = 1
+        {
+            VkDescriptorImageInfo descriptor_image_info = {};
+            descriptor_image_info.imageView = _textures[m.second.spec_tex].view;
+            descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
+            VkWriteDescriptorSet write_descriptor_set = {};
+            write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write_descriptor_set.dstSet = m.second.descriptor_set;
+            write_descriptor_set.dstBinding = 1;
+            write_descriptor_set.dstArrayElement = 0;
+            write_descriptor_set.descriptorCount = 1;
+            write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            write_descriptor_set.pImageInfo = &descriptor_image_info;
+            write_descriptor_set.pBufferInfo = nullptr;
+            write_descriptor_set.pTexelBufferView = nullptr;
+
+            Log("#      Update Descriptor Set for Material Instance [n] SPEC TEX\n");
+            write_descriptor_sets.push_back(write_descriptor_set);
+        }
+    }
+
+    //
+    // DYNAMIC GLOBAL OBJECT UBOs, SET = 2
+    //
+
+    // MATRICES UBO = 0
+    {
+        VkDescriptorBufferInfo descriptor_buffer_info = {};
+        descriptor_buffer_info.buffer = _global_object_matrices_ubo.buffer;
+        descriptor_buffer_info.offset = 0;
+        descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet write_descriptor_set = {};
+        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_set.dstSet = _global_objects_descriptor_set;
+        write_descriptor_set.dstBinding = 0;
+        write_descriptor_set.dstArrayElement = 0;
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        write_descriptor_set.pImageInfo = nullptr;
+        write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+        write_descriptor_set.pTexelBufferView = nullptr;
+
+        Log("#      Update Descriptor Set (Object Matrices UBO)\n");
+        write_descriptor_sets.push_back(write_descriptor_set);
+    }
+
+    // MATERIALS UBO = 1
+    {
+        VkDescriptorBufferInfo descriptor_buffer_info = {};
+        descriptor_buffer_info.buffer = _global_object_material_ubo.buffer;
+        descriptor_buffer_info.offset = 0;
+        descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet write_descriptor_set = {};
+        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_set.dstSet = _global_objects_descriptor_set;
+        write_descriptor_set.dstBinding = 1;
+        write_descriptor_set.dstArrayElement = 0;
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        write_descriptor_set.pImageInfo = nullptr;
+        write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+        write_descriptor_set.pTexelBufferView = nullptr;
+
+        Log("#      Update Descriptor Set (Object Materials UBO)\n");
+        write_descriptor_sets.push_back(write_descriptor_set);
+    }
+
+    // UPDATE ALL AT ONCE
+    vkUpdateDescriptorSets(_ctx->device, (uint32_t)write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
 
     return true;
 }
@@ -1450,7 +1565,7 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     // use it later to define uniform buffer
     VkPipelineLayoutCreateInfo layout_create_info = {};
     layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_create_info.setLayoutCount = 2; // <--- 2 sets, scene and object
+    layout_create_info.setLayoutCount = 3; // <--- 2 sets, scene and object
     layout_create_info.pSetLayouts = default_material.descriptor_set_layouts;
     layout_create_info.pushConstantRangeCount = 0;
     layout_create_info.pPushConstantRanges = nullptr; // constant into shader for opti???
@@ -1555,6 +1670,15 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     return true;
 }
 
+bool Scene::compile()
+{
+    Log("#     Create Scene and global object Descriptor Ses\n");
+    if (!create_all_descriptor_sets())
+        return false;
+
+    return true;
+}
+
 bool Scene::create_default_material(VkRenderPass rp)
 {
     _material_t &default_material = _materials["default"];
@@ -1573,10 +1697,6 @@ bool Scene::create_default_material(VkRenderPass rp)
 
     Log("#     Create Descriptor Pool for all descriptors\n");
     if (!create_all_descriptor_sets_pool())
-        return false;
-
-    Log("#     Create Scene and global object Descriptor Ses\n");
-    if (!create_scene_and_global_object_descriptor_sets())
         return false;
 
     Log("#     Create Default Pipeline\n");
@@ -1600,7 +1720,7 @@ void Scene::destroy_materials()
         vkDestroyDescriptorPool(_ctx->device, mat.descriptor_pool, nullptr);
 
         Log("#    Destroy Descriptor Set Layout\n");
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < 3; ++i)
         {
             vkDestroyDescriptorSetLayout(_ctx->device, mat.descriptor_set_layouts[i], nullptr);
         }
@@ -1616,7 +1736,7 @@ void Scene::destroy_materials()
 bool Scene::add_material(material_description_t ma)
 {
     _material_t material = {};
-
+    
     // TODO:
     // load shaders, create descriptor layouts, create pipeline, ...
 
@@ -1628,6 +1748,8 @@ bool Scene::add_material(material_description_t ma)
 bool Scene::add_material_instance(material_instance_description_t mi)
 {
     _material_instance_t material_instance = {};
+    material_instance.base_tex = mi.base_tex;
+    material_instance.spec_tex = mi.specular_tex;
 
     // TODO:
     // get layout descriptions from material_id

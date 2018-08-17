@@ -4,12 +4,16 @@
 
 //
 // SCENE/VIEW
-//
-layout( set = 0, binding = 1 ) uniform scene_ubo
+// Common to VS and FS
+layout( set = 0, binding = 0 ) uniform scene_ubo
 {
-    vec4 sky_color;
+    mat4 view_matrix;
+    mat4 proj_matrix;
+
+    vec4 light_position;
     vec4 light_color;
-    float light_radius;
+    vec4 light_radius;
+    vec4 sky_color;
     // + light type, outer/inner cone angles?
     // + camera lens properties?
 } Scene_UBO;
@@ -17,7 +21,7 @@ layout( set = 0, binding = 1 ) uniform scene_ubo
 //
 // SHADER/PIPELINE
 //
-layout( set = 0, binding = 2 ) uniform sampler tex_sampler;
+layout( set = 0, binding = 1 ) uniform sampler tex_sampler;
 
 //
 // MATERIAL INSTANCE
@@ -121,7 +125,7 @@ void main()
 {
     vec3 sky_color = Scene_UBO.sky_color.rgb;//sRGB_to_Linear(vec3(0.39, 0.58, 0.92));
     vec3 light_color = Scene_UBO.light_color.rgb;//sRGB_to_Linear(IN.lColor.xyz);
-    float light_radius = Scene_UBO.light_radius;//10.0;
+    float light_radius = Scene_UBO.light_radius.x;//10.0;
 
     vec4 sampled_base = texture(sampler2D(base_tex, tex_sampler), IN.uv);
     vec4 sampled_spec = texture(sampler2D(spec_tex, tex_sampler), IN.uv);
@@ -129,9 +133,9 @@ void main()
     //vec3 base = sRGB_to_Linear(texture(tex_sampler,IN.uv).rgb)* sRGB_to_Linear(IN.vColor.xyz);
     vec3 base = sRGB_to_Linear(sampled_base.xyz);
     //vec3 metallic = vec3(0.0); // TODO: sample from texture channel
-    float metallic = sampled_spec.r;
+    float metallic = sampled_spec.g;
     //float roughness = 0.2; // TODO: sample from texture channel
-    float roughness = sampled_spec.g;
+    float roughness = sampled_spec.r;
 
 
     float dist2 = dot(IN.to_light,IN.to_light);
