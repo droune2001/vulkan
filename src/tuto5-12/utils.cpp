@@ -242,7 +242,7 @@ namespace utils
 #endif
     }
 
-    void create_checker_image(loaded_image *checker_image)
+    void create_checker_base_image(loaded_image *checker_image)
     {
         checker_image->width = 512;
         checker_image->height = 512;
@@ -270,7 +270,7 @@ namespace utils
         }
     }
 
-    void create_checker_specular_image(loaded_image *checker_image)
+    void create_checker_spec_image(loaded_image *checker_image)
     {
         checker_image->width = 512;
         checker_image->height = 512;
@@ -301,7 +301,7 @@ namespace utils
         }
     }
 
-    void create_default_image(loaded_image *default_image)
+    void create_neutral_base_image(loaded_image *default_image)
     {
         default_image->width = 16;
         default_image->height = 16;
@@ -313,15 +313,15 @@ namespace utils
             for (uint32_t y = 0; y < default_image->height; ++y)
             {
                 uint8_t *pixel = ((uint8_t *)default_image->data) + 4 * (x * default_image->height + y);
-                pixel[0] = 187;
-                pixel[1] = 187;
-                pixel[2] = 187;
+                pixel[0] = 255;
+                pixel[1] = 255;
+                pixel[2] = 255;
                 pixel[3] = 255;
             }
         }
     }
 
-    void create_default_specular_image(loaded_image *image)
+    void create_neutral_dielectric_spec_image(loaded_image *image)
     {
         image->width = 16;
         image->height = 16;
@@ -333,8 +333,28 @@ namespace utils
             for (uint32_t y = 0; y < image->height; ++y)
             {
                 float *pixel = ((float*)image->data) + 4 * (x * image->height + y);
-                pixel[0] = 0.2f; // roughness
+                pixel[0] = 1.0f; // roughness
                 pixel[1] = 0.0f; // metallic
+                pixel[2] = 0;
+                pixel[3] = 0;
+            }
+        }
+    }
+
+    void create_neutral_metal_spec_image(loaded_image *image)
+    {
+        image->width = 16;
+        image->height = 16;
+        image->size = sizeof(float) * image->width * image->height * 4;
+        image->data = (void *) new float[image->width * image->height * 4];
+
+        for (uint32_t x = 0; x < image->width; ++x)
+        {
+            for (uint32_t y = 0; y < image->height; ++y)
+            {
+                float *pixel = ((float*)image->data) + 4 * (x * image->height + y);
+                pixel[0] = 1.0f; // roughness
+                pixel[1] = 1.0f; // metallic
                 pixel[2] = 0;
                 pixel[3] = 0;
             }

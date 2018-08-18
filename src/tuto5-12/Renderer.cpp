@@ -844,6 +844,7 @@ void Renderer::Draw(float dt)
     result = vkBeginCommandBuffer(cmd, &begin_info);
     ErrorCheck(result);
     {
+#if 1
         // barrier for reading from uniform buffer after all writing is done:
         VkMemoryBarrier uniform_memory_barrier = {};
         uniform_memory_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -852,11 +853,12 @@ void Renderer::Draw(float dt)
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_HOST_BIT,
-            VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,//VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,//VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
             0,
             1, &uniform_memory_barrier,
             0, nullptr,
             0, nullptr);
+#endif
 
         VkRect2D render_area = {};
         render_area.offset = { 0, 0 };

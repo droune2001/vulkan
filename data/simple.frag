@@ -123,20 +123,16 @@ vec3 cooktorrance_specular( in float NdotL, in float NdotV, in float NdotH, in v
 
 void main() 
 {
-    vec3 sky_color = Scene_UBO.sky_color.rgb;//sRGB_to_Linear(vec3(0.39, 0.58, 0.92));
-    vec3 light_color = Scene_UBO.light_color.rgb;//sRGB_to_Linear(IN.lColor.xyz);
-    float light_radius = Scene_UBO.light_radius.x;//10.0;
+    vec3 sky_color     = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
+    vec3 light_color   = sRGB_to_Linear(Scene_UBO.light_color.rgb);
+    float light_radius = Scene_UBO.light_radius.x;
 
     vec4 sampled_base = texture(sampler2D(base_tex, tex_sampler), IN.uv);
     vec4 sampled_spec = texture(sampler2D(spec_tex, tex_sampler), IN.uv);
 
-    //vec3 base = sRGB_to_Linear(texture(tex_sampler,IN.uv).rgb)* sRGB_to_Linear(IN.vColor.xyz);
-    vec3 base = sRGB_to_Linear(sampled_base.xyz);
-    //vec3 metallic = vec3(0.0); // TODO: sample from texture channel
-    float metallic = sampled_spec.g;
-    //float roughness = 0.2; // TODO: sample from texture channel
-    float roughness = sampled_spec.r;
-
+    vec3 base       = sRGB_to_Linear(Object_UBO.base.rgb) * sRGB_to_Linear(sampled_base.rgb);
+    float roughness = sampled_spec.r * Object_UBO.roughness;
+    float metallic  = sampled_spec.g;// * Object_UBO.metallic;
 
     float dist2 = dot(IN.to_light,IN.to_light);
     float att = saturate(1.0 - dist2/(light_radius*light_radius));

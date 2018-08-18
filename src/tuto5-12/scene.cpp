@@ -210,7 +210,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
-    for (auto m : _material_instances)
+    for (auto &m : _material_instances)
     {
         //
         // SET 1
@@ -883,14 +883,14 @@ void Scene::animate_object(float dt)
     static float obj_y = 0.0f;
     static float obj_z = 0.0f;
     static float accum = 0.0f; // in seconds
-
+#if 0
     accum += dt;
     float speed = 3.0f; // radian/sec
     float radius = 1.5f;
     obj_x = radius * std::cos(speed * accum);
     obj_y = radius * std::sin(2.0f * speed * accum);
     obj_z = 0.5f * radius * std::cos(speed * accum);
-
+#endif
     auto &obj_0 = _objects[0];
     auto &obj_1 = _objects[1];
 
@@ -906,32 +906,22 @@ void Scene::animate_object(float dt)
 
 void Scene::animate_camera(float dt)
 {
-    const float camera_speed = 1.0f; // unit per second
+    static float accum_dt = 0.0f;
+    accum_dt += dt;
 
-    if (_camera_anim.cameraZ < 5)
-    {
-        _camera_anim.cameraZ = 5;
-        _camera_anim.cameraZDir = 1;
-    }
-    else if (_camera_anim.cameraZ > 10)
-    {
-        _camera_anim.cameraZ = 10;
-        _camera_anim.cameraZDir = -1;
-    }
-
-    _camera_anim.cameraZ += _camera_anim.cameraZDir * camera_speed * dt;
-
-    // Update first camera position
+    const float cam_r = 5.0f; // radius
+    const float cam_as = 0.6f; // angular_speed, radians/sec
+    float cx = cam_r * std::cos(cam_as * accum_dt);
+    float cy = 3.0f;
+    float cz = cam_r * std::sin(cam_as * accum_dt);
     auto &camera = _cameras["perspective"];
-    camera.v = glm::lookAt(glm::vec3(0,0,_camera_anim.cameraZ), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+    camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
     //
     // LIGHT anim
     //
-    static float accum_dt = 0.0f;
-    accum_dt += dt;
     const float r = 4.0f; // radius
-    const float as = 0.8f; // angular_speed, radians/sec
+    const float as = 1.4f; // angular_speed, radians/sec
     float lx = r * std::cos(as * accum_dt);
     float ly = r * std::sin(as * accum_dt);
     float lz = r * std::cos(2.0f * as * accum_dt);
@@ -1040,72 +1030,14 @@ bool Scene::create_procedural_textures()
 
     Log("#     Compute Procedural Texture\n");
     
-    //
-    // CHECKER IMAGE
-    //
-    {
-        utils::loaded_image checker_image;
-        utils::create_checker_image(&checker_image);
-
-        auto &checker_texture = _textures["checker"];
-        checker_texture.format = VK_FORMAT_R32G32B32_SFLOAT;
-        checker_texture.extent = { checker_image.width, checker_image.height, 1 };
-
-        create_texture_2d(&checker_texture);
-        copy_data_to_staging_buffer(_texture_staging_buffer, checker_image.data, checker_image.size);
-        transition_texture(&checker_texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        copy_buffer_to_image(_texture_staging_buffer.buffer, checker_texture.image, checker_texture.extent);
-        transition_texture(&checker_texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        delete[] checker_image.data;
-    }
-
-    //
-    // CHECKER SPECULAR IMAGE
-    //
-    {
-        utils::loaded_image checker_image;
-        utils::create_checker_specular_image(&checker_image);
-
-        auto &checker_texture = _textures["checker_specular"];
-        checker_texture.format = VK_FORMAT_R32G32B32_SFLOAT;
-        checker_texture.extent = { checker_image.width, checker_image.height, 1 };
-
-        create_texture_2d(&checker_texture);
-        copy_data_to_staging_buffer(_texture_staging_buffer, checker_image.data, checker_image.size);
-        transition_texture(&checker_texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        copy_buffer_to_image(_texture_staging_buffer.buffer, checker_texture.image, checker_texture.extent);
-        transition_texture(&checker_texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        delete[] checker_image.data;
-    }
-
-    //
-    // FLAT IMAGE
-    //
-    {
-        utils::loaded_image default_image;
-        utils::create_default_image(&default_image);
-
-        auto &default_texture = _textures["default"];
-        default_texture.format = VK_FORMAT_R8G8B8A8_UNORM;
-        default_texture.extent = { default_image.width, default_image.height, 1 };
-
-        create_texture_2d(&default_texture);
-        copy_data_to_staging_buffer(_texture_staging_buffer, default_image.data, default_image.size);
-        transition_texture(&default_texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        copy_buffer_to_image(_texture_staging_buffer.buffer, default_texture.image, default_texture.extent);
-        transition_texture(&default_texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        delete[] default_image.data;
-    }
-
-    //
-    // FLAT IMAGE SPECULAR
-    //
+    typedef void(*create_func)(utils::loaded_image*);
+    auto create_texture = [&](const std::string &name, VkFormat format, create_func f)
     {
         utils::loaded_image image;
-        utils::create_default_specular_image(&image);
+        f(&image);
 
-        auto &texture = _textures["default_specular"];
-        texture.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        auto &texture = _textures[name];
+        texture.format = format;
         texture.extent = { image.width, image.height, 1 };
 
         create_texture_2d(&texture);
@@ -1114,7 +1046,15 @@ bool Scene::create_procedural_textures()
         copy_buffer_to_image(_texture_staging_buffer.buffer, texture.image, texture.extent);
         transition_texture(&texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         delete[] image.data;
-    }
+    };
+
+
+    create_texture("checker_base", VK_FORMAT_R32G32B32_SFLOAT, utils::create_checker_base_image);
+    create_texture("checker_spec", VK_FORMAT_R32G32B32_SFLOAT, utils::create_checker_spec_image);
+
+    create_texture("neutral_base", VK_FORMAT_R8G8B8A8_UNORM, utils::create_neutral_base_image);
+    create_texture("neutral_metal_spec", VK_FORMAT_R32G32B32A32_SFLOAT, utils::create_neutral_metal_spec_image);
+    create_texture("neutral_dielectric_spec", VK_FORMAT_R32G32B32A32_SFLOAT, utils::create_neutral_dielectric_spec_image);
 
     //
     // TEXTURE VIEWS
@@ -1334,11 +1274,11 @@ bool Scene::create_all_descriptor_sets_pool()
     pool_sizes[2].descriptorCount = 1; // texture sampler;
 
     pool_sizes[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    pool_sizes[3].descriptorCount = (uint32_t)_textures.size(); // textures, or tex/2 bc we pack base and spec together.
+    pool_sizes[3].descriptorCount = 3*2;// (uint32_t)_material_instances.size(); // <-- not created yet
 
     VkDescriptorPoolCreateInfo pool_create_info = {};
     pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_create_info.maxSets = 9;
+    pool_create_info.maxSets = 1+2+1+3*2;
     pool_create_info.poolSizeCount = (uint32_t)pool_sizes.size();
     pool_create_info.pPoolSizes = pool_sizes.data();
 

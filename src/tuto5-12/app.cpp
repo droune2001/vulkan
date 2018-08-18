@@ -146,29 +146,42 @@ void VulkanApplication::BuildScene()
     //
     // Materials
     //
-
     {
         Scene::material_instance_description_t mi = {};
-        mi.instance_id = "rough_plastic";
+        mi.instance_id = "neutral_dielectric";
         mi.material_id = "default"; // not much choice for the moment
-        mi.base_tex = "default";
-        mi.specular_tex = "default_specular";
+        mi.base_tex = "neutral_base";
+        mi.specular_tex = "neutral_dielectric_spec";
         _scene->add_material_instance(mi);
     }
-
+#if 0
     {
         Scene::material_instance_description_t mi = {};
         mi.instance_id = "half_metal_checker";
         mi.material_id = "default"; // not much choice for the moment
-        mi.base_tex = "checker";
-        mi.specular_tex = "checker_specular";
+        mi.base_tex = "checker_base";
+        mi.specular_tex = "checker_spec";
         _scene->add_material_instance(mi);
     }
+#endif
+    {
+        Scene::material_instance_description_t mi = {};
+        mi.instance_id = "neutral_metal";
+        mi.material_id = "default"; // not much choice for the moment
+        mi.base_tex = "neutral_base";
+        mi.specular_tex = "neutral_metal_spec";
+        _scene->add_material_instance(mi);
+    }
+
+    
 
     //
     // Objects
     //
+#define WITH_WALLS 1
+#define WITH_CUBES 1
 
+    // SPHERE - shiny red plastic
     {
         IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
         Scene::object_description_t obj_desc = {};
@@ -177,12 +190,13 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
         obj_desc.indices = icosphere.second.data();
         obj_desc.position = glm::vec3(-2.5f, 0.0f, -2.0f);
-        obj_desc.material = "rough_plastic";
+        obj_desc.material = "neutral_dielectric";
         obj_desc.base_color = glm::vec4(1,0,0,1); // red tint
-        obj_desc.specular = glm::vec4(1,1,0,0); // no modification
+        obj_desc.specular = glm::vec4(0.05,1,0,0); // no modification
         _scene->add_object(obj_desc);
     }
 
+    // CUBE - blue metal
     {
         IndexedMesh obj = make_flat_cube(); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
@@ -191,14 +205,14 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.position = glm::vec3(2.5f, 0.0f, 3.0f);
-        obj_desc.material = "half_metal_checker";
-        obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
+        obj_desc.material = "neutral_metal";
+        obj_desc.base_color = glm::vec4(0, 0, 1, 1); // no modification
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
 
+#if WITH_WALLS == 1
     // FLOOR
-    /*
     {
         IndexedMesh obj = make_flat_cube(10.0f, 1.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
@@ -206,12 +220,12 @@ void VulkanApplication::BuildScene()
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
-        obj_desc.position = glm::vec3(0.0f, -5.0f, 0.0f);
-        obj_desc.material = "default";
-        obj_desc.diffuse_texture = "checker";
+        obj_desc.position = glm::vec3(0.0f, -5.5f, 0.0f);
+        obj_desc.material = "half_metal_checker";
+        obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
+        obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
-    */
 
     // LEFT WALL
     {
@@ -257,7 +271,9 @@ void VulkanApplication::BuildScene()
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
-#if 1
+#endif
+
+#if WITH_CUBES == 1
     for (uint32_t i = 0; i < 19; ++i)
     {
         for (uint32_t j = 0; j < 19; ++j)
@@ -272,12 +288,29 @@ void VulkanApplication::BuildScene()
             obj_desc.indexCount = (uint32_t)obj.second.size();
             obj_desc.indices = obj.second.data();
             obj_desc.position = glm::vec3(-4.5f+i*0.5f, -5.0f+0.5f*real_rand(), -4.5f+j*0.5f);
-            obj_desc.material = "rough_plastic";
-            float r = 0.2f + 0.8f * real_rand();
-            float g = 0.2f + 0.8f * real_rand();
-            float b = 0.2f + 0.8f * real_rand();
-            obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
-            obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
+            bool is_metal = (real_rand() > 0.5f);
+            if (is_metal)
+            {
+                obj_desc.material = "neutral_metal";
+                float roughness = 0.01f + 0.99f * real_rand();
+                float metallic = 1.0f;
+                float r = 0.2f + 0.8f * real_rand();
+                float g = 0.2f + 0.8f * real_rand();
+                float b = 0.2f + 0.8f * real_rand();
+                obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
+                obj_desc.specular = glm::vec4(roughness, metallic, 0, 0); // random roughness, binary random metallic
+            }
+            else
+            {
+                obj_desc.material = "neutral_dielectric";
+                float roughness = 0.01f + 0.99f * real_rand();
+                float metallic = 0.0f;
+                float r = 0.2f + 0.8f * real_rand();
+                float g = 0.2f + 0.8f * real_rand();
+                float b = 0.2f + 0.8f * real_rand();
+                obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
+                obj_desc.specular = glm::vec4(roughness, metallic, 0, 0); // random roughness, binary random metallic
+            }
             _scene->add_object(obj_desc);
         }
     }

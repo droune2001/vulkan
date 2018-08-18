@@ -50,10 +50,11 @@ namespace utils
         void *data;
     };
 
-    void create_checker_image(loaded_image *);
-    void create_checker_specular_image(loaded_image *);
-    void create_default_image(loaded_image *);
-    void create_default_specular_image(loaded_image *);
+    void create_checker_base_image(loaded_image *);
+    void create_checker_spec_image(loaded_image *);
+    void create_neutral_base_image(loaded_image *);
+    void create_neutral_metal_spec_image(loaded_image *);
+    void create_neutral_dielectric_spec_image(loaded_image *);
 
 } // namespace utils
 

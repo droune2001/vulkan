@@ -367,16 +367,6 @@ private:
         //         binding = 1 texture2d spec;
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
-
-    //
-    // ANIMATION
-    //
-
-    struct camera_animation_t
-    {
-        float cameraZ = 6.0f;
-        float cameraZDir = -1.0f;
-    } _camera_anim;
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_
