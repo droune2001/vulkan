@@ -35,8 +35,7 @@ layout( set = 1, binding = 1 ) uniform texture2D spec_tex; // x = roughness, y =
 layout( set = 2, binding = 1 ) uniform object_ubo
 {
     vec4 base; // xyz = albedo or specular. a = alpha
-    float roughness;
-    float metallic;
+    vec4 spec; // x = roughness, y = metallic, z = reflectance
 } Object_UBO;
 
 //
@@ -122,17 +121,23 @@ vec3 cooktorrance_specular( in float NdotL, in float NdotV, in float NdotH, in v
 //
 
 void main() 
-{
-    vec3 sky_color     = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
-    vec3 light_color   = sRGB_to_Linear(Scene_UBO.light_color.rgb);
-    float light_radius = Scene_UBO.light_radius.x;
-
+{    
     vec4 sampled_base = texture(sampler2D(base_tex, tex_sampler), IN.uv);
     vec4 sampled_spec = texture(sampler2D(spec_tex, tex_sampler), IN.uv);
 
-    vec3 base       = sRGB_to_Linear(Object_UBO.base.rgb) * sRGB_to_Linear(sampled_base.rgb);
-    float roughness = sampled_spec.r * Object_UBO.roughness;
-    float metallic  = sampled_spec.g;// * Object_UBO.metallic;
+    vec3 base         = sRGB_to_Linear(Object_UBO.base.rgb) * sRGB_to_Linear(sampled_base.rgb);
+    float roughness   = sampled_spec.r * Object_UBO.spec.x;
+    float metallic    = sampled_spec.g * Object_UBO.spec.y;
+    float reflectance = sampled_spec.b * Object_UBO.spec.z;
+
+    // remappings
+    vec3 diffuse_color = mix(base, vec3(0), metallic); // (1-metallic)*base
+    reflectance = 0.16 * reflectance * reflectance; // 0..4%..16% for dielectrics
+    vec3 f0 = mix(vec3(reflectance), base, metallic); // metal use base as reflectance
+
+    vec3 sky_color     = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
+    vec3 light_color   = sRGB_to_Linear(Scene_UBO.light_color.rgb);
+    float light_radius = Scene_UBO.light_radius.x;
 
     float dist2 = dot(IN.to_light,IN.to_light);
     float att = saturate(1.0 - dist2/(light_radius*light_radius));
@@ -152,10 +157,9 @@ void main()
     float HdotV = max( dot( H, V ), 0.001 );
     
     
-    vec3 specular = mix(vec3(0.04), base, metallic); // f0
     
     // COOK TORRANCE
-    vec3 specfresnel = fresnel_factor(specular, HdotV);
+    vec3 specfresnel = fresnel_factor(f0, HdotV);
     vec3 specref = cooktorrance_specular(NdotL, NdotV, NdotH, specfresnel, roughness);
     specref *= vec3(NdotL);
     
@@ -174,15 +178,15 @@ void main()
     float NdotHSky = max( dot( N, HSky ), 0.001 );
     float NdotUp = 0.5 * ( dot( N, vec3(0,1,0) ) + 1.0 ); // warp
     NdotUp *= NdotUp;
-    vec3 specfresnel_sky = fresnel_factor(specular, HSkydotV);
+    vec3 specfresnel_sky = fresnel_factor(f0, HSkydotV);
     vec3 specref_sky = cooktorrance_specular(NdotUp, NdotV, NdotHSky, specfresnel_sky, roughness);
     specref_sky *= vec3(NdotUp);
     vec3 diffref_sky = (vec3(1) - specfresnel_sky) * lamb_diffuse() * NdotUp;
     diffuse_light += 0.3 * diffref_sky * sky_color;
     reflected_light += specref_sky * sky_color;
-    
+
     vec3 result = 
-          diffuse_light * mix(base, vec3(0), metallic)
+          diffuse_light * diffuse_color
         + reflected_light;
     
     uFragColor = vec4(Linear_to_sRGB(result), 1);

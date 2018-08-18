@@ -159,9 +159,9 @@ bool Scene::add_object(object_description_t desc)
 bool Scene::add_light(light_description_t li)
 {
     _light_t light;
-    light.position = glm::vec4(li.position, 1);
-    light.color    = glm::vec4(li.color, 1);
-    //light.light_radius = ;
+    light.position     = glm::vec4(li.position, 1);
+    light.color        = glm::vec4(li.color, 1);
+    light.light_radius = glm::vec4(li.radius, 0, 0, 1);
     //light.sky_color = ;
     _lights.push_back(light);
 

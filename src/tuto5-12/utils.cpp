@@ -260,13 +260,19 @@ namespace utils
 
                 float *pixel = ((float *)checker_image->data) + 3 * (y * checker_image->width + x);
         
-                float g = 0.3f;
-                if (x % 40 < 20 && y % 40 < 20) { g = 1.0f; }
-                if (x % 40 >= 20 && y % 40 >= 20) { g = 1.0f; }
-
-                pixel[0] = g * (1.0f-dx);
-                pixel[1] = g * (dx) * (1.0f - dy);
-                pixel[2] = g * dx * dy;
+                if ((x % 40 < 20 && y % 40 < 20)
+                || (x % 40 >= 20 && y % 40 >= 20)) 
+                { 
+                    pixel[0] = (1.0f - dx);
+                    pixel[1] = (dx) * (1.0f - dy);
+                    pixel[2] = dx * dy;
+                }
+                else
+                {
+                    pixel[0] = 0.7f;
+                    pixel[1] = 0.7f;
+                    pixel[2] = 0.7f;
+                }
             }
         }
     }
@@ -290,14 +296,14 @@ namespace utils
 
                 float r = 0.5f;
                 float m = 0.0f;
-                if (x % 40 < 20 && y % 40 < 20) { r = 0.05f; m = 1.0f; }
-                if (x % 40 >= 20 && y % 40 >= 20) { r = 0.05f; m = 1.0f; }
+                float s = 0.5f;
+                if (x % 40 < 20 && y % 40 < 20)   { r = 0.1f; m = 1.0f; s = 1.0f; }
+                if (x % 40 >= 20 && y % 40 >= 20) { r = 0.2f; m = 1.0f; s = 1.0f; }
 
                 
-                pixel[0] = r;// roughness
-                pixel[1] = m;// metallic
-                // 
-                pixel[2] = 0.0f;
+                pixel[0] = r; // roughness
+                pixel[1] = m; // metallic
+                pixel[2] = s; // reflectance
             }
         }
     }
@@ -336,7 +342,7 @@ namespace utils
                 float *pixel = ((float*)image->data) + 4 * (x * image->height + y);
                 pixel[0] = 1.0f; // roughness
                 pixel[1] = 0.0f; // metallic
-                pixel[2] = 0;
+                pixel[2] = 1.0f; // reflectance
                 pixel[3] = 0;
             }
         }
@@ -356,11 +362,24 @@ namespace utils
                 float *pixel = ((float*)image->data) + 4 * (x * image->height + y);
                 pixel[0] = 1.0f; // roughness
                 pixel[1] = 1.0f; // metallic
-                pixel[2] = 0;
+                pixel[2] = 1.0f; // reflectance
                 pixel[3] = 0;
             }
         }
     }
+
+    /* METAL REFLECTANCE COMMON VALUES
+    Silver    0.97, 0.96, 0.91
+    Aluminum  0.91, 0.92, 0.92
+    Titanium  0.76, 0.73, 0.69
+    Iron      0.77, 0.78, 0.78
+    Platinum  0.83, 0.81, 0.78
+    Gold      1.00, 0.85, 0.57
+    Brass     0.98, 0.90, 0.59
+    Copper    0.97, 0.74, 0.62
+
+    minimum roughness = 0.045 to avoid aliasing
+    */
 } // namespace utils
 
 //

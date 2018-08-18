@@ -128,6 +128,7 @@ void VulkanApplication::BuildScene()
     Scene::light_description_t light;
     light.position = glm::vec3(4,4,2);
     light.color    = glm::vec3(1,1,1);
+    light.radius   = 15.0f;
     _scene->add_light(light);
 
     //
@@ -194,8 +195,8 @@ void VulkanApplication::BuildScene()
         obj_desc.indices = icosphere.second.data();
         obj_desc.position = glm::vec3(-4.5f + 9.0f*ith, 0.0f, -1.0f);
         obj_desc.material = "neutral_dielectric";
-        obj_desc.base_color = glm::vec4(1, 0, 0, 1); // red tint
-        obj_desc.specular = glm::vec4(0.01f + 0.99f*ith, 1, 0, 0);
+        obj_desc.base_color = glm::vec4(0.97, 0.74, 0.62, 1); // copper tint
+        obj_desc.specular = glm::vec4(0.045f + 0.955f*ith, 0, 0.5f, 0);
         _scene->add_object(obj_desc);
     }
 
@@ -211,8 +212,8 @@ void VulkanApplication::BuildScene()
         obj_desc.indices = icosphere.second.data();
         obj_desc.position = glm::vec3(-4.5f + 9.0f*ith, 0.0f, 1.0f);
         obj_desc.material = "neutral_metal";
-        obj_desc.base_color = glm::vec4(1, 0, 0, 1);
-        obj_desc.specular = glm::vec4(0.01f + 0.99f*ith, 1, 0, 0);
+        obj_desc.base_color = glm::vec4(0.97, 0.74, 0.62, 1); // copper
+        obj_desc.specular = glm::vec4(0.045f + 0.955f*ith, 1, 1, 0);
         _scene->add_object(obj_desc);
     }
 
@@ -274,7 +275,7 @@ void VulkanApplication::BuildScene()
         obj_desc.position = glm::vec3(0.0f, 0.0f, -5.5f);
         obj_desc.material = "half_metal_checker";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
-        obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
+        obj_desc.specular = glm::vec4(1, 1, 0.5, 0); // common reflectance for dielectric cells
         _scene->add_object(obj_desc);
     }
 #endif
@@ -298,24 +299,24 @@ void VulkanApplication::BuildScene()
             if (is_metal)
             {
                 obj_desc.material = "neutral_metal";
-                float roughness = 0.01f + 0.99f * real_rand();
+                float roughness = 0.045f + 0.955f * real_rand();
                 float metallic = 1.0f;
                 float r = 0.2f + 0.8f * real_rand();
                 float g = 0.2f + 0.8f * real_rand();
                 float b = 0.2f + 0.8f * real_rand();
                 obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
-                obj_desc.specular = glm::vec4(roughness, metallic, 0, 0); // random roughness, binary random metallic
+                obj_desc.specular = glm::vec4(roughness, metallic, 1, 0); // random roughness, binary random metallic
             }
             else
             {
                 obj_desc.material = "neutral_dielectric";
-                float roughness = 0.01f + 0.99f * real_rand();
+                float roughness = 0.045f + 0.955f * real_rand();
                 float metallic = 0.0f;
                 float r = 0.2f + 0.8f * real_rand();
                 float g = 0.2f + 0.8f * real_rand();
                 float b = 0.2f + 0.8f * real_rand();
                 obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
-                obj_desc.specular = glm::vec4(roughness, metallic, 0, 0); // random roughness, binary random metallic
+                obj_desc.specular = glm::vec4(roughness, metallic, 0.5f, 0); // random roughness, binary random metallic
             }
             _scene->add_object(obj_desc);
         }
