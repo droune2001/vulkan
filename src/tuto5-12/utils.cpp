@@ -91,7 +91,7 @@ TriangleList subdivide(
     return result;
 }
 
-IndexedMesh make_icosphere(int subdivisions)
+IndexedMesh make_icosphere(int subdivisions, float radius)
 {
     VertexList vertices = icosahedron::vertices;
     TriangleList triangles = icosahedron::triangles;
@@ -109,6 +109,7 @@ IndexedMesh make_icosphere(int subdivisions)
         glm::vec3 unit = glm::normalize(vertex.p.xyz());
         float u = (std::atan2(unit.x, std::fabsf(unit.z)) + PI) / PI * 0.5f;
         float v = (std::acos(unit.y) + PI) / PI - 1.0f;
+        vertex.p = glm::vec4(radius*vertex.p.xyz(), 1.0f);
         vertex.uv = { u, v };
     }
 

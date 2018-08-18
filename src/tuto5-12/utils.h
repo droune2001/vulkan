@@ -23,7 +23,7 @@ using IndexList = std::vector<Scene::index_t>;
 using VertexList = std::vector<Scene::vertex_t>;
 using IndexedMesh = std::pair<VertexList, IndexList>;
 
-IndexedMesh make_icosphere(int subdivisions);
+IndexedMesh make_icosphere(int subdivisions, float radius = 1.0f);
 IndexedMesh make_flat_cube(float width = 1.0f, float height = 1.0f, float depth = 1.0f);
 
 namespace utils

@@ -180,53 +180,44 @@ void VulkanApplication::BuildScene()
     //
 #define WITH_WALLS 1
 #define WITH_CUBES 1
-
+    
+#define NB_SPHERES 10
     // SPHERE - shiny red plastic
+    for (size_t i = 0; i < NB_SPHERES; ++i)
     {
-        IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
+        float ith = (float)i / (NB_SPHERES-1);
+        IndexedMesh icosphere = make_icosphere(3, 0.5f); // 3 = 642 vtx, 1280 tri, 3840 idx
         Scene::object_description_t obj_desc = {};
         obj_desc.vertexCount = (uint32_t)icosphere.first.size();
         obj_desc.vertices = icosphere.first.data();
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
         obj_desc.indices = icosphere.second.data();
-        obj_desc.position = glm::vec3(-2.5f, 0.0f, -2.0f);
+        obj_desc.position = glm::vec3(-4.5f + 9.0f*ith, 0.0f, -1.0f);
         obj_desc.material = "neutral_dielectric";
-        obj_desc.base_color = glm::vec4(1,0,0,1); // red tint
-        obj_desc.specular = glm::vec4(0.05,1,0,0); // no modification
+        obj_desc.base_color = glm::vec4(1, 0, 0, 1); // red tint
+        obj_desc.specular = glm::vec4(0.01f + 0.99f*ith, 1, 0, 0);
         _scene->add_object(obj_desc);
     }
 
     // SPHERE - rough green metal
+    for (size_t i = 0; i < NB_SPHERES; ++i)
     {
-        IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
+        float ith = (float)i / (NB_SPHERES-1);
+        IndexedMesh icosphere = make_icosphere(3, 0.5f); // 3 = 642 vtx, 1280 tri, 3840 idx
         Scene::object_description_t obj_desc = {};
         obj_desc.vertexCount = (uint32_t)icosphere.first.size();
         obj_desc.vertices = icosphere.first.data();
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
         obj_desc.indices = icosphere.second.data();
-        obj_desc.position = glm::vec3(2.5f, 0.0f, -2.5f);
+        obj_desc.position = glm::vec3(-4.5f + 9.0f*ith, 0.0f, 1.0f);
         obj_desc.material = "neutral_metal";
-        obj_desc.base_color = glm::vec4(0.3, 1, 0, 1); // red tint
-        obj_desc.specular = glm::vec4(0.7, 1, 0, 0); // no modification
-        _scene->add_object(obj_desc);
-    }
-
-    // CUBE - blue metal
-    {
-        IndexedMesh obj = make_flat_cube(); // 24 vtx, 12 tri, 36 idx
-        Scene::object_description_t obj_desc = {};
-        obj_desc.vertexCount = (uint32_t)obj.first.size();
-        obj_desc.vertices = obj.first.data();
-        obj_desc.indexCount = (uint32_t)obj.second.size();
-        obj_desc.indices = obj.second.data();
-        obj_desc.position = glm::vec3(2.5f, 0.0f, 3.0f);
-        obj_desc.material = "neutral_metal";
-        obj_desc.base_color = glm::vec4(0, 0, 1, 1); // no modification
-        obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
+        obj_desc.base_color = glm::vec4(1, 0, 0, 1);
+        obj_desc.specular = glm::vec4(0.01f + 0.99f*ith, 1, 0, 0);
         _scene->add_object(obj_desc);
     }
 
 #if WITH_WALLS == 1
+#if 0
     // FLOOR
     {
         IndexedMesh obj = make_flat_cube(10.0f, 1.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
@@ -271,7 +262,7 @@ void VulkanApplication::BuildScene()
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
-
+#endif
     // FAR WALL
     {
         IndexedMesh obj = make_flat_cube(10.0f, 10.0f, 1.0f); // 24 vtx, 12 tri, 36 idx
