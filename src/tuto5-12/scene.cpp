@@ -210,14 +210,13 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
-    for (auto &m : _material_instances)
+    for (const auto &m : _material_instances)
     {
         //
         // SET 1
         //
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
-            1, // bind to set #1
-            1, &m.second.descriptor_set, 0, nullptr);
+            1, 1, &m.second.descriptor_set, 0, nullptr);
 
         // TODO: loop in objects per material instances
         for (size_t i = 0; i < _objects.size(); ++i)
@@ -241,8 +240,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
             // SET 2
             // Bind Per-Object Uniforms
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
-                2, // bind as set #2
-                1, &_global_objects_descriptor_set, //obj.descriptor_set,
+                2, 1, &_global_objects_descriptor_set, //obj.descriptor_set,
                 (uint32_t)dynamic_offsets.size(), dynamic_offsets.data()); // dynamic offsets
 
             // TODO: draw instanced for... instances.
@@ -1369,7 +1367,8 @@ bool Scene::create_all_descriptor_sets()
         write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
         write_descriptor_set.pTexelBufferView = nullptr;
 
-        write_descriptor_sets.push_back(write_descriptor_set);
+        //write_descriptor_sets.push_back(write_descriptor_set);
+        vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
     }
 
     // SAMPLER = 1
@@ -1390,7 +1389,8 @@ bool Scene::create_all_descriptor_sets()
         write_descriptor_set.pBufferInfo = nullptr;
         write_descriptor_set.pTexelBufferView = nullptr;
 
-        write_descriptor_sets.push_back(write_descriptor_set);
+        //write_descriptor_sets.push_back(write_descriptor_set);
+        vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
     }
 
     //
@@ -1417,14 +1417,16 @@ bool Scene::create_all_descriptor_sets()
             write_descriptor_set.pTexelBufferView = nullptr;
 
             Log("#      Update Descriptor Set for Material Instance [n] BASE TEX\n");
-            write_descriptor_sets.push_back(write_descriptor_set);
+            //write_descriptor_sets.push_back(write_descriptor_set);
+            vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
         }
 
         // SPEC TEX = 1
         {
             VkDescriptorImageInfo descriptor_image_info = {};
             descriptor_image_info.imageView = _textures[m.second.spec_tex].view;
-            descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            //descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // why ? we did change the layout manually!! VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
             VkWriteDescriptorSet write_descriptor_set = {};
             write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1438,7 +1440,8 @@ bool Scene::create_all_descriptor_sets()
             write_descriptor_set.pTexelBufferView = nullptr;
 
             Log("#      Update Descriptor Set for Material Instance [n] SPEC TEX\n");
-            write_descriptor_sets.push_back(write_descriptor_set);
+            //write_descriptor_sets.push_back(write_descriptor_set);
+            vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
         }
     }
 
@@ -1465,7 +1468,8 @@ bool Scene::create_all_descriptor_sets()
         write_descriptor_set.pTexelBufferView = nullptr;
 
         Log("#      Update Descriptor Set (Object Matrices UBO)\n");
-        write_descriptor_sets.push_back(write_descriptor_set);
+        //write_descriptor_sets.push_back(write_descriptor_set);
+        vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
     }
 
     // MATERIALS UBO = 1
@@ -1487,11 +1491,12 @@ bool Scene::create_all_descriptor_sets()
         write_descriptor_set.pTexelBufferView = nullptr;
 
         Log("#      Update Descriptor Set (Object Materials UBO)\n");
-        write_descriptor_sets.push_back(write_descriptor_set);
+        //write_descriptor_sets.push_back(write_descriptor_set);
+        vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
     }
 
     // UPDATE ALL AT ONCE
-    vkUpdateDescriptorSets(_ctx->device, (uint32_t)write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
+    //vkUpdateDescriptorSets(_ctx->device, (uint32_t)write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
 
     return true;
 }

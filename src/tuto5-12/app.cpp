@@ -154,7 +154,7 @@ void VulkanApplication::BuildScene()
         mi.specular_tex = "neutral_dielectric_spec";
         _scene->add_material_instance(mi);
     }
-#if 0
+#if 1
     {
         Scene::material_instance_description_t mi = {};
         mi.instance_id = "half_metal_checker";
@@ -193,6 +193,21 @@ void VulkanApplication::BuildScene()
         obj_desc.material = "neutral_dielectric";
         obj_desc.base_color = glm::vec4(1,0,0,1); // red tint
         obj_desc.specular = glm::vec4(0.05,1,0,0); // no modification
+        _scene->add_object(obj_desc);
+    }
+
+    // SPHERE - rough green metal
+    {
+        IndexedMesh icosphere = make_icosphere(3); // 3 = 642 vtx, 1280 tri, 3840 idx
+        Scene::object_description_t obj_desc = {};
+        obj_desc.vertexCount = (uint32_t)icosphere.first.size();
+        obj_desc.vertices = icosphere.first.data();
+        obj_desc.indexCount = (uint32_t)icosphere.second.size();
+        obj_desc.indices = icosphere.second.data();
+        obj_desc.position = glm::vec3(2.5f, 0.0f, -2.5f);
+        obj_desc.material = "neutral_metal";
+        obj_desc.base_color = glm::vec4(0.3, 1, 0, 1); // red tint
+        obj_desc.specular = glm::vec4(0.7, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
 
