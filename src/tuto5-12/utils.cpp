@@ -250,6 +250,13 @@ namespace utils
         checker_image->size = sizeof(float) * checker_image->width * checker_image->height * 3;
         checker_image->data = (void *) new float[checker_image->width * checker_image->height * 3];
 
+        constexpr float metal_min = 170.0f / 255.0f;
+        constexpr float metal_scale = (255.0f - 170.0f) / 255.0f;
+
+        constexpr float dielectric_min = 10.0f / 255.0f;
+        constexpr float dielectric_max = 240.0f / 255.0f;
+        constexpr float dielectric_scale = dielectric_max - dielectric_min;
+
         for (uint32_t y = 0; y < checker_image->height; ++y)
         {
             float dy = (float)y / (float)checker_image->height;
@@ -260,18 +267,24 @@ namespace utils
 
                 float *pixel = ((float *)checker_image->data) + 3 * (y * checker_image->width + x);
         
+                float r = (1.0f - dx);
+                float g = (dx) * (1.0f - dy);
+                float b = dx * dy;
+
                 if ((x % 40 < 20 && y % 40 < 20)
                 || (x % 40 >= 20 && y % 40 >= 20)) 
                 { 
-                    pixel[0] = (1.0f - dx);
-                    pixel[1] = (dx) * (1.0f - dy);
-                    pixel[2] = dx * dy;
+                    // metal [170..255]
+                    pixel[0] = metal_min + metal_scale * r;
+                    pixel[1] = metal_min + metal_scale * g;
+                    pixel[2] = metal_min + metal_scale * b;
                 }
                 else
                 {
-                    pixel[0] = 0.7f;
-                    pixel[1] = 0.7f;
-                    pixel[2] = 0.7f;
+                    // dielectric [10..240]
+                    pixel[0] = dielectric_min + dielectric_scale * r;
+                    pixel[1] = dielectric_min + dielectric_scale * g;
+                    pixel[2] = dielectric_min + dielectric_scale * b;
                 }
             }
         }
@@ -297,10 +310,20 @@ namespace utils
                 float r = 0.5f;
                 float m = 0.0f;
                 float s = 0.5f;
-                if (x % 40 < 20 && y % 40 < 20)   { r = 0.1f; m = 1.0f; s = 1.0f; }
-                if (x % 40 >= 20 && y % 40 >= 20) { r = 0.2f; m = 1.0f; s = 1.0f; }
+                if (x % 40 < 20 && y % 40 < 20)
+                { 
+                    float dx = (x % 20) / 20.0f;
+                    float dy = (y % 20) / 20.0f;
+                    r = 0.05f+0.2f*dx*dy; m = 1.0f; s = 1.0f; 
+                }
+                if (x % 40 >= 20 && y % 40 >= 20) 
+                { 
+                    float dx = (x % 20) / 20.0f; dx -= 0.5f;
+                    float dy = (y % 20) / 20.0f; dy -= 0.5f;
+                    float r2 = dx * dx + dy * dy;
+                    r = 0.05f + 0.2f * r2; m = 1.0f; s = 1.0f;
+                }
 
-                
                 pixel[0] = r; // roughness
                 pixel[1] = m; // metallic
                 pixel[2] = s; // reflectance
