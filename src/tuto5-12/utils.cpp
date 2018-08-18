@@ -250,10 +250,12 @@ namespace utils
         checker_image->size = sizeof(float) * checker_image->width * checker_image->height * 3;
         checker_image->data = (void *) new float[checker_image->width * checker_image->height * 3];
 
+        // metal [170..255]
         constexpr float metal_min = 170.0f / 255.0f;
         constexpr float metal_scale = (255.0f - 170.0f) / 255.0f;
 
-        constexpr float dielectric_min = 10.0f / 255.0f;
+        // dielectrics [50..240]
+        constexpr float dielectric_min = 50.0f / 255.0f;
         constexpr float dielectric_max = 240.0f / 255.0f;
         constexpr float dielectric_scale = dielectric_max - dielectric_min;
 
@@ -274,7 +276,6 @@ namespace utils
                 if ((x % 40 < 20 && y % 40 < 20)
                 || (x % 40 >= 20 && y % 40 >= 20)) 
                 { 
-                    // metal [170..255]
                     pixel[0] = metal_min + metal_scale * r;
                     pixel[1] = metal_min + metal_scale * g;
                     pixel[2] = metal_min + metal_scale * b;
