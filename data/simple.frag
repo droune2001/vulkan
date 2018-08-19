@@ -101,10 +101,36 @@ float D_GGX_Anisotropic(float NoH, const vec3 h, const vec3 t, const vec3 b, flo
     return a2 * sqr(a2 / dot(v, v)) * (1.0 / PI);
 }
 
-// product can be VdotH, NdotV or NdotH
-vec3 F_Schlick(in float product, in vec3 f0) 
+float D_Ashikhmin(float NoH, float linearRoughness)
 {
-    return f0 + (vec3(1.0) - f0) * pow(1.0 - product, 5.0);
+    // Ashikhmin 2007, "Distribution-based BRDFs"
+    float a2 = linearRoughness * linearRoughness;
+    float cos2h = NoH * NoH;
+    float sin2h = max(1.0 - cos2h, 0.0078125); // 2^(-14/2), so sin2h^2 > 0 in fp16
+    float sin4h = sin2h * sin2h;
+    float cot2 = -cos2h / (a2 * sin2h);
+    return 1.0 / (PI * (4.0 * a2 + 1.0) * sin4h) * (4.0 * exp(cot2) + sin4h);
+}
+
+float D_Charlie(float NoH, float linearRoughness)
+{
+    // Estevez and Kulla 2017, "Production Friendly Microfacet Sheen BRDF"
+    float invAlpha  = 1.0 / linearRoughness;
+    float cos2h = NoH * NoH;
+    float sin2h = max(1.0 - cos2h, 0.0078125); // 2^(-14/2), so sin2h^2 > 0 in fp16
+    return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
+}
+
+// product can be VdotH, NdotV or NdotH
+vec3 F_Schlick(in float product, in vec3 f0)
+{
+    return f0 + (vec3(1) - f0) * pow(1.0 - product, 5.0);
+    //return mix(f0, vec3(1), pow(1.01 - product, 5.0));
+}
+
+float F_Schlick(in float product, in float f0, in float f90)
+{
+    return f0 + (f90 - f0) * pow(1.0 - product, 5.0);
     //return mix(f0, vec3(1), pow(1.01 - product, 5.0));
 }
 
@@ -113,6 +139,13 @@ float V_SmithGGXCorrelated(float NoV, float NoL, float a)
     float a2 = a * a;
     float GGXL = NoV * sqrt((-NoL * a2 + NoL) * NoL + a2);
     float GGXV = NoL * sqrt((-NoV * a2 + NoV) * NoV + a2);
+    return 0.5 / (GGXV + GGXL);
+}
+
+float V_SmithGGXCorrelatedFast(float NdotV, float NdotL, float a)
+{
+    float GGXV = NdotL * (NdotV * (1.0 - a) + a);
+    float GGXL = NdotV * (NdotL * (1.0 - a) + a);
     return 0.5 / (GGXV + GGXL);
 }
 
@@ -135,29 +168,111 @@ float Fd_Lambert()
     return 1.0 / PI;
 }
 
-
-
-
-
-
-
-
-float G_Schlick(in float a, in float NdotV, in float NdotL)
+// a = linear_roughness
+float Fd_Burley(float NdotV, float NdotL, float LdotH, float a)
 {
-    float k = a * 0.5;
-    float V = NdotV * (1.0 - k) + k;
-    float L = NdotV * (1.0 - k) + k;
-    return 0.25 / (V * L);
+    float f90 = 0.5 + 2.0 * a * LdotH * LdotH;
+    float lightScatter = F_Schlick(NdotL, 1.0, f90);
+    float viewScatter = F_Schlick(NdotV, 1.0, f90);
+    return lightScatter * viewScatter * (1.0 / PI);
 }
 
-vec3 cooktorrance_specular( in float NdotL, in float NdotV, in float NdotH, in vec3 specular, in float a)
+//
+// Cook Torrance Microfacet BSDF
+//
+vec3 CookTorranceBSDF(
+        vec3 diffuse_color, vec3 f0, 
+        float linear_roughness, float anisotropy, float clearCoatRoughness, float clearCoat,
+        float NdotV, float NdotL, float NdotH, float VdotH, float LdotH,
+        vec3 l, vec3 v, vec3 h, vec3 n
+        )
 {
-    float D = D_GGX(NdotH, a);
-    float G = G_Schlick(a, NdotV, NdotL);
+#ifdef ANISOTROPY
+    float at = max(linear_roughness * (1.0 + anisotropy), 0.001);
+    float ab = max(linear_roughness * (1.0 - anisotropy), 0.001);
+    //vec3 Q1 = dFdx(g_pos);
+    //vec3 Q2 = dFdy(g_pos);
+    //vec2 st1 = dFdx(IN.uv);
+    //vec2 st2 = dFdy(IN.uv);
+    //vec3 t = normalize(Q1*st2.t - Q2*st1.t);
+    //vec3 b = normalize(-Q1*st2.s + Q2*st1.s);
 
-    return specular * G * D;
+    vec3 t = vec3(1,0,0); // tangent of tangent space
+    vec3 b = vec3(0,1,0); // bitangent
+    float D = D_GGX_Anisotropic(NdotH, h, t, b, at, ab);
+#else
+    float D = D_GGX(NdotH, linear_roughness);
+    // CLOTH
+    //float D = D_Ashikhmin(NdotH, linear_roughness);
+    //float D = D_Charlie(NdotH, linear_roughness);
+#endif
+
+    vec3  F = F_Schlick(LdotH, f0);
+
+#ifdef ANISOTROPY
+    float TdotV = max( dot( t, v ), 0.0 );
+    float BdotV = max( dot( b, v ), 0.0 );
+    float TdotL = max( dot( t, l ), 0.0 );
+    float BdotL = max( dot( b, l ), 0.0 );
+    float V = V_SmithGGXCorrelated_Anisotropic(at, ab, TdotV, BdotV, TdotL, BdotL, NdotV, NdotL);
+#else
+#    ifdef OPTI_FOR_LOW_END
+    float V = V_SmithGGXCorrelatedFast(NdotV, NdotL, linear_roughness);
+#    else
+    float V = V_SmithGGXCorrelated(NdotV, NdotL, linear_roughness);
+#    endif
+#endif
+
+    // specular BRDF
+    vec3 Fr = (D * V) * F;
+
+    // diffuse BRDF
+#ifdef OPTI_FOR_LOW_END
+    vec3 Fd = diffuse_color * Fd_Lambert();
+#else
+    vec3 Fd = diffuse_color * Fd_Burley(NdotV, NdotL, LdotH, linear_roughness);
+#endif
+    
+#if CLEAR_COAT
+    // remapping and linearization of clear coat roughness
+    clearCoatRoughness = mix(0.045, 0.6, clearCoatRoughness);
+    float clearCoatLinearRoughness = clearCoatRoughness * clearCoatRoughness;
+
+    // clear coat BRDF - dielectric clearcoat with reflectance 4%
+    float Dc = D_GGX(NdotH, clearCoatLinearRoughness);
+    float Vc = V_Kelemen(LdotH);
+    vec3  Fc = F_Schlick(LdotH, vec3(0.04)) * clearCoat; // clear coat strength
+    vec3 Frc = (Dc * Vc) * Fc;
+
+    // account for energy loss in the base layer
+    return ((Fd + Fr * (1.0 - Fc)) * (1.0 - Fc) + Frc);
+#else
+    return (Fd * (1-F) + Fr);
+#endif
 }
 
+//
+// LIGHTS
+//
+float square_falloff_attenuation(vec3 d, float lightInvRadius)
+{
+    float distanceSquare = dot(d, d);
+    float factor = distanceSquare * lightInvRadius * lightInvRadius;
+    float smoothFactor = max(1.0 - factor * factor, 0.0);
+    return (smoothFactor * smoothFactor) / max(distanceSquare, 1e-4);
+}
+
+float spot_angle_attenuation(vec3 l, vec3 lightDir, float innerAngle, float outerAngle)
+{
+    // the scale and offset computations can be done CPU-side
+    float cosOuter = cos(outerAngle);
+    float spotScale = 1.0 / max(cos(innerAngle) - cosOuter, 1e-4);
+    float spotOffset = -cosOuter * spotScale;
+
+    float cd = dot(normalize(-lightDir), l);
+    float attenuation = clamp(cd * spotScale + spotOffset, 0.0, 1.0);
+    return attenuation * attenuation;
+}
 
 //
 // MAIN
@@ -165,13 +280,11 @@ vec3 cooktorrance_specular( in float NdotL, in float NdotV, in float NdotH, in v
 
 //#define ANISOTROPY
 //#define CLEAT_COAT
+#define OPTI_FOR_LOW_END
 
 void main() 
 {
-#ifdef ANISOTROPY
     float anisotropy = 1.0; // [-1..1]
-#endif
-
     float clearCoatRoughness = 0.0;
     float clearCoat = 1.0;
 
@@ -189,116 +302,74 @@ void main()
     vec3 f0 = mix(vec3(reflectance), base, metallic); // metal use base as reflectance
     float linear_roughness = roughness * roughness;
 
-#ifdef ANISOTROPY
-    float at = max(linear_roughness * (1.0 + anisotropy), 0.001);
-    float ab = max(linear_roughness * (1.0 - anisotropy), 0.001);
-#endif
-
     vec3 l = normalize( IN.to_light );
     vec3 v = normalize( IN.to_camera );
     vec3 h = normalize( v + l );
     vec3 n = normalize( IN.normal );
     
-    float NdotL = max( dot( n, l ), 0.0 );
     float NdotV = abs( dot( n, v ) ) + 1e-5;
-    float NdotH = max( dot( n, h ), 1e-5 );
-    float VdotH = max( dot( v, h ), 1e-5 );
-    float LdotH = max( dot( l, h ), 1e-5 );
+    float NdotL = max( dot( n, l ), 0.0 );
+    float NdotH = max( dot( n, h ), 0.0 );//1e-5 );
+    float VdotH = max( dot( v, h ), 0.0 );//1e-5 );
+    float LdotH = max( dot( l, h ), 0.0 );//1e-5 );
 
-    // Cook-Torrance Specular Microfacet
-#ifdef ANISOTROPY
-    vec3 t = vec3(1,0,0); // tangent of tangent space
-    vec3 b = vec3(0,1,0); // bitangent
-    float D = D_GGX_Anisotropic(NdotH, h, t, b, at, ab);
-#else
-    float D = D_GGX(NdotH, linear_roughness);
-#endif
-
-    vec3  F = F_Schlick(LdotH, f0);
-
-#ifdef ANISOTROPY
-    float TdotV = max( dot( t, v ), 0.0 );
-    float BdotV = max( dot( b, v ), 0.0 );
-    float TdotL = max( dot( t, l ), 0.0 );
-    float BdotL = max( dot( b, l ), 0.0 );
-    float V = V_SmithGGXCorrelated_Anisotropic(at, ab, TdotV, BdotV, TdotL, BdotL, NdotV, NdotL);
-#else
-    float V = V_SmithGGXCorrelated(NdotV, NdotL, linear_roughness);
-#endif
-    // specular BRDF
-    vec3 Fr = (D * V) * F;
-
-    // diffuse BRDF
-    vec3 Fd = diffuse_color * Fd_Lambert();
-    
-#if CLEAR_COAT
-    // remapping and linearization of clear coat roughness
-    clearCoatRoughness = mix(0.089, 0.6, clearCoatRoughness);
-    float clearCoatLinearRoughness = clearCoatRoughness * clearCoatRoughness;
-
-    // clear coat BRDF - dielectric clearcoat with reflectance 4%
-    float Dc = D_GGX(NdotH, clearCoatLinearRoughness);
-    float Vc = V_Kelemen(LdotH);
-    vec3  Fc = F_Schlick(LdotH, vec3(0.04)) * clearCoat; // clear coat strength
-    vec3 Frc = (Dc * Vc) * Fc;
-
-    // account for energy loss in the base layer
-    //return color * ((Fd + Fr * (1.0 - Fc)) * (1.0 - Fc) + Frc);
-#endif
+    // FOR EACH LIGHT
+    vec3 BSDF = CookTorranceBSDF(
+        diffuse_color, f0, 
+        linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
+        NdotV, NdotL, NdotH, VdotH, LdotH,
+        l, v, h, n
+        );
 
     // apply lighting
 
-    vec3 sky_color     = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
     vec3 light_color   = sRGB_to_Linear(Scene_UBO.light_color.rgb);
     float light_radius = Scene_UBO.light_radius.x;
+    float light_intensity = 1.0; //Scene_UBO.light_radius.y ???;
 
-    float dist2 = dot(IN.to_light,IN.to_light);
-    float att = saturate(1.0 - dist2/(light_radius*light_radius));
-    att *= att;
-    light_color *= att;
+    vec3 spot_direction = vec3(0,-1,0);
+    float inner_angle = PI/4;
+    float outer_angle = PI/3;
 
+    // directional
+    //vec3 I = light_color; // light intensity, in lux
+    //vec3 E = I * NdotL; // illuminance
 
-    
-#if CLEAR_COAT
-    vec3 result = light_color * NdotL * ((Fd + Fr * (1.0 - Fc)) * (1.0 - Fc) + Frc);
-#else
-    vec3 result = light_color * NdotL *(Fd * (1-F) + Fr);
-#endif
-
-    // COOK TORRANCE
-    //vec3 specfresnel = F_Schlick(LdotH, f0);
-    //vec3 specref = cooktorrance_specular(NdotL, NdotV, NdotH, specfresnel, linear_roughness);
-    //specref *= vec3(NdotL);
-    
-    // initial state
-    //vec3 diffuse_light   = vec3(0); // ambient
-    //vec3 reflected_light = vec3(0);
-    
     // point light
-    //vec3 diffref = (vec3(1) - specfresnel) * Fd_Lambert() * NdotL;
-    //diffuse_light   += diffref * light_color;
-    //reflected_light += specref * light_color;
-    
+    float I = light_intensity; // = luminous_power / (4*PI)
+    float attenuation = square_falloff_attenuation(IN.to_light, 1.0 / light_radius);
+    //for spot
+    //attenuation *= spot_angle_attenuation(l, spot_direction, inner_angle, outer_angle);
+    float E = I * attenuation * NdotL;
+    vec3 luminance = BSDF * E * light_color;
+
+
+
     // sky
-    /*
-    vec3 HSky = normalize( V + vec3(0,1,0) );
-    float HSkydotV = max( dot( HSky, V ), 0.001 );
-    float NdotHSky = max( dot( N, HSky ), 0.001 );
-    float NdotUp = 0.5 * ( dot( N, vec3(0,1,0) ) + 1.0 ); // warp
-    NdotUp *= NdotUp;
-    vec3 specfresnel_sky = F_Schlick(HSkydotV, f0);
-    vec3 specref_sky = cooktorrance_specular(NdotUp, NdotV, NdotHSky, specfresnel_sky, linear_roughness);
-    specref_sky *= vec3(NdotUp);
-    vec3 diffref_sky = (vec3(1) - specfresnel_sky) * Fd_Lambert() * NdotUp;
-    diffuse_light += 0.3 * diffref_sky * sky_color;
-    reflected_light += specref_sky * sky_color;
+    vec3 sky_color     = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
+    float sky_intensity = 1.0;
 
-    vec3 result = 
-          diffuse_light * diffuse_color
-        + reflected_light;
-    */
+    vec3 Ls = vec3(0,1,0);
+    vec3 Hs = normalize( v + Ls );
+    float NdotLs = max( dot( n, Ls ), 0.0 );
+    float NdotHs = max( dot( n, Hs ), 0.0 );
+    float VdotHs = max( dot( v, Hs ), 0.0 );
+    float LsdotHs = max( dot( Ls, Hs ), 0.0 );
 
-    uFragColor = vec4(Linear_to_sRGB(result), 1);
+    vec3 BSDF_Sky = CookTorranceBSDF(
+        diffuse_color, f0, 
+        linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
+        NdotV, NdotLs, NdotHs, VdotHs, LsdotHs,
+        Ls, v, Hs, n
+        );
+    
+    float Is = sky_intensity;
+    float Es = Is * NdotLs;
+    luminance += BSDF_Sky * Es * sky_color;
+
+
+
+    uFragColor = vec4(Linear_to_sRGB(luminance), 1);
     
     // DEBUG
     //uFragColor = vec4(0.5*(N+1),1);

@@ -128,7 +128,8 @@ void VulkanApplication::BuildScene()
     Scene::light_description_t light;
     light.position = glm::vec3(4,4,2);
     light.color    = glm::vec3(1,1,1);
-    light.radius   = 15.0f;
+    light.radius   = 25.0f;
+    // TODO: add intensity
     _scene->add_light(light);
 
     //
@@ -281,6 +282,15 @@ void VulkanApplication::BuildScene()
 #endif
 
 #if WITH_CUBES == 1
+    // metal [170..255]
+    constexpr float metal_min = 170.0f / 255.0f;
+    constexpr float metal_scale = (255.0f - 170.0f) / 255.0f;
+
+    // dielectrics [50..240]
+    constexpr float dielectric_min = 50.0f / 255.0f;
+    constexpr float dielectric_max = 240.0f / 255.0f;
+    constexpr float dielectric_scale = dielectric_max - dielectric_min;
+
     for (uint32_t i = 0; i < 19; ++i)
     {
         for (uint32_t j = 0; j < 19; ++j)
@@ -295,28 +305,28 @@ void VulkanApplication::BuildScene()
             obj_desc.indexCount = (uint32_t)obj.second.size();
             obj_desc.indices = obj.second.data();
             obj_desc.position = glm::vec3(-4.5f+i*0.5f, -5.0f+0.5f*real_rand(), -4.5f+j*0.5f);
-            bool is_metal = (real_rand() > 0.5f);
+            bool is_metal = (real_rand() > 0.5f); // binary random metallic
             if (is_metal)
             {
                 obj_desc.material = "neutral_metal";
-                float roughness = 0.045f + 0.955f * real_rand();
+                float roughness = 0.045f + 0.955f * real_rand(); // random roughness
                 float metallic = 1.0f;
-                float r = 0.2f + 0.8f * real_rand();
-                float g = 0.2f + 0.8f * real_rand();
-                float b = 0.2f + 0.8f * real_rand();
+                float r = metal_min + metal_scale * real_rand();
+                float g = metal_min + metal_scale * real_rand();
+                float b = metal_min + metal_scale * real_rand();
                 obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
-                obj_desc.specular = glm::vec4(roughness, metallic, 1, 0); // random roughness, binary random metallic
+                obj_desc.specular = glm::vec4(roughness, metallic, 1, 0);
             }
             else
             {
                 obj_desc.material = "neutral_dielectric";
-                float roughness = 0.045f + 0.955f * real_rand();
+                float roughness = 0.045f + 0.955f * real_rand(); // random roughness
                 float metallic = 0.0f;
-                float r = 0.2f + 0.8f * real_rand();
-                float g = 0.2f + 0.8f * real_rand();
-                float b = 0.2f + 0.8f * real_rand();
+                float r = dielectric_min + dielectric_scale * real_rand();
+                float g = dielectric_min + dielectric_scale * real_rand();
+                float b = dielectric_min + dielectric_scale * real_rand();
                 obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
-                obj_desc.specular = glm::vec4(roughness, metallic, 0.5f, 0); // random roughness, binary random metallic
+                obj_desc.specular = glm::vec4(roughness, metallic, 0.5f, 0);
             }
             _scene->add_object(obj_desc);
         }
