@@ -323,7 +323,7 @@ void main()
 
     // apply lighting
 
-    vec3 light_color   = sRGB_to_Linear(Scene_UBO.light_color.rgb);
+    vec3 light_color = sRGB_to_Linear(Scene_UBO.light_color.rgb);
     float light_radius = Scene_UBO.light_radius.x;
     float light_intensity = 1.0; //Scene_UBO.light_radius.y ???;
 
@@ -346,12 +346,13 @@ void main()
 
 
     // sky
-    vec3 sky_color     = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
+    vec3 sky_color = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
     float sky_intensity = 1.0;
 
     vec3 Ls = vec3(0,1,0);
     vec3 Hs = normalize( v + Ls );
-    float NdotLs = max( dot( n, Ls ), 0.0 );
+    //float NdotLs = max( dot( n, Ls ), 0.0 );
+    float NdotLs = 0.5 * (dot( n, Ls ) + 1); // wrap
     float NdotHs = max( dot( n, Hs ), 0.0 );
     float VdotHs = max( dot( v, Hs ), 0.0 );
     float LsdotHs = max( dot( Ls, Hs ), 0.0 );
@@ -363,6 +364,7 @@ void main()
         Ls, v, Hs, n
         );
     
+    // directional
     float Is = sky_intensity;
     float Es = Is * NdotLs;
     luminance += BSDF_Sky * Es * sky_color;
