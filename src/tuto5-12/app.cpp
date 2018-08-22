@@ -10,6 +10,9 @@
 #include "Scene.h"
 
 #include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_vulkan.h"
+
 #include "glm_usage.h"
 
 #include <array>
@@ -52,46 +55,36 @@ bool VulkanApplication::init()
         return false;
 
     Log("#----------------------------------------\n");
+    Log("#  Create ImGUI Context\n");
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    //(void)io;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    ImGui_ImplWin32_Init(_w->_win32_window); // hwnd
+
+    ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.Instance          = _r->context()->instance;
+    init_info.PhysicalDevice    = _r->context()->physical_device;
+    init_info.Device            = _r->context()->device;
+    init_info.QueueFamily       = _r->context()->graphics.family_index;
+    init_info.Queue             = _r->context()->graphics.queue;
+    init_info.PipelineCache     = nullptr;// g_PipelineCache;
+    init_info.DescriptorPool    = _r->context()->descriptor_pool;
+    init_info.Allocator         = nullptr;// g_Allocator;
+    init_info.CheckVkResultFn   = _ErrorCheck;
+    ImGui_ImplVulkan_Init(&init_info, _r->render_pass());
+
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+    io.Fonts->AddFontDefault();
+
+    Log("#----------------------------------------\n");
     Log("#  Init Scene\n");
     BuildScene();
     
     _r->SetScene(_scene);
-
-
-
-    // Create a window called "My First Tool", with a menu bar.
-    bool my_tool_active = true;
-    ImGui::Begin("vulkan testbed", &my_tool_active, ImGuiWindowFlags_MenuBar);
-    if (ImGui::BeginMenuBar())
-    {
-        if (ImGui::BeginMenu("File"))
-        {
-            if (ImGui::MenuItem("Open..", "Ctrl+O")) { /* Do stuff */ }
-            if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */ }
-            if (ImGui::MenuItem("Close", "Ctrl+W")) { my_tool_active = false; }
-            ImGui::EndMenu();
-        }
-        ImGui::EndMenuBar();
-    }
-
-    // Edit a color (stored as ~4 floats)
-    float my_color[] = {1,1,1,1};
-    ImGui::ColorEdit4("Color", my_color);
-
-    // Plot some values
-    const float my_values[] = { 0.2f, 0.1f, 1.0f, 0.5f, 0.9f, 2.2f };
-    ImGui::PlotLines("Frame Times", my_values, IM_ARRAYSIZE(my_values));
-
-    // Display contents in a scrolling region
-    ImGui::TextColored(ImVec4(1, 1, 0, 1), "Important Stuff");
-    ImGui::BeginChild("Scrolling");
-    for (int n = 0; n < 50; n++)
-        ImGui::Text("%04d: Some text", n);
-    ImGui::EndChild();
-    ImGui::End();
-
-
-
 
     return true;
 }
@@ -107,6 +100,8 @@ bool VulkanApplication::loop()
     auto last_time_for_dt = last_time;
     uint64_t frame_counter = 0;
     uint64_t fps = 0;
+
+    bool show_demo_window = true;
 
     while (_w->Update())
     {
@@ -127,7 +122,16 @@ bool VulkanApplication::loop()
             Log(oss.str().c_str());
         }
 
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
+
         // Actual drawing
+        ImGui::Render();
+
         _r->Draw(dt);
     }
 
@@ -144,6 +148,10 @@ void VulkanApplication::clean()
 
     Log("#  Destroy Scene\n");
     delete _scene;
+
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 
     Log("#  Destroy Context\n");
     delete _r;

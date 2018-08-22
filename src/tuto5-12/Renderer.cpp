@@ -6,6 +6,8 @@
 #include "window.h"
 #include "scene.h"
 
+#include "imgui.h"
+#include "imgui_impl_vulkan.h"
 
 #include "glm_usage.h"
 
@@ -150,11 +152,18 @@ bool Renderer::InitSceneVulkan()
     if (!InitSwapChainFrameBuffers())
         return false;
 
+    Log("#    Init Descriptor Pool\n");
+    if (!InitDescriptorPool())
+        return false;
+
     return true;
 }
 
 void Renderer::DeInitSceneVulkan()
 {
+    Log("#    Destroy DescriptorPool\n");
+    DeInitDescriptorPool();
+
     Log("#    Destroy FrameBuffers\n");
     DeInitSwapChainFrameBuffers();
 
@@ -175,13 +184,13 @@ bool Renderer::InitInstance()
 {
     VkResult result;
 
-    VkApplicationInfo application_info{};
+    VkApplicationInfo application_info = {};
     application_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     application_info.apiVersion         = VK_API_VERSION_1_0;//VK_MAKE_VERSION( 1, 1, 73 );
     application_info.applicationVersion = VK_MAKE_VERSION( 0, 0, 4 );
     application_info.pApplicationName   = "Vulkan Renderer";
 
-    VkInstanceCreateInfo instance_create_info{};
+    VkInstanceCreateInfo instance_create_info = {};
     instance_create_info.sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_create_info.pApplicationInfo           = &application_info;
     instance_create_info.enabledLayerCount          = (uint32_t)_ctx.instance_layers.size();
@@ -891,6 +900,7 @@ void Renderer::Draw(float dt)
         }
         vkCmdEndRenderPass(cmd);
 
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
     // NO NEED to transition from OPTIMAL to PRESENT at the end, if already specified in the render pass.
     }
@@ -1269,6 +1279,45 @@ void Renderer::DeInitSwapChainFrameBuffers()
     {
         vkDestroyFramebuffer(_ctx.device, framebuffer, nullptr);
     }
+}
+
+bool Renderer::InitDescriptorPool()
+{
+    VkResult result;
+
+    VkDescriptorPoolSize pool_sizes[] =
+    {
+        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
+    };
+
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
+    pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes;
+
+    result = vkCreateDescriptorPool(_ctx.device, &pool_info, nullptr, &_ctx.descriptor_pool);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
+    return true;
+}
+
+void Renderer::DeInitDescriptorPool()
+{
+    vkDestroyDescriptorPool(_ctx.device, _ctx.descriptor_pool, nullptr);
 }
 
 //

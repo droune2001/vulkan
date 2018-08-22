@@ -38,6 +38,8 @@ struct vulkan_context
     std::vector< const char * > device_extensions;
     VkPhysicalDeviceFeatures    features = {};
 
+    VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
+
     VkDebugReportCallbackEXT    debug_report = VK_NULL_HANDLE;
 
     // keep it in here to be able to give it to VkCreateInstance
@@ -107,6 +109,9 @@ private:
 
     bool InitSynchronizations();
     void DeInitSynchronizations();
+
+    bool InitDescriptorPool();
+    void DeInitDescriptorPool();
 
 private:
 

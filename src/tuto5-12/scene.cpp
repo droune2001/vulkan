@@ -6,6 +6,9 @@
 #include "utils.h"
 #include "initializers.h"
 
+#include "imgui.h"
+#include "imgui_impl_vulkan.h"
+
 #include <array>
 #include <string>
 
@@ -34,6 +37,14 @@ bool Scene::init(VkRenderPass rp)
     if (!create_scene_ubo())
         return false;
     
+    Log("#    Upload ImGui Font\n");
+    {
+        auto cmd = begin_single_time_commands(_ctx->graphics);
+        ImGui_ImplVulkan_CreateFontsTexture(cmd);
+        end_single_time_commands(cmd, _ctx->graphics);
+        ImGui_ImplVulkan_InvalidateFontUploadObjects();
+    }
+
     Log("#    Create Procedural Textures\n");
     if (!create_procedural_textures())
         return false;
@@ -1285,6 +1296,8 @@ bool Scene::create_all_descriptor_sets_pool()
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
+
+    // TODO: use global big descriptor pool, in _ctx->descriptor_pool
 
     return true;
 }

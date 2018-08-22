@@ -2,8 +2,6 @@
 #include "Shared.h"
 #include "build_options.h"
 
-#if BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
-
 void _ErrorCheck( VkResult result )
 {
     if ( result < 0 )
@@ -79,8 +77,6 @@ void _ErrorCheck( VkResult result )
         assert( !"Vulkan runtime error!" );
     }
 }
-
-#endif // BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
 
 void _LogCStr(const char *text)
 {

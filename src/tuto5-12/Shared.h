@@ -5,15 +5,12 @@
 #include <iostream>
 #include <assert.h>
 
+void _ErrorCheck(VkResult result);
+
 #if BUILD_ENABLE_VULKAN_RUNTIME_DEBUG
-
-void _ErrorCheck( VkResult result );
-#define ErrorCheck(e) _ErrorCheck(e)
-
+#   define ErrorCheck(e) _ErrorCheck(e)
 #else
-
-#define ErrorCheck(e)
-
+#   define ErrorCheck(e)
 #endif
 
 void _LogCStr(const char *text);

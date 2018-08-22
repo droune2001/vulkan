@@ -21,11 +21,19 @@
   <ItemGroup>
     <ClInclude Include="..\src\tuto5-12\app.h" />
     <ClInclude Include="..\src\tuto5-12\build_options.h" />
+    <ClInclude Include="..\src\tuto5-12\imconfig.h" />
+    <ClInclude Include="..\src\tuto5-12\imgui.h" />
+    <ClInclude Include="..\src\tuto5-12\imgui_impl_vulkan.h" />
+    <ClInclude Include="..\src\tuto5-12\imgui_impl_win32.h" />
+    <ClInclude Include="..\src\tuto5-12\imgui_internal.h" />
     <ClInclude Include="..\src\tuto5-12\initializers.h" />
     <ClInclude Include="..\src\tuto5-12\platform.h" />
     <ClInclude Include="..\src\tuto5-12\Renderer.h" />
     <ClInclude Include="..\src\tuto5-12\scene.h" />
     <ClInclude Include="..\src\tuto5-12\Shared.h" />
+    <ClInclude Include="..\src\tuto5-12\stb_rect_pack.h" />
+    <ClInclude Include="..\src\tuto5-12\stb_textedit.h" />
+    <ClInclude Include="..\src\tuto5-12\stb_truetype.h" />
     <ClInclude Include="..\src\tuto5-12\utils.h" />
     <ClInclude Include="..\src\tuto5-12\vk_mem_alloc.h" />
     <ClInclude Include="..\src\tuto5-12\vk_mem_alloc_usage.h" />
@@ -34,6 +42,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\tuto5-12\app.cpp" />
+    <ClCompile Include="..\src\tuto5-12\imgui.cpp" />
+    <ClCompile Include="..\src\tuto5-12\imgui_demo.cpp" />
+    <ClCompile Include="..\src\tuto5-12\imgui_draw.cpp" />
+    <ClCompile Include="..\src\tuto5-12\imgui_impl_vulkan.cpp" />
+    <ClCompile Include="..\src\tuto5-12\imgui_impl_win32.cpp" />
     <ClCompile Include="..\src\tuto5-12\initializers.cpp" />
     <ClCompile Include="..\src\tuto5-12\main.cpp" />
     <ClCompile Include="..\src\tuto5-12\Renderer.cpp" />

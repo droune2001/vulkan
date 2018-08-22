@@ -6,6 +6,14 @@
 
 #include "scene.h"
 
+#include "imgui.h"
+#include "imgui_impl_vulkan.h"
+
+#define IMGUI_UNLIMITED_FRAME_RATE
+#ifdef _DEBUG
+#define IMGUI_VULKAN_DEBUG_REPORT
+#endif
+
 #include <assert.h>
 #include <sstream>
 #include <array>

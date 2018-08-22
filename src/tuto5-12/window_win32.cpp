@@ -4,12 +4,21 @@
 #include "Renderer.h"
 #include "Shared.h"
 
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+
 #include <assert.h>
 
 uint64_t Window::_win32_class_id_counter = 0;
 
+// defined in imgui_impl_win32.cpp
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 LRESULT CALLBACK WindowsEventHandler(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
+        return true;
+
     Window *window = reinterpret_cast<Window*>(::GetWindowLongPtr(hwnd, GWLP_USERDATA));
     switch (uMsg)
     {
@@ -17,6 +26,11 @@ LRESULT CALLBACK WindowsEventHandler(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM
         window->Close();
         // return 0;
         ::PostQuitMessage(0);
+        break;
+
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xfff0) == SC_KEYMENU) // disable ALT for menu.
+            return 0;
         break;
 
     default: break;
@@ -86,6 +100,12 @@ void Window::DeInitOSWindow()
 void Window::UpdateOSWindow()
 {
     MSG msg;
+    ::ZeroMemory(&msg, sizeof(msg));
+
+    //ImGuiIO &io = ImGui::GetIO();
+    //if (io.WantCaptureMouse || io.WantCaptureKeyboard)
+    //    return;
+
     if (::PeekMessage(&msg, _win32_window, 0, 0, PM_REMOVE))
     {
         ::TranslateMessage(&msg);
