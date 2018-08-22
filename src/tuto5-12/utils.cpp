@@ -403,6 +403,26 @@ namespace utils
     Copper    0.97, 0.74, 0.62
 
     minimum roughness = 0.045 to avoid aliasing
+
+
+
+    color temperature:
+    1,700-1,800     Match flame                     255 125 0
+    1,850-1,930     Candle flame
+    2,000-3,000     Sun at sunrise/sunset
+    2,500-2,900     Household tungsten lightbulb
+    3,000           Tungsten lamp 1K
+    3,200-3,500     Quartz lights
+    3,200-3,700     Fluorescent lights
+    3,275           Tungsten lamp 2K
+    3,380           Tungsten lamp 5K, 10K
+    5,000-5,400     Sun at noon
+    5,500-6,500     Daylight (sun + sky)
+    5,500-6,500     Sun through clouds/haze
+    6,000-7,500     Overcast sky
+    6,500           RGB monitor white point
+    7,000-8,000     Shaded areas outdoors           235 236 255
+    8,000-10,000    Partly cloudy sky               214 224 255
     */
 } // namespace utils
 

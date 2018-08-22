@@ -281,7 +281,8 @@ private:
         // FS
         glm::vec4 color        = glm::vec4(1, 1, 1, 1);
         glm::vec4 light_radius = glm::vec4(10.0, 1, 1, 1); // x = radius
-        glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
+        glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 1);
+        //glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
     };
 
     std::vector<_light_t> _lights;

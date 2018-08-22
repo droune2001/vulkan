@@ -869,9 +869,10 @@ void Renderer::Draw(float dt)
         clear_values[0].depthStencil.depth = 1.0f;
         clear_values[0].depthStencil.stencil = 0;
         // cornflower blue #6495ED - 100 149 237
-        clear_values[1].color.float32[0] = 100.0f / 255.0f; // R // backbuffer is of type B8G8R8A8_UNORM
-        clear_values[1].color.float32[1] = 149.0f / 255.0f; // G
-        clear_values[1].color.float32[2] = 237.0f / 255.0f; // B
+        // partly clouded sky 214 224 255
+        clear_values[1].color.float32[0] = 214.0f / 255.0f; // R // backbuffer is of type B8G8R8A8_UNORM
+        clear_values[1].color.float32[1] = 224.0f / 255.0f; // G
+        clear_values[1].color.float32[2] = 255.0f / 255.0f; // B
         clear_values[1].color.float32[3] = 1.0f; // A
 
         VkRenderPassBeginInfo render_pass_begin_info = {};

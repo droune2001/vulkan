@@ -2,6 +2,10 @@
 #extension GL_ARB_separate_shader_objects : enable
 //#extension GL_KHR_vulkan_glsl : enable
 
+//#define ANISOTROPY
+//#define CLEAR_COAT
+//#define OPTI_FOR_LOW_END
+
 //
 // SCENE/VIEW
 // Common to VS and FS
@@ -233,7 +237,7 @@ vec3 CookTorranceBSDF(
     vec3 Fd = diffuse_color * Fd_Burley(NdotV, NdotL, LdotH, linear_roughness);
 #endif
     
-#if CLEAR_COAT
+#ifdef CLEAR_COAT
     // remapping and linearization of clear coat roughness
     clearCoatRoughness = mix(0.045, 0.6, clearCoatRoughness);
     float clearCoatLinearRoughness = clearCoatRoughness * clearCoatRoughness;
@@ -247,7 +251,7 @@ vec3 CookTorranceBSDF(
     // account for energy loss in the base layer
     return ((Fd + Fr * (1.0 - Fc)) * (1.0 - Fc) + Frc);
 #else
-    return (Fd * (1-F) + Fr);
+    return Fd + Fr;//(Fd * (1-F) + Fr);
 #endif
 }
 
@@ -278,15 +282,11 @@ float spot_angle_attenuation(vec3 l, vec3 lightDir, float innerAngle, float oute
 // MAIN
 //
 
-//#define ANISOTROPY
-//#define CLEAT_COAT
-#define OPTI_FOR_LOW_END
-
 void main() 
 {
     float anisotropy = 1.0; // [-1..1]
-    float clearCoatRoughness = 0.0;
-    float clearCoat = 1.0;
+    float clearCoatRoughness = 0.0; // remapped later
+    float clearCoat = 1.0; // fresnel multiplier
 
     vec4 sampled_base = texture(sampler2D(base_tex, tex_sampler), IN.uv);
     vec4 sampled_spec = texture(sampler2D(spec_tex, tex_sampler), IN.uv);
@@ -302,18 +302,25 @@ void main()
     vec3 f0 = mix(vec3(reflectance), base, metallic); // metal use base as reflectance
     float linear_roughness = roughness * roughness;
 
-    vec3 l = normalize( IN.to_light );
-    vec3 v = normalize( IN.to_camera );
-    vec3 h = normalize( v + l );
     vec3 n = normalize( IN.normal );
+    vec3 v = normalize( IN.to_camera );
     
     float NdotV = abs( dot( n, v ) ) + 1e-5;
+
+    vec3 luminance = vec3(0);
+
+    vec3 ll[2] = {IN.to_light, -IN.to_light};
+
+    // FOR EACH LIGHT
+    {
+    vec3 l = normalize( IN.to_light );
+    vec3 h = normalize( v + l );
+    
     float NdotL = max( dot( n, l ), 0.0 );
     float NdotH = max( dot( n, h ), 0.0 );//1e-5 );
     float VdotH = max( dot( v, h ), 0.0 );//1e-5 );
     float LdotH = max( dot( l, h ), 0.0 );//1e-5 );
 
-    // FOR EACH LIGHT
     vec3 BSDF = CookTorranceBSDF(
         diffuse_color, f0, 
         linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
@@ -341,13 +348,13 @@ void main()
     //for spot
     //attenuation *= spot_angle_attenuation(l, spot_direction, inner_angle, outer_angle);
     float E = I * attenuation * NdotL;
-    vec3 luminance = BSDF * E * light_color;
-
+    luminance = BSDF * E * light_color;
+    }
 
 
     // sky
     vec3 sky_color = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
-    float sky_intensity = 1.0;
+    float sky_intensity = 0.5;
 
     vec3 Ls = vec3(0,1,0);
     vec3 Hs = normalize( v + Ls );
