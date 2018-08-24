@@ -56,29 +56,8 @@ bool VulkanApplication::init()
 
     Log("#----------------------------------------\n");
     Log("#  Create ImGUI Context\n");
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    //(void)io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-    ImGui_ImplWin32_Init(_w->_win32_window); // hwnd
-
-    ImGui_ImplVulkan_InitInfo init_info = {};
-    init_info.Instance          = _r->context()->instance;
-    init_info.PhysicalDevice    = _r->context()->physical_device;
-    init_info.Device            = _r->context()->device;
-    init_info.QueueFamily       = _r->context()->graphics.family_index;
-    init_info.Queue             = _r->context()->graphics.queue;
-    init_info.PipelineCache     = nullptr;// g_PipelineCache;
-    init_info.DescriptorPool    = _r->context()->descriptor_pool;
-    init_info.Allocator         = nullptr;// g_Allocator;
-    init_info.CheckVkResultFn   = _ErrorCheck;
-    ImGui_ImplVulkan_Init(&init_info, _r->render_pass());
-
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-    io.Fonts->AddFontDefault();
+    if (!InitImGui())
+        return false;
 
     Log("#----------------------------------------\n");
     Log("#  Init Scene\n");
@@ -98,6 +77,7 @@ bool VulkanApplication::loop()
     auto timer = std::chrono::steady_clock();
     auto last_time = timer.now();
     auto last_time_for_dt = last_time;
+    bool should_refresh_fps = false;
     uint64_t frame_counter = 0;
     uint64_t fps = 0;
 
@@ -105,31 +85,35 @@ bool VulkanApplication::loop()
 
     while (_w->Update())
     {
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
         // CPU Logic calculations
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(timer.now() - last_time_for_dt);
         last_time_for_dt = timer.now();
         float dt = duration.count() / 1000000.0f;
 
+        should_refresh_fps = false;
         ++frame_counter;
         if (last_time + std::chrono::seconds(1) < timer.now())
         {
             last_time = timer.now();
             fps = frame_counter;
             frame_counter = 0;
+            should_refresh_fps = true;
 
-            std::ostringstream oss;
-            oss << "*** FPS: " << fps << std::endl;
-            Log(oss.str().c_str());
+            //std::ostringstream oss;
+            //oss << "*** FPS: " << fps << std::endl;
+            //Log(oss.str().c_str());
         }
 
-        ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
+        ShowUI();
+        ShowFPSWindow(should_refresh_fps, fps);
 
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
-        // Actual drawing
         ImGui::Render();
 
         _r->Draw(dt);
@@ -379,4 +363,163 @@ void VulkanApplication::BuildScene()
 #endif
     _scene->compile();
 }
+
+//
+// IMGUI
+//
+
+bool VulkanApplication::InitImGui()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    //(void)io;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    ImGui_ImplWin32_Init(_w->_win32_window); // hwnd
+
+    ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.Instance = _r->context()->instance;
+    init_info.PhysicalDevice = _r->context()->physical_device;
+    init_info.Device = _r->context()->device;
+    init_info.QueueFamily = _r->context()->graphics.family_index;
+    init_info.Queue = _r->context()->graphics.queue;
+    init_info.PipelineCache = nullptr;// g_PipelineCache;
+    init_info.DescriptorPool = _r->context()->descriptor_pool;
+    init_info.Allocator = nullptr;// g_Allocator;
+    init_info.CheckVkResultFn = _ErrorCheck;
+    ImGui_ImplVulkan_Init(&init_info, _r->render_pass());
+
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+    io.Fonts->AddFontDefault();
+
+    return true;
+}
+
+void VulkanApplication::ShowUI()
+{
+    ShowMainMenuBar();
+    //ShowFPSWindow();
+}
+
+void VulkanApplication::ShowMainMenuBar()
+{
+    if (ImGui::BeginMainMenuBar())
+    {
+        if (ImGui::BeginMenu("File"))
+        {
+            ShowMenuFile();
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Edit"))
+        {
+            if (ImGui::MenuItem("Undo", "CTRL+Z")) {}
+            if (ImGui::MenuItem("Redo", "CTRL+Y", false, false)) {}  // Disabled item
+            ImGui::Separator();
+            if (ImGui::MenuItem("Cut", "CTRL+X")) {}
+            if (ImGui::MenuItem("Copy", "CTRL+C")) {}
+            if (ImGui::MenuItem("Paste", "CTRL+V")) {}
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
+}
+
+void VulkanApplication::ShowMenuFile()
+{
+    ImGui::MenuItem("(dummy menu)", NULL, false, false);
+    if (ImGui::MenuItem("New")) {}
+    if (ImGui::MenuItem("Open", "Ctrl+O")) {}
+    if (ImGui::BeginMenu("Open Recent"))
+    {
+        ImGui::MenuItem("fish_hat.c");
+        ImGui::MenuItem("fish_hat.inl");
+        ImGui::MenuItem("fish_hat.h");
+        if (ImGui::BeginMenu("More.."))
+        {
+            ImGui::MenuItem("Hello");
+            ImGui::MenuItem("Sailor");
+            if (ImGui::BeginMenu("Recurse.."))
+            {
+                ShowMenuFile();
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenu();
+    }
+    if (ImGui::MenuItem("Save", "Ctrl+S")) {}
+    if (ImGui::MenuItem("Save As..")) {}
+    ImGui::Separator();
+    if (ImGui::BeginMenu("Options"))
+    {
+        static bool enabled = true;
+        ImGui::MenuItem("Enabled", "", &enabled);
+        ImGui::BeginChild("child", ImVec2(0, 60), true);
+        for (int i = 0; i < 10; i++)
+            ImGui::Text("Scrolling Text %d", i);
+        ImGui::EndChild();
+        static float f = 0.5f;
+        static int n = 0;
+        static bool b = true;
+        ImGui::SliderFloat("Value", &f, 0.0f, 1.0f);
+        ImGui::InputFloat("Input", &f, 0.1f);
+        ImGui::Combo("Combo", &n, "Yes\0No\0Maybe\0\0");
+        ImGui::Checkbox("Check", &b);
+        ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Colors"))
+    {
+        float sz = ImGui::GetTextLineHeight();
+        for (int i = 0; i < ImGuiCol_COUNT; i++)
+        {
+            const char* name = ImGui::GetStyleColorName((ImGuiCol)i);
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + sz, p.y + sz), ImGui::GetColorU32((ImGuiCol)i));
+            ImGui::Dummy(ImVec2(sz, sz));
+            ImGui::SameLine();
+            ImGui::MenuItem(name);
+        }
+        ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Disabled", false)) // Disabled
+    {
+        IM_ASSERT(0);
+    }
+    if (ImGui::MenuItem("Checked", NULL, true)) {}
+    if (ImGui::MenuItem("Quit", "Alt+F4")) {}
+}
+
+void VulkanApplication::ShowFPSWindow(bool should_refresh_fps, uint64_t fps)
+{
+    ImGuiWindowFlags window_flags = 0;
+    window_flags |= ImGuiWindowFlags_NoTitleBar;
+    window_flags |= ImGuiWindowFlags_NoScrollbar;
+    //window_flags |= ImGuiWindowFlags_MenuBar;
+    window_flags |= ImGuiWindowFlags_NoMove;
+    window_flags |= ImGuiWindowFlags_NoResize;
+    window_flags |= ImGuiWindowFlags_NoCollapse;
+    window_flags |= ImGuiWindowFlags_NoNav;
+    bool *pOpen = nullptr;
+
+    ImGui::Begin("FPS", pOpen, window_flags);
+
+    static float values[30] = { 0 };
+    static int values_offset = 0;
+    static uint64_t max_fps = 1;
+    if (should_refresh_fps)
+    {
+        values[values_offset] = (float)fps;
+        values_offset = (values_offset + 1) % IM_ARRAYSIZE(values);
+        if (fps > max_fps)
+            max_fps = fps;
+    }
+    std::string text = std::string("FPS: ") + std::to_string(fps);
+    ImGui::PlotLines("", values, IM_ARRAYSIZE(values), values_offset, text.c_str(), 0.0f, (float)max_fps, ImVec2(0, 50));
+    //ImGui::PlotHistogram("", values, IM_ARRAYSIZE(values), 0, text.c_str(), 0.0f, (float)max_fps, ImVec2(0, 50));
+
+    ImGui::End();
+}
+
 //

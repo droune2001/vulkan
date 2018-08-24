@@ -38,6 +38,12 @@ protected:
 private:
     void BuildScene();
 
+    void ShowUI();
+    bool InitImGui();
+    void ShowMainMenuBar();
+    void ShowMenuFile();
+    void ShowFPSWindow(bool should_refresh_fps, uint64_t fps);
+
 private:
     Renderer * _r = nullptr;
     Window   * _w = nullptr;

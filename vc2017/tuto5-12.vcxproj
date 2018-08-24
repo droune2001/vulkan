@@ -24,6 +24,8 @@
     <ClInclude Include="..\src\tuto5-12\glm_usage.h" />
     <ClInclude Include="..\src\tuto5-12\imconfig.h" />
     <ClInclude Include="..\src\tuto5-12\imgui.h" />
+    <ClInclude Include="..\src\tuto5-12\imgui_impl_vulkan.h" />
+    <ClInclude Include="..\src\tuto5-12\imgui_impl_win32.h" />
     <ClInclude Include="..\src\tuto5-12\imgui_internal.h" />
     <ClInclude Include="..\src\tuto5-12\initializers.h" />
     <ClInclude Include="..\src\tuto5-12\platform.h" />
@@ -44,6 +46,8 @@
     <ClCompile Include="..\src\tuto5-12\imgui.cpp" />
     <ClCompile Include="..\src\tuto5-12\imgui_demo.cpp" />
     <ClCompile Include="..\src\tuto5-12\imgui_draw.cpp" />
+    <ClCompile Include="..\src\tuto5-12\imgui_impl_vulkan.cpp" />
+    <ClCompile Include="..\src\tuto5-12\imgui_impl_win32.cpp" />
     <ClCompile Include="..\src\tuto5-12\initializers.cpp" />
     <ClCompile Include="..\src\tuto5-12\main.cpp" />
     <ClCompile Include="..\src\tuto5-12\Renderer.cpp" />
