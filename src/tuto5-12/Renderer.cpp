@@ -839,12 +839,13 @@ void Renderer::Draw(float dt)
     vkWaitForFences(_ctx.device, 1, &_render_fences[current_frame], VK_TRUE, UINT64_MAX);
     vkResetFences(_ctx.device, 1, &_render_fences[current_frame]);
 
+    _scene->upload();
+
     // Begin render = acquire image and set semaphore to be signaled when presenting
     // engine is done reading that frame.
     _w->BeginRender(_present_complete_semaphores[current_frame]);
 
-    //auto &cmd = _ctx.graphics.command_buffer; // TODO: need as many cmd buffers as swap images!
-    auto &cmd = _ctx.graphics.command_buffers[current_frame]; // TODO: need as many cmd buffers as swap images!
+    auto &cmd = _ctx.graphics.command_buffers[current_frame];
 
     // Record command buffer
     VkCommandBufferBeginInfo begin_info = {};
@@ -862,7 +863,7 @@ void Renderer::Draw(float dt)
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_HOST_BIT,
-            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,//VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
             0,
             1, &uniform_memory_barrier,
             0, nullptr,

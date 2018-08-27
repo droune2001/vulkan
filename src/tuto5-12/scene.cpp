@@ -197,14 +197,15 @@ void Scene::update(float dt)
     animate_camera(dt);
 }
 
+void Scene::upload()
+{
+    update_scene_ubo();
+    update_all_objects_ubos();
+}
+
 void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect)
 {
     // RENDER PASS BEGIN ---
-
-    update_scene_ubo();
-    update_all_objects_ubos();
-
-    // pipeline barrier pour flush ubo ??
 
     auto default_material = _materials["default"];
     auto default_view = _views["perspective"];
@@ -911,6 +912,7 @@ void Scene::animate_object(float dt)
     *model_mat_obj_1 = glm::translate(glm::mat4(1), obj_1.position + glm::vec3(-obj_x, obj_y, -obj_z));
 
     // TODO: animate floor instance objects
+    // ...
 }
 
 void Scene::animate_camera(float dt)

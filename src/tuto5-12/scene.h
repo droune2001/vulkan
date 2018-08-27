@@ -133,6 +133,7 @@ public:
     void de_init();
     bool compile(); // create descriptor sets once all ythe scene is built.
     void update(float dt);
+    void upload();
     void draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect);
     
 
