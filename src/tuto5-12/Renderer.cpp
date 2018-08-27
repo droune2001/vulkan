@@ -831,6 +831,8 @@ void Renderer::Draw(float dt)
 {
     _scene->update(dt);
 
+    ImGui::Render();
+
     VkResult result;
 
     // CPU wait for the end of the previous same parallel frame.

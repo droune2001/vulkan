@@ -192,7 +192,9 @@ bool Scene::add_camera(camera_description_t ca)
 }
 
 void Scene::update(float dt)
-{   
+{
+    show_property_sheet();
+
     animate_object(dt);
     animate_camera(dt);
 }
@@ -1720,5 +1722,72 @@ bool Scene::add_material_instance(material_instance_description_t mi)
     return true;
 }
 
+Scene::_material_override_t *Scene::get_object_material(int obj_idx)
+{
+    auto &global_material_ubo = get_global_object_material_ubo();
+    return (_material_override_t*)((uint64_t)global_material_ubo.host_data + (obj_idx * global_material_ubo.alignment));
+}
+
+//
+// GUI
+//
+
+void Scene::tmp_change_sphere_base_color(const glm::vec4 &base_color)
+{
+    _material_override_t *material = get_object_material(0);
+    material->base_color = base_color;
+}
+
+void Scene::tmp_change_sphere_spec_color(const glm::vec4 &spec_color)
+{
+    _material_override_t *material = get_object_material(0);
+    material->specular = spec_color;
+}
+
+glm::vec4 Scene::get_object_base_color(int idx)
+{
+    _material_override_t *material = get_object_material(idx);
+    return material->base_color;
+}
+
+glm::vec4 Scene::get_object_spec_color(int idx)
+{
+    _material_override_t *material = get_object_material(idx);
+    return material->specular;
+}
+
+void Scene::show_property_sheet()
+{
+    ImGuiWindowFlags window_flags = 0;
+    window_flags |= ImGuiWindowFlags_NoTitleBar;
+    window_flags |= ImGuiWindowFlags_NoScrollbar;
+    //window_flags |= ImGuiWindowFlags_MenuBar;
+    window_flags |= ImGuiWindowFlags_NoMove;
+    window_flags |= ImGuiWindowFlags_NoResize;
+    window_flags |= ImGuiWindowFlags_NoCollapse;
+    window_flags |= ImGuiWindowFlags_NoNav;
+    bool *pOpen = nullptr;
+
+    ImGui::Begin("Objects Properties", pOpen, window_flags);
+    {
+        const char* listbox_items[] = { "Sphere_000", "CheckerPlane", "Cube_000"};
+        static int listbox_item_current = 1;
+        ImGui::ListBox("listbox\n(single select)", &listbox_item_current, listbox_items, IM_ARRAYSIZE(listbox_items), 4);
+    
+
+        glm::vec4 base_color = get_object_base_color(0);
+        if (ImGui::ColorEdit4("base_color", glm::value_ptr(base_color)))
+        {
+            tmp_change_sphere_base_color(base_color);
+        }
+
+        glm::vec4 spec_color = get_object_spec_color(0);
+        if (ImGui::ColorEdit4("spec_color", glm::value_ptr(spec_color)))
+        {
+            tmp_change_sphere_spec_color(spec_color);
+        }
+    }
+    ImGui::End();
+}
 
 //

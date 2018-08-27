@@ -114,7 +114,7 @@ bool VulkanApplication::loop()
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
-        ImGui::Render();
+        //ImGui::Render();
 
         _r->Draw(dt);
     }
@@ -494,9 +494,9 @@ void VulkanApplication::ShowMenuFile()
 void VulkanApplication::ShowFPSWindow(bool should_refresh_fps, uint64_t fps)
 {
     ImGuiWindowFlags window_flags = 0;
+    //window_flags |= ImGuiWindowFlags_MenuBar;
     window_flags |= ImGuiWindowFlags_NoTitleBar;
     window_flags |= ImGuiWindowFlags_NoScrollbar;
-    //window_flags |= ImGuiWindowFlags_MenuBar;
     window_flags |= ImGuiWindowFlags_NoMove;
     window_flags |= ImGuiWindowFlags_NoResize;
     window_flags |= ImGuiWindowFlags_NoCollapse;

@@ -135,7 +135,6 @@ public:
     void update(float dt);
     void upload();
     void draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect);
-    
 
 private:
 
@@ -170,6 +169,7 @@ private:
         // TODO: store reserved size
     };
 
+    void show_property_sheet();
     void animate_object(float dt);
     void animate_camera(float dt);
 
@@ -221,6 +221,10 @@ private:
     VkCommandBuffer begin_single_time_commands(const vulkan_queue &queue);
     void end_single_time_commands(VkCommandBuffer cmd, const vulkan_queue &queue);
 
+    // tmp
+    void tmp_change_sphere_base_color(const glm::vec4 &base_color);
+    void tmp_change_sphere_spec_color(const glm::vec4 &spec_color);
+
 private:
 
     vulkan_context *_ctx = nullptr;
@@ -234,6 +238,10 @@ private:
         glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
         glm::vec4 specular = glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
     };
+
+    _material_override_t *get_object_material(int obj_idx);
+    glm::vec4 get_object_base_color(int idx);
+    glm::vec4 get_object_spec_color(int idx);
 
     struct _object_t
     {
@@ -257,6 +265,7 @@ private:
     //        binding #1 material overrides : FS
     VkDescriptorSet _global_objects_descriptor_set = VK_NULL_HANDLE;
 
+    // TODO: map, with name and index in global buffers.
     std::vector<_object_t> _objects;
     
     void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
