@@ -6847,6 +6847,10 @@ void ImGui::End()
 {
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
+    
+    // FIX
+    //if (!window) return;
+
 
     if (window->DC.ColumnsSet != NULL)
         EndColumns();

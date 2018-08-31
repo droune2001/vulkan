@@ -826,13 +826,13 @@ void Renderer::DeInitSynchronizations()
 //
 // DRAW
 //
+void Renderer::Update(float dt)
+{
+    _scene->update(dt);
+}
 
 void Renderer::Draw(float dt)
 {
-    _scene->update(dt);
-
-    ImGui::Render();
-
     VkResult result;
 
     // CPU wait for the end of the previous same parallel frame.
@@ -900,10 +900,9 @@ void Renderer::Draw(float dt)
             VkViewport viewport = { 0, 0, (float)_global_viewport.width, (float)_global_viewport.height, 0, 1 };
             VkRect2D scissor = { 0, 0, _global_viewport.width, _global_viewport.height };
             _scene->draw(cmd, viewport, scissor);
+            ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
         }
         vkCmdEndRenderPass(cmd);
-
-        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
     // NO NEED to transition from OPTIMAL to PRESENT at the end, if already specified in the render pass.
     }

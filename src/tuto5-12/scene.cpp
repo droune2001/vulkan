@@ -162,6 +162,8 @@ bool Scene::add_object(object_description_t desc)
     materials->base_color = desc.base_color;
     materials->specular = desc.specular;
 
+    //_object_names[desc.name] = _objects.size();
+    _object_names.push_back(desc.name);
     _objects.push_back(obj);
 
     return true;
@@ -195,8 +197,14 @@ void Scene::update(float dt)
 {
     show_property_sheet();
 
-    animate_object(dt);
-    animate_camera(dt);
+    if (_animate_object)
+        animate_object(dt);
+
+    if (_animate_camera)
+        animate_camera(dt);
+
+    if (_animate_light)
+        animate_light(dt);
 }
 
 void Scene::upload()
@@ -929,10 +937,13 @@ void Scene::animate_camera(float dt)
     float cz = cam_r * std::sin(cam_as * accum_dt);
     auto &camera = _cameras["perspective"];
     camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+}
 
-    //
-    // LIGHT anim
-    //
+void Scene::animate_light(float dt)
+{
+    static float accum_dt = 0.0f;
+    accum_dt += dt;
+
     const float r = 4.0f; // radius
     const float as = 1.4f; // angular_speed, radians/sec
     float lx = r * std::cos(as * accum_dt);
@@ -1732,15 +1743,15 @@ Scene::_material_override_t *Scene::get_object_material(int obj_idx)
 // GUI
 //
 
-void Scene::tmp_change_sphere_base_color(const glm::vec4 &base_color)
+void Scene::tmp_change_sphere_base_color(int idx, const glm::vec4 &base_color)
 {
-    _material_override_t *material = get_object_material(0);
+    _material_override_t *material = get_object_material(idx);
     material->base_color = base_color;
 }
 
-void Scene::tmp_change_sphere_spec_color(const glm::vec4 &spec_color)
+void Scene::tmp_change_sphere_spec_color(int idx, const glm::vec4 &spec_color)
 {
-    _material_override_t *material = get_object_material(0);
+    _material_override_t *material = get_object_material(idx);
     material->specular = spec_color;
 }
 
@@ -1759,33 +1770,50 @@ glm::vec4 Scene::get_object_spec_color(int idx)
 void Scene::show_property_sheet()
 {
     ImGuiWindowFlags window_flags = 0;
-    window_flags |= ImGuiWindowFlags_NoTitleBar;
-    window_flags |= ImGuiWindowFlags_NoScrollbar;
     //window_flags |= ImGuiWindowFlags_MenuBar;
-    window_flags |= ImGuiWindowFlags_NoMove;
-    window_flags |= ImGuiWindowFlags_NoResize;
-    window_flags |= ImGuiWindowFlags_NoCollapse;
-    window_flags |= ImGuiWindowFlags_NoNav;
+    //window_flags |= ImGuiWindowFlags_NoTitleBar;
+    //window_flags |= ImGuiWindowFlags_NoScrollbar;
+    //window_flags |= ImGuiWindowFlags_NoMove;
+    //window_flags |= ImGuiWindowFlags_NoResize;
+    //window_flags |= ImGuiWindowFlags_NoCollapse;
+    //window_flags |= ImGuiWindowFlags_NoNav;
     bool *pOpen = nullptr;
 
     ImGui::Begin("Objects Properties", pOpen, window_flags);
     {
-        const char* listbox_items[] = { "Sphere_000", "CheckerPlane", "Cube_000"};
-        static int listbox_item_current = 1;
-        ImGui::ListBox("listbox\n(single select)", &listbox_item_current, listbox_items, IM_ARRAYSIZE(listbox_items), 4);
-    
+        if (!_object_names.empty())
+        {
+            ImGuiComboFlags combo_flags = ImGuiComboFlags_None;
+            combo_flags |= ImGuiComboFlags_HeightLargest;
+            if (ImGui::BeginCombo("Object", _object_names[_current_item_idx].c_str(), combo_flags))
+            {
+                for (int n = 0; n < _object_names.size(); ++n)
+                {
+                    bool is_selected = (_current_item_idx == n);
+                    if (ImGui::Selectable(_object_names[n].c_str(), is_selected))
+                        _current_item_idx = n;
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();   // Set the initial focus when opening the combo (scrolling + for keyboard navigation support in the upcoming navigation branch)
+                }
+                ImGui::EndCombo();
+            }
+        }
 
-        glm::vec4 base_color = get_object_base_color(0);
+        glm::vec4 base_color = get_object_base_color(_current_item_idx);
         if (ImGui::ColorEdit4("base_color", glm::value_ptr(base_color)))
         {
-            tmp_change_sphere_base_color(base_color);
+            tmp_change_sphere_base_color(_current_item_idx, base_color);
         }
 
-        glm::vec4 spec_color = get_object_spec_color(0);
+        glm::vec4 spec_color = get_object_spec_color(_current_item_idx);
         if (ImGui::ColorEdit4("spec_color", glm::value_ptr(spec_color)))
         {
-            tmp_change_sphere_spec_color(spec_color);
+            tmp_change_sphere_spec_color(_current_item_idx, spec_color);
         }
+
+        ImGui::Checkbox("Animate camera", &_animate_camera);
+        ImGui::Checkbox("Animate light", &_animate_light);
+        ImGui::Checkbox("Animate object", &_animate_object);
     }
     ImGui::End();
 }

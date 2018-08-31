@@ -108,13 +108,15 @@ bool VulkanApplication::loop()
             //Log(oss.str().c_str());
         }
 
-        ShowUI();
+        ShowMainMenuBar();
         ShowFPSWindow(should_refresh_fps, fps);
 
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        //if (show_demo_window)
+            //ImGui::ShowDemoWindow(&show_demo_window);
 
-        //ImGui::Render();
+        _r->Update(dt);
+
+        ImGui::Render();
 
         _r->Draw(dt);
     }
@@ -219,6 +221,7 @@ void VulkanApplication::BuildScene()
         float ith = (float)i / (NB_SPHERES-1);
         IndexedMesh icosphere = make_icosphere(3, 0.5f); // 3 = 642 vtx, 1280 tri, 3840 idx
         Scene::object_description_t obj_desc = {};
+        obj_desc.name = std::string("DielectricSphere_") + std::to_string(i);
         obj_desc.vertexCount = (uint32_t)icosphere.first.size();
         obj_desc.vertices = icosphere.first.data();
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
@@ -236,6 +239,7 @@ void VulkanApplication::BuildScene()
         float ith = (float)i / (NB_SPHERES-1);
         IndexedMesh icosphere = make_icosphere(3, 0.5f); // 3 = 642 vtx, 1280 tri, 3840 idx
         Scene::object_description_t obj_desc = {};
+        obj_desc.name = std::string("MetalSphere_") + std::to_string(i);
         obj_desc.vertexCount = (uint32_t)icosphere.first.size();
         obj_desc.vertices = icosphere.first.data();
         obj_desc.indexCount = (uint32_t)icosphere.second.size();
@@ -298,6 +302,7 @@ void VulkanApplication::BuildScene()
     {
         IndexedMesh obj = make_flat_cube(10.0f, 10.0f, 1.0f); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
+        obj_desc.name = std::string("FarWall");
         obj_desc.vertexCount = (uint32_t)obj.first.size();
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
@@ -329,6 +334,7 @@ void VulkanApplication::BuildScene()
 
             IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
             Scene::object_description_t obj_desc = {};
+            obj_desc.name = std::string("Cube_") + std::to_string(i*19+j);
             obj_desc.vertexCount = (uint32_t)obj.first.size();
             obj_desc.vertices = obj.first.data();
             obj_desc.indexCount = (uint32_t)obj.second.size();
@@ -395,12 +401,6 @@ bool VulkanApplication::InitImGui()
     io.Fonts->AddFontDefault();
 
     return true;
-}
-
-void VulkanApplication::ShowUI()
-{
-    ShowMainMenuBar();
-    //ShowFPSWindow();
 }
 
 void VulkanApplication::ShowMainMenuBar()

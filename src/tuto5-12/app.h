@@ -38,7 +38,6 @@ protected:
 private:
     void BuildScene();
 
-    void ShowUI();
     bool InitImGui();
     void ShowMainMenuBar();
     void ShowMenuFile();

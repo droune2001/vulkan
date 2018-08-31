@@ -209,6 +209,7 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
     size_t index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
     if (!fd->VertexBuffer || fd->VertexBufferSize < vertex_size)
         CreateOrResizeBuffer(fd->VertexBuffer, fd->VertexBufferMemory, fd->VertexBufferSize, vertex_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    // NOTE(nfauvet): destroys the buffer still used by the previous frame.
     if (!fd->IndexBuffer || fd->IndexBufferSize < index_size)
         CreateOrResizeBuffer(fd->IndexBuffer, fd->IndexBufferMemory, fd->IndexBufferSize, index_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 

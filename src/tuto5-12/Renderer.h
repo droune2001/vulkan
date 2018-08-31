@@ -8,7 +8,7 @@
 class Window;
 class Scene;
 
-constexpr uint32_t MAX_PARALLEL_FRAMES = 3;
+constexpr uint32_t MAX_PARALLEL_FRAMES = 2;
 
 struct vulkan_queue
 {
@@ -57,6 +57,7 @@ public:
     bool InitSceneVulkan();
     void DeInitSceneVulkan();
     void SetScene(Scene *scene) { _scene = scene; }
+    void Update(float dt); 
     void Draw(float dt);
 
     vulkan_context *context() { return &_ctx; };

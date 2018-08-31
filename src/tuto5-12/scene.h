@@ -21,6 +21,7 @@ public:
     Scene(vulkan_context *);
     ~Scene();
 
+    using object_id_t = std::string;
     using material_id_t = std::string;
     using material_instance_id_t = std::string;
     using texture_id_t = std::string;
@@ -68,6 +69,8 @@ public:
 
     struct object_description_t
     {
+        object_id_t name = "";
+
         uint32_t indexCount = 0;
         uint16_t *indices = nullptr;
         uint32_t vertexCount = 0;
@@ -170,8 +173,9 @@ private:
     };
 
     void show_property_sheet();
+    void animate_camera(float dt); 
+    void animate_light(float dt); 
     void animate_object(float dt);
-    void animate_camera(float dt);
 
     bool update_scene_ubo();
     bool update_all_objects_ubos();
@@ -222,12 +226,17 @@ private:
     void end_single_time_commands(VkCommandBuffer cmd, const vulkan_queue &queue);
 
     // tmp
-    void tmp_change_sphere_base_color(const glm::vec4 &base_color);
-    void tmp_change_sphere_spec_color(const glm::vec4 &spec_color);
+    void tmp_change_sphere_base_color(int idx, const glm::vec4 &base_color);
+    void tmp_change_sphere_spec_color(int idx, const glm::vec4 &spec_color);
 
 private:
 
     vulkan_context *_ctx = nullptr;
+
+    bool _animate_camera = true;
+    bool _animate_light = true;
+    bool _animate_object = true;
+    int _current_item_idx = 0;
 
     //
     // OBJECTS
@@ -267,6 +276,7 @@ private:
 
     // TODO: map, with name and index in global buffers.
     std::vector<_object_t> _objects;
+    std::vector<object_id_t> _object_names = {};
     
     void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
     dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
