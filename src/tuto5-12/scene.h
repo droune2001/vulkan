@@ -42,7 +42,7 @@ public:
 
             return &vertex_binding_description;
         }
-        
+
         static uint32_t attribute_description_count() { return 3; }
         static VkVertexInputAttributeDescription * attribute_descriptions()
         {
@@ -81,16 +81,17 @@ public:
 
         material_instance_id_t material = "white_rough"; // material parameters set
 
-        // material overrides.
+                                                         // material overrides.
         glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
         glm::vec4 specular = glm::vec4(0.5, 0.0, 0.0, 0.0); // roughness, metallic, 0, 0
     };
 
     struct light_description_t
     {
-        glm::vec3 color    = glm::vec3(1,1,1);
-        glm::vec3 position = glm::vec3(0,0,0);
-        float     radius   = 10.0f;
+        glm::vec3 position = glm::vec3(0, 0, 0);
+        glm::vec3 color = glm::vec3(1, 1, 1);
+        float     radius = 10.0f;
+        float     intensity = 1.0f;
     };
 
     using view_id_t = std::string;
@@ -98,7 +99,7 @@ public:
     struct camera_description_t
     {
         camera_id_t camera_id;
-        glm::vec3 position = glm::vec3(10,0,0);
+        glm::vec3 position = glm::vec3(10, 0, 0);
         float fovy = 90.0f;
         float aspect = 4.0f / 3.0f;
         float near_plane = 0.1f;
@@ -118,10 +119,10 @@ public:
     {
         material_id_t material_id;
         material_instance_id_t instance_id;
-        
+
         texture_id_t base_tex = "default"; // diffuse or specular, depending on metalness.
         texture_id_t specular_tex = "default_spec"; // x = roughness, y = metallic
-        glm::vec3 diffuse_color = glm::vec3(1,1,1);
+        glm::vec3 diffuse_color = glm::vec3(1, 1, 1);
         float roughness = 0.1f;
         float metalness = 0.0f;
     };
@@ -173,8 +174,8 @@ private:
     };
 
     void show_property_sheet();
-    void animate_camera(float dt); 
-    void animate_light(float dt); 
+    void animate_camera(float dt);
+    void animate_light(float dt);
     void animate_object(float dt);
 
     bool update_scene_ubo();
@@ -192,7 +193,7 @@ private:
 
     bool create_global_object_buffers();
     void destroy_global_object_buffers();
-    
+
     bool create_procedural_textures();
     bool create_texture_samplers();
     void destroy_textures();
@@ -230,7 +231,7 @@ private:
 
 private:
 
-    vulkan_context *_ctx = nullptr;
+    vulkan_context * _ctx = nullptr;
 
     bool _animate_camera = true;
     bool _animate_light = true;
@@ -257,13 +258,13 @@ private:
         uint32_t vertexCount = 0;
         uint32_t index_offset = 0;
         VkBuffer index_buffer = VK_NULL_HANDLE; // ref
-        
+
         uint32_t indexCount = 0;
         uint32_t vertex_offset = 0;
         VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
-        
-        // for animation
-        glm::vec3 position = glm::vec3(0,0,0);
+
+                                                 // for animation
+        glm::vec3 position = glm::vec3(0, 0, 0);
         glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
         glm::vec4 specular = glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
 
@@ -277,7 +278,7 @@ private:
     // TODO: map, with name and index in global buffers.
     std::vector<_object_t> _objects;
     std::vector<object_id_t> _object_names = {};
-    
+
     void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
     dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
     dynamic_uniform_buffer_t _global_object_material_ubo; // all objects material overrides in one buffer
@@ -290,16 +291,16 @@ private:
     bool _global_object_ibo_created = false;          //
     bool _global_staging_vbo_created = false;         //
 
-    //
-    // LIGHTS 
-    //
+                                                      //
+                                                      // LIGHTS 
+                                                      //
 
     struct _light_t
     {
         // VS
-        glm::vec4 position     = glm::vec4(0, 0, 0, 1);
+        glm::vec4 position = glm::vec4(0, 0, 0, 1);
         // FS
-        glm::vec4 color        = glm::vec4(1, 1, 1, 1);
+        glm::vec4 color = glm::vec4(1, 1, 1, 1);
         glm::vec4 light_radius = glm::vec4(10.0, 1, 1, 1); // x = radius
         glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 1);
         //glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
@@ -349,20 +350,20 @@ private:
         VkDeviceMemory  image_memory = {};
         VkImageView     view = VK_NULL_HANDLE;
         VkFormat        format = VK_FORMAT_UNDEFINED;
-        VkExtent3D      extent = {0,0,0};
+        VkExtent3D      extent = { 0,0,0 };
         // NOTE: we can put a descriptor in each texture.
         // atm, we chose to put it in material instances,
         // because we group together base+spec textures in
         // a single set with predefined bindings.
     };
-    
+
     bool create_texture_2d(_texture_t *texture);
     bool transition_textures();
 
     std::unordered_map<texture_id_t, _texture_t> _textures;
     staging_buffer_t _texture_staging_buffer;
 
-    std::array<VkSampler,1> _samplers;
+    std::array<VkSampler, 1> _samplers;
 
     // for all descriptors, 1000 of each type.
     VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;

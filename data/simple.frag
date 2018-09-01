@@ -6,6 +6,13 @@
 //#define CLEAR_COAT
 //#define OPTI_FOR_LOW_END
 
+struct light_t
+{
+    vec4 position;
+    vec4 color;
+    vec4 radius;
+};
+
 //
 // SCENE/VIEW
 // Common to VS and FS
@@ -14,10 +21,10 @@ layout( set = 0, binding = 0 ) uniform scene_ubo
     mat4 view_matrix;
     mat4 proj_matrix;
 
-    vec4 light_position;
-    vec4 light_color;
-    vec4 light_radius;
     vec4 sky_color;
+
+    light_t lights[];
+
     // + light type, outer/inner cone angles?
     // + camera lens properties?
 } Scene_UBO;
@@ -49,7 +56,8 @@ layout ( location = 0 ) in struct fragment_in {
     vec3 normal;
     vec2 uv;
     vec3 to_camera;
-    vec3 to_light;
+    //vec3 to_light;
+    vec3 world_pos;
 } IN;
 
 //
@@ -309,46 +317,47 @@ void main()
 
     vec3 luminance = vec3(0);
 
-    vec3 ll[2] = {IN.to_light, -IN.to_light};
-
     // FOR EACH LIGHT
+    light_t light = Scene_UBO.lights[0];
+
     {
-    vec3 l = normalize( IN.to_light );
-    vec3 h = normalize( v + l );
+        vec3 to_light = light.position.xyz - IN.world_pos;
+        vec3 l = normalize( to_light );
+        vec3 h = normalize( v + l );
     
-    float NdotL = max( dot( n, l ), 0.0 );
-    float NdotH = max( dot( n, h ), 0.0 );//1e-5 );
-    float VdotH = max( dot( v, h ), 0.0 );//1e-5 );
-    float LdotH = max( dot( l, h ), 0.0 );//1e-5 );
+        float NdotL = max( dot( n, l ), 0.0 );
+        float NdotH = max( dot( n, h ), 0.0 );//1e-5 );
+        float VdotH = max( dot( v, h ), 0.0 );//1e-5 );
+        float LdotH = max( dot( l, h ), 0.0 );//1e-5 );
 
-    vec3 BSDF = CookTorranceBSDF(
-        diffuse_color, f0, 
-        linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
-        NdotV, NdotL, NdotH, VdotH, LdotH,
-        l, v, h, n
-        );
+        vec3 BSDF = CookTorranceBSDF(
+            diffuse_color, f0, 
+            linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
+            NdotV, NdotL, NdotH, VdotH, LdotH,
+            l, v, h, n
+            );
 
-    // apply lighting
+        // apply lighting
 
-    vec3 light_color = sRGB_to_Linear(Scene_UBO.light_color.rgb);
-    float light_radius = Scene_UBO.light_radius.x;
-    float light_intensity = 1.0; //Scene_UBO.light_radius.y ???;
+        vec3 light_color = sRGB_to_Linear(light.color.rgb);
+        float light_radius = light.radius.x;
+        float light_intensity = light.radius.y;
 
-    vec3 spot_direction = vec3(0,-1,0);
-    float inner_angle = PI/4;
-    float outer_angle = PI/3;
+        vec3 spot_direction = vec3(0,-1,0);
+        float inner_angle = PI/4;
+        float outer_angle = PI/3;
 
-    // directional
-    //vec3 I = light_color; // light intensity, in lux
-    //vec3 E = I * NdotL; // illuminance
+        // directional
+        //vec3 I = light_color; // light intensity, in lux
+        //vec3 E = I * NdotL; // illuminance
 
-    // point light
-    float I = light_intensity; // = luminous_power / (4*PI)
-    float attenuation = square_falloff_attenuation(IN.to_light, 1.0 / light_radius);
-    //for spot
-    //attenuation *= spot_angle_attenuation(l, spot_direction, inner_angle, outer_angle);
-    float E = I * attenuation * NdotL;
-    luminance = BSDF * E * light_color;
+        // point light
+        float I = light_intensity; // = luminous_power / (4*PI)
+        float attenuation = square_falloff_attenuation(to_light, 1.0 / light_radius);
+        //for spot
+        //attenuation *= spot_angle_attenuation(l, spot_direction, inner_angle, outer_angle);
+        float E = I * attenuation * NdotL;
+        luminance = BSDF * E * light_color;
     }
 
 

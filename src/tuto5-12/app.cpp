@@ -62,7 +62,7 @@ bool VulkanApplication::init()
     Log("#----------------------------------------\n");
     Log("#  Init Scene\n");
     BuildScene();
-    
+
     _r->SetScene(_scene);
 
     return true;
@@ -112,7 +112,7 @@ bool VulkanApplication::loop()
         ShowFPSWindow(should_refresh_fps, fps);
 
         //if (show_demo_window)
-            //ImGui::ShowDemoWindow(&show_demo_window);
+        //ImGui::ShowDemoWindow(&show_demo_window);
 
         _r->Update(dt);
 
@@ -158,9 +158,9 @@ void VulkanApplication::BuildScene()
 
     Scene::light_description_t light_0;
     light_0.position = glm::vec3(0, 0, 0);
-    light_0.color    = glm::vec3(1,1,1);
-    light_0.radius   = 25.0f;
-    // TODO: add intensity
+    light_0.color = glm::vec3(1, 1, 1);
+    light_0.radius = 25.0f;
+    light_0.intensity = 5.0f;
     _scene->add_light(light_0);
 
     Scene::light_description_t light_1;
@@ -186,7 +186,7 @@ void VulkanApplication::BuildScene()
     camera.position = glm::vec3(10, 0, 0);
     camera.near_plane = 0.1f;
     camera.far_plane = 20.0f;
-    camera.aspect = (float)WINDOW_WIDTH/(float)WINDOW_HEIGHT;
+    camera.aspect = (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
     camera.fovy = 45.0f;
     _scene->add_camera(camera);
 
@@ -220,19 +220,19 @@ void VulkanApplication::BuildScene()
         _scene->add_material_instance(mi);
     }
 
-    
+
 
     //
     // Objects
     //
 #define WITH_WALLS 1
 #define WITH_CUBES 0
-    
+
 #define NB_SPHERES 10
     // SPHERE - shiny red plastic
     for (size_t i = 0; i < NB_SPHERES; ++i)
     {
-        float ith = (float)i / (NB_SPHERES-1);
+        float ith = (float)i / (NB_SPHERES - 1);
         IndexedMesh icosphere = make_icosphere(3, 0.5f); // 3 = 642 vtx, 1280 tri, 3840 idx
         Scene::object_description_t obj_desc = {};
         obj_desc.name = std::string("DielectricSphere_") + std::to_string(i);
@@ -250,7 +250,7 @@ void VulkanApplication::BuildScene()
     // SPHERE - rough green metal
     for (size_t i = 0; i < NB_SPHERES; ++i)
     {
-        float ith = (float)i / (NB_SPHERES-1);
+        float ith = (float)i / (NB_SPHERES - 1);
         IndexedMesh icosphere = make_icosphere(3, 0.5f); // 3 = 642 vtx, 1280 tri, 3840 idx
         Scene::object_description_t obj_desc = {};
         obj_desc.name = std::string("MetalSphere_") + std::to_string(i);
@@ -345,11 +345,11 @@ void VulkanApplication::BuildScene()
         for (uint32_t j = 0; j < 19; ++j)
         {
             auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-            auto real_rand = std::bind(std::uniform_real_distribution<float>(0,1), std::mt19937((unsigned int)seed));
+            auto real_rand = std::bind(std::uniform_real_distribution<float>(0, 1), std::mt19937((unsigned int)seed));
 
             IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
             Scene::object_description_t obj_desc = {};
-            obj_desc.name = std::string("Cube_") + std::to_string(i*19+j);
+            obj_desc.name = std::string("Cube_") + std::to_string(i * 19 + j);
             obj_desc.vertexCount = (uint32_t)obj.first.size();
             obj_desc.vertices = obj.first.data();
             obj_desc.indexCount = (uint32_t)obj.second.size();
