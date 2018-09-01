@@ -354,7 +354,7 @@ void main()
 
     // sky
     vec3 sky_color = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
-    float sky_intensity = 0.5;
+    float sky_intensity = 0.1;//0.5;
 
     vec3 Ls = vec3(0,1,0);
     vec3 Hs = normalize( v + Ls );

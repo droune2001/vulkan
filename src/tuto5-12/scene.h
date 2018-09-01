@@ -236,6 +236,7 @@ private:
     bool _animate_light = true;
     bool _animate_object = true;
     int _current_item_idx = 0;
+    int _current_light = 0;
 
     //
     // OBJECTS

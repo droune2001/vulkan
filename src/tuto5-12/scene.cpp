@@ -952,13 +952,36 @@ void Scene::animate_light(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
-    const float r = 4.0f; // radius
-    const float as = 1.4f; // angular_speed, radians/sec
-    float lx = r * std::cos(as * accum_dt);
-    float ly = r * std::sin(as * accum_dt);
-    float lz = r * std::cos(2.0f * as * accum_dt);
-    _lights[0].position = glm::vec4(lx, ly, lz, 1.0f);
+    {
+        const float r_x = 10.0f; // radius
+        const float r_y = 0.5f; // radius
+        const float r_z = 3.0f; // radius
+        const float as = 0.2f;//1.4f; // angular_speed, radians/sec
+        float lx = r_x * std::cos(3.0f * as * accum_dt);
+        float ly = 1.5f + r_y * std::sin(as * accum_dt);
+        float lz = r_z * std::cos(7.0f * as * accum_dt);
+        _lights[0].position = glm::vec4(lx, ly, lz, 1.0f);
+    }
 
+    {
+        const float r_xz = 3.0f; // radius
+        const float r_y = 1.2f; // radius
+        const float as = 2.4f; // angular_speed, radians/sec
+        float lx = r_xz * std::cos(as * accum_dt);
+        float ly = r_y * std::cos(as * accum_dt);
+        float lz = r_xz * std::cos(2.0f * as * accum_dt);
+        _lights[1].position = glm::vec4(lx, ly, lz, 1.0f);
+    }
+
+    {
+        const float r_xz = 4.0f; // radius
+        const float r_y = 1.2f; // radius
+        const float as = 1.4f; // angular_speed, radians/sec
+        float lx = r_xz * std::sin(as * accum_dt);
+        float ly = r_y * std::sin(as * accum_dt);
+        float lz = r_xz * std::cos(2.0f * as * accum_dt);
+        _lights[2].position = glm::vec4(lx, ly, lz, 1.0f);
+    }
     // TODO: vary color
 }
 
@@ -966,7 +989,7 @@ bool Scene::update_scene_ubo()
 {
     auto &scene_ubo = get_scene_ubo();
     auto camera = _cameras["perspective"];
-    auto light = _lights[0];
+    auto light = _lights[_current_light];
 
     VkResult result;
 
@@ -1778,6 +1801,12 @@ void Scene::show_property_sheet()
             }
         }
 
+        ImGui::Combo("Current Light", &_current_light, "Light_0\0Light_1\0Light_2\0\0");
+        //if (ImGui::Combo("Current Light", &_current_light, "Light_0\0Light_1\0Light_2\0\0"))
+        //{
+    
+        //}
+
         glm::vec4 base_color = get_object_base_color(_current_item_idx);
         if (ImGui::ColorEdit4("base_color", glm::value_ptr(base_color)))
         {
@@ -1785,12 +1814,16 @@ void Scene::show_property_sheet()
         }
 
         glm::vec4 spec_color = get_object_spec_color(_current_item_idx);
-        if (ImGui::SliderFloat("Roughness", glm::value_ptr(spec_color), 0.0f, 1.0f))
+        float roughness = (spec_color.x - 0.045f) / 0.955f;
+        if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f))
         {
+            spec_color.x = 0.045f + 0.955f * roughness;
             tmp_change_sphere_spec_color(_current_item_idx, spec_color);
         }
-        if (ImGui::SliderFloat("Metalness", glm::value_ptr(spec_color) + 1, 0.0f, 1.0f))
+        float metalness = spec_color.y;
+        if (ImGui::SliderFloat("Metalness", &metalness, 0.0f, 1.0f))
         {
+            spec_color.y = metalness;
             tmp_change_sphere_spec_color(_current_item_idx, spec_color);
         }
 

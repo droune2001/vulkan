@@ -156,12 +156,26 @@ void VulkanApplication::BuildScene()
     // Lights
     //
 
-    Scene::light_description_t light;
-    light.position = glm::vec3(4,4,2);
-    light.color    = glm::vec3(1,1,1);
-    light.radius   = 25.0f;
+    Scene::light_description_t light_0;
+    light_0.position = glm::vec3(0, 0, 0);
+    light_0.color    = glm::vec3(1,1,1);
+    light_0.radius   = 25.0f;
     // TODO: add intensity
-    _scene->add_light(light);
+    _scene->add_light(light_0);
+
+    Scene::light_description_t light_1;
+    light_1.position = glm::vec3(0, 0, 0);
+    light_1.color = glm::vec3(1, 0, 1);
+    light_1.radius = 25.0f;
+    // TODO: add intensity
+    _scene->add_light(light_1);
+
+    Scene::light_description_t light_2;
+    light_2.position = glm::vec3(0, 0, 0);
+    light_2.color = glm::vec3(0, 1, 1);
+    light_2.radius = 25.0f;
+    // TODO: add intensity
+    _scene->add_light(light_2);
 
     //
     // Cameras
@@ -212,7 +226,7 @@ void VulkanApplication::BuildScene()
     // Objects
     //
 #define WITH_WALLS 1
-#define WITH_CUBES 1
+#define WITH_CUBES 0
     
 #define NB_SPHERES 10
     // SPHERE - shiny red plastic
@@ -252,22 +266,22 @@ void VulkanApplication::BuildScene()
     }
 
 #if WITH_WALLS == 1
-#if 0
+
     // FLOOR
     {
-        IndexedMesh obj = make_flat_cube(10.0f, 1.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
+        IndexedMesh obj = make_flat_cube(20.0f, 1.0f, 20.0f); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
         obj_desc.vertexCount = (uint32_t)obj.first.size();
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
-        obj_desc.position = glm::vec3(0.0f, -5.5f, 0.0f);
+        obj_desc.position = glm::vec3(0.0f, -2.0f, 0.0f);
         obj_desc.material = "half_metal_checker";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
-
+#if 0
     // LEFT WALL
     {
         IndexedMesh obj = make_flat_cube(1.0f, 10.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
@@ -297,7 +311,7 @@ void VulkanApplication::BuildScene()
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
         _scene->add_object(obj_desc);
     }
-#endif
+
     // FAR WALL
     {
         IndexedMesh obj = make_flat_cube(10.0f, 10.0f, 1.0f); // 24 vtx, 12 tri, 36 idx
@@ -313,6 +327,7 @@ void VulkanApplication::BuildScene()
         obj_desc.specular = glm::vec4(1, 1, 0.5, 0); // common reflectance for dielectric cells
         _scene->add_object(obj_desc);
     }
+#endif
 #endif
 
 #if WITH_CUBES == 1
@@ -339,8 +354,10 @@ void VulkanApplication::BuildScene()
             obj_desc.vertices = obj.first.data();
             obj_desc.indexCount = (uint32_t)obj.second.size();
             obj_desc.indices = obj.second.data();
-            obj_desc.position = glm::vec3(-4.5f+i*0.5f, -5.0f+0.5f*real_rand(), -4.5f+j*0.5f);
-            bool is_metal = (real_rand() > 0.5f); // binary random metallic
+            //obj_desc.position = glm::vec3(-4.5f+i*0.5f, -5.0f+0.5f*real_rand(), -4.5f+j*0.5f);
+            obj_desc.position = glm::vec3(-4.5f + i * 0.5f, -1.0f, -4.5f + j * 0.5f);
+            //bool is_metal = (real_rand() > 0.5f); // binary random metallic
+            bool is_metal = (i <j); // diagonal
             if (is_metal)
             {
                 obj_desc.material = "neutral_metal";
