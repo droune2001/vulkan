@@ -293,7 +293,7 @@ void main()
 
     vec3 base         = sRGB_to_Linear(Object_UBO.base.rgb) * sRGB_to_Linear(sampled_base.rgb);
     float roughness   = sampled_spec.r * Object_UBO.spec.x;
-    float metallic    = sampled_spec.g * Object_UBO.spec.y;
+    float metallic    = sampled_spec.g < 1e-5 ? Object_UBO.spec.y : sampled_spec.g * Object_UBO.spec.y;
     float reflectance = sampled_spec.b * Object_UBO.spec.z;
 
     // remappings

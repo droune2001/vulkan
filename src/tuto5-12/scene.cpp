@@ -1769,14 +1769,7 @@ glm::vec4 Scene::get_object_spec_color(int idx)
 
 void Scene::show_property_sheet()
 {
-    ImGuiWindowFlags window_flags = 0;
-    //window_flags |= ImGuiWindowFlags_MenuBar;
-    //window_flags |= ImGuiWindowFlags_NoTitleBar;
-    //window_flags |= ImGuiWindowFlags_NoScrollbar;
-    //window_flags |= ImGuiWindowFlags_NoMove;
-    //window_flags |= ImGuiWindowFlags_NoResize;
-    //window_flags |= ImGuiWindowFlags_NoCollapse;
-    //window_flags |= ImGuiWindowFlags_NoNav;
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
     bool *pOpen = nullptr;
 
     ImGui::Begin("Objects Properties", pOpen, window_flags);
@@ -1806,7 +1799,11 @@ void Scene::show_property_sheet()
         }
 
         glm::vec4 spec_color = get_object_spec_color(_current_item_idx);
-        if (ImGui::ColorEdit4("spec_color", glm::value_ptr(spec_color)))
+        if (ImGui::SliderFloat("Roughness", glm::value_ptr(spec_color), 0.0f, 1.0f))
+        {
+            tmp_change_sphere_spec_color(_current_item_idx, spec_color);
+        }
+        if (ImGui::SliderFloat("Metalness", glm::value_ptr(spec_color) + 1, 0.0f, 1.0f))
         {
             tmp_change_sphere_spec_color(_current_item_idx, spec_color);
         }
