@@ -199,13 +199,12 @@ private:
 
     bool create_shader_module(const std::string &file_path, VkShaderModule *shader_module);
 
-    bool create_default_material(VkRenderPass rp);
+    bool build_pipelines(VkRenderPass rp);
     void destroy_materials();
 
-    bool create_default_descriptor_set_layout();
+    bool create_all_descriptor_set_layouts(VkDevice device, VkDescriptorSetLayout *layouts);
     bool create_all_descriptor_sets_pool();
     bool create_all_descriptor_sets();
-    bool create_default_pipeline(VkRenderPass rp);
 
     // utils
 
@@ -364,15 +363,25 @@ private:
 
     std::array<VkSampler,1> _samplers;
 
+    // for all descriptors, 1000 of each type.
+    VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
+
+    // All descriptor sets layouts
+    enum
+    {
+        SCENE_DESCRIPTOR_SET_LAYOUT = 0,
+        MATERIAL_DESCRIPTOR_SET_LAYOUT,
+        OBJECT_DESCRIPTOR_SET_LAYOUT,
+
+        DESCRIPTOR_SET_LAYOUT_COUNT
+    };
+    std::array<VkDescriptorSetLayout, DESCRIPTOR_SET_LAYOUT_COUNT> _descriptor_set_layouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+
     struct _material_t
     {
         VkShaderModule vs = VK_NULL_HANDLE;
         VkShaderModule fs = VK_NULL_HANDLE;
 
-        VkDescriptorPool      descriptor_pool = VK_NULL_HANDLE;
-        // view, material, object
-        VkDescriptorSetLayout descriptor_set_layouts[3] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
-        
         VkPipeline       pipeline = {};
         VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
     };

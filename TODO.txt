@@ -1,38 +1,17 @@
-- more than one texture = put sampler in object ubo.
-- separate sampler and texture:
+- Put last "pass" = transfer of last view to the current swap view in renderer.
+ - no need for a renderpass, onr a pipeline, I think
+ - no more need to pass a render pass to the scene.
 
-#extension GL_KHR_vulkan_glsl : enable // probably not needed
-layout(set=0, binding = 3) uniform texture2D my_tex;   // VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
-layout(set=0, binding = 4) uniform sampler my_sampler; // VK_DESCRIPTOR_TYPE_SAMPLER
-
-vec4 rgba = texture( sampler2D( my_tex, my_sampler), texcoords);
-
-for each material
- begin pipeline
-  bind per-material stuff = 
-  = camera
-  = lights
-  = sampler
-  for each object
-   bind per-object stuff
-   = dynamic ubo descriptor
-   = material overrides descriptor (textures + mat coeffs)
-   draw object
-  end
- end
-end
+- RENAME: 
+  - Scene is doing too much rendering. It should not own pipelines.
+  - Renderer does almost nothing. It should own:
+    - DescriptorPool
+    - DescriptorSetLayouts
+    - Pipelines
+    - FrameBuffers
+    - RenderPasses
 
 - many lights = handle array of struct in scene ubo (size?)
-- more objects material params = handle more than model_matrix.
-
-- wrapper classes for objects like buffers, device
-- initializer class for already default-filled structs.
-
-ex:
-vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1),
-vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-
 
 - separate build_command_buffer ->(cmd begin, pass begin, ..., pass end, cmd end)
   from     draw -> submit and present.

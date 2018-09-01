@@ -53,8 +53,16 @@ bool Scene::init(VkRenderPass rp)
     if (!create_texture_samplers())
         return false;
 
-    Log("#    Create Default Material\n");
-    if (!create_default_material(rp))
+    Log("#    Create All Descriptor Set Layouts\n");
+    if (!create_all_descriptor_set_layouts(_ctx->device, _descriptor_set_layouts.data()))
+        return false;
+
+    Log("#    Create Descriptor Pool for all descriptors\n");
+    if (!create_all_descriptor_sets_pool())
+        return false;
+
+    Log("#    Build All Shaders/Pipelines\n");
+    if (!build_pipelines(rp))
         return false;
 
     return true;
@@ -1171,13 +1179,11 @@ bool Scene::create_shader_module(const std::string &file_path, VkShaderModule *s
     return true;
 }
 
-bool Scene::create_default_descriptor_set_layout()
+bool Scene::create_all_descriptor_set_layouts(VkDevice device, VkDescriptorSetLayout *layouts)
 {
-    _material_t &default_material = _materials["default"];
-
     VkResult result;
     
-    // 4 SETS
+    // 3 SETS
     //    set = 0 (SCENE)
     //        binding = 0 : camera matrices, light pos (UBO)(VS+FS)
     //        binding = 2 : texture sampler            (SMP)(FS)
@@ -1212,7 +1218,7 @@ bool Scene::create_default_descriptor_set_layout()
         desc_set_layout_create_info.pBindings = bindings.data();
 
         Log("#      Create Default Descriptor Set Layout for Scene Uniforms\n");
-        result = vkCreateDescriptorSetLayout(_ctx->device, &desc_set_layout_create_info, nullptr, &default_material.descriptor_set_layouts[0]);
+        result = vkCreateDescriptorSetLayout(device, &desc_set_layout_create_info, nullptr, layouts + SCENE_DESCRIPTOR_SET_LAYOUT);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
@@ -1242,7 +1248,7 @@ bool Scene::create_default_descriptor_set_layout()
         desc_set_layout_create_info.pBindings = bindings.data();
 
         Log("#      Create Default Descriptor Set Layout for Material instance Uniforms\n");
-        result = vkCreateDescriptorSetLayout(_ctx->device, &desc_set_layout_create_info, nullptr, &default_material.descriptor_set_layouts[1]);
+        result = vkCreateDescriptorSetLayout(device, &desc_set_layout_create_info, nullptr, layouts + MATERIAL_DESCRIPTOR_SET_LAYOUT);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
@@ -1272,7 +1278,7 @@ bool Scene::create_default_descriptor_set_layout()
         desc_set_layout_create_info.pBindings = bindings.data();
 
         Log("#      Create Default Descriptor Set Layout for Objects Uniforms\n");
-        result = vkCreateDescriptorSetLayout(_ctx->device, &desc_set_layout_create_info, nullptr, &default_material.descriptor_set_layouts[2]);
+        result = vkCreateDescriptorSetLayout(device, &desc_set_layout_create_info, nullptr, layouts + OBJECT_DESCRIPTOR_SET_LAYOUT);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
@@ -1282,8 +1288,6 @@ bool Scene::create_default_descriptor_set_layout()
 
 bool Scene::create_all_descriptor_sets_pool()
 {
-    _material_t &default_material = _materials["default"];
-
     VkResult result;
 
     // allocate just enough for what we'll need.
@@ -1306,8 +1310,8 @@ bool Scene::create_all_descriptor_sets_pool()
     pool_create_info.poolSizeCount = (uint32_t)pool_sizes.size();
     pool_create_info.pPoolSizes = pool_sizes.data();
 
-    Log("#      Create Default Descriptor Set Pool\n");
-    result = vkCreateDescriptorPool(_ctx->device, &pool_create_info, nullptr, &default_material.descriptor_pool);
+    Log("#      Create Global Descriptor Set Pool\n");
+    result = vkCreateDescriptorPool(_ctx->device, &pool_create_info, nullptr, &_descriptor_pool);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1319,16 +1323,15 @@ bool Scene::create_all_descriptor_sets_pool()
 
 bool Scene::create_all_descriptor_sets()
 {
-    _material_t &material = _materials["default"]; // descriptor set layout is here
     _view_t &view = _views["perspective"]; // scene descriptor set is here
 
     VkResult result;
 
     VkDescriptorSetAllocateInfo descriptor_allocate_info = {};
     descriptor_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_allocate_info.descriptorPool = material.descriptor_pool;
+    descriptor_allocate_info.descriptorPool = _descriptor_pool;
     descriptor_allocate_info.descriptorSetCount = 1;
-    descriptor_allocate_info.pSetLayouts = &material.descriptor_set_layouts[0];
+    descriptor_allocate_info.pSetLayouts = &_descriptor_set_layouts[SCENE_DESCRIPTOR_SET_LAYOUT];
 
     Log("#      Allocate Scene/View Descriptor Set\n");
     result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &view.descriptor_set);
@@ -1336,9 +1339,9 @@ bool Scene::create_all_descriptor_sets()
     if (result != VK_SUCCESS)
         return false;
 
-    // TODO: array of DS, instead of array of mat with each having a DS?
+    // TODO: create all material instances descriptor sets at once.
     descriptor_allocate_info.descriptorSetCount = 1;
-    descriptor_allocate_info.pSetLayouts = &material.descriptor_set_layouts[1];
+    descriptor_allocate_info.pSetLayouts = &_descriptor_set_layouts[MATERIAL_DESCRIPTOR_SET_LAYOUT];
     for (auto &m : _material_instances)
     {
         Log("#      Allocate Material Instance[n] Descriptor Set\n");
@@ -1350,7 +1353,7 @@ bool Scene::create_all_descriptor_sets()
 
     Log("#      Allocate Object Instance Descriptor Sets\n");
     descriptor_allocate_info.descriptorSetCount = 1;
-    descriptor_allocate_info.pSetLayouts = &material.descriptor_set_layouts[2];
+    descriptor_allocate_info.pSetLayouts = &_descriptor_set_layouts[OBJECT_DESCRIPTOR_SET_LAYOUT];
     result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &_global_objects_descriptor_set);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -1364,7 +1367,7 @@ bool Scene::create_all_descriptor_sets()
 
     std::vector<VkWriteDescriptorSet> write_descriptor_sets = {};
 
-    // 4 SETS
+    // 3 SETS
     //    set = 0 (SCENE)
     //        binding = 0 : camera matrices, light     (UBO)(VS+FS)
     //        binding = 1 : texture sampler            (SMP)(FS)
@@ -1529,21 +1532,38 @@ bool Scene::create_all_descriptor_sets()
     return true;
 }
 
-bool Scene::create_default_pipeline(VkRenderPass rp)
+bool Scene::compile()
 {
+    Log("#     Create Scene and global object Descriptor Ses\n");
+    if (!create_all_descriptor_sets())
+        return false;
+
+    return true;
+}
+
+bool Scene::build_pipelines(VkRenderPass rp)
+{
+    VkResult result;
+
     _material_t &default_material = _materials["default"];
 
-    VkResult result;
+    Log("#     Create Default Vertex Shader\n");
+    if (!create_shader_module("./simple.vert.spv", &default_material.vs))
+        return false;
+
+    Log("#     Create Default Fragment Shader\n");
+    if (!create_shader_module("./simple.frag.spv", &default_material.fs))
+        return false;
 
     // use it later to define uniform buffer
     VkPipelineLayoutCreateInfo layout_create_info = {};
     layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_create_info.setLayoutCount = 3; // <--- 2 sets, scene and object
-    layout_create_info.pSetLayouts = default_material.descriptor_set_layouts;
+    layout_create_info.setLayoutCount = DESCRIPTOR_SET_LAYOUT_COUNT;
+    layout_create_info.pSetLayouts = _descriptor_set_layouts.data();
     layout_create_info.pushConstantRangeCount = 0;
     layout_create_info.pPushConstantRanges = nullptr; // constant into shader for opti???
 
-    Log("#      Fill Pipeline Layout (with 2 sets)\n");
+    Log("#     Create Default Pipeline Layout\n");
     result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &default_material.pipeline_layout);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
@@ -1592,7 +1612,7 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     raster_state_create_info.polygonMode = VK_POLYGON_MODE_FILL; //VK_POLYGON_MODE_LINE;
     raster_state_create_info.cullMode = VK_CULL_MODE_NONE;// VK_CULL_MODE_BACK_BIT;
     raster_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    
+
     VkPipelineMultisampleStateCreateInfo multisample_state_create_info = vk::init::pipeline::multisample_state_create_info_NO_MSAA();
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = vk::init::pipeline::depth_stencil_state_create_info();
@@ -1602,7 +1622,7 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = vk::init::pipeline::color_blend_state_create_info();
     color_blend_state_create_info.attachmentCount = 1;
     color_blend_state_create_info.pAttachments = &color_blend_attachment_state;
-    
+
     std::array<VkDynamicState, 2> dynamic_state = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info = {};
     dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -1628,7 +1648,7 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE; // only if VK_PIPELINE_CREATE_DERIVATIVE flag is set.
     pipeline_create_info.basePipelineIndex = 0;
 
-    Log("#      Create Pipeline\n");
+    Log("#     Create Default Pipeline\n");
     result = vkCreateGraphicsPipelines(
         _ctx->device,
         VK_NULL_HANDLE, // cache
@@ -1640,47 +1660,22 @@ bool Scene::create_default_pipeline(VkRenderPass rp)
     if (result != VK_SUCCESS)
         return false;
 
-    return true;
-}
-
-bool Scene::compile()
-{
-    Log("#     Create Scene and global object Descriptor Ses\n");
-    if (!create_all_descriptor_sets())
-        return false;
-
-    return true;
-}
-
-bool Scene::create_default_material(VkRenderPass rp)
-{
-    _material_t &default_material = _materials["default"];
-
-    Log("#     Create Default Vertex Shader\n");
-    if (!create_shader_module("./simple.vert.spv", &default_material.vs))
-        return false;
-
-    Log("#     Create Default Fragment Shader\n");
-    if (!create_shader_module("./simple.frag.spv", &default_material.fs))
-        return false;
-
-    Log("#     Create Default Descriptor Set Layout\n");
-    if (!create_default_descriptor_set_layout())
-        return false;
-
-    Log("#     Create Descriptor Pool for all descriptors\n");
-    if (!create_all_descriptor_sets_pool())
-        return false;
-
-    Log("#     Create Default Pipeline\n");
-    if (!create_default_pipeline(rp))
-        return false;
+    // TODO: create other pipelines, for other passes.
 
     return true;
 }
 
 void Scene::destroy_materials()
 {
+    Log("#    Destroy Descriptor Pool\n");
+    vkDestroyDescriptorPool(_ctx->device, _descriptor_pool, nullptr);
+
+    Log("#    Destroy Descriptor Set Layout\n");
+    for (int i = 0; i < DESCRIPTOR_SET_LAYOUT_COUNT; ++i)
+    {
+        vkDestroyDescriptorSetLayout(_ctx->device, _descriptor_set_layouts[i], nullptr);
+    }
+
     for (auto m : _materials)
     {
         auto mat = m.second;
@@ -1689,15 +1684,6 @@ void Scene::destroy_materials()
         vkDestroyShaderModule(_ctx->device, mat.vs, nullptr);
         vkDestroyShaderModule(_ctx->device, mat.fs, nullptr);
 
-        Log("#    Destroy Descriptor Pool\n");
-        vkDestroyDescriptorPool(_ctx->device, mat.descriptor_pool, nullptr);
-
-        Log("#    Destroy Descriptor Set Layout\n");
-        for (int i = 0; i < 3; ++i)
-        {
-            vkDestroyDescriptorSetLayout(_ctx->device, mat.descriptor_set_layouts[i], nullptr);
-        }
-        
         Log("#    Destroy Pipeline\n");
         vkDestroyPipeline(_ctx->device, mat.pipeline, nullptr);
 
