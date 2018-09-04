@@ -179,11 +179,13 @@ bool Scene::add_object(object_description_t desc)
 
 bool Scene::add_light(light_description_t li)
 {
-    _light_t light;
+    _light_t &light = _lighting_block.lights[_lights.size()];
+
     light.position = glm::vec4(li.position, 1);
     light.color = glm::vec4(li.color, 1);
-    light.light_radius = glm::vec4(li.radius, li.intensity, 0, 1);
-    //light.sky_color = ;
+    light.direction = glm::vec4(li.direction, li.type == light_description_t::CONE_LIGHT_TYPE ? 1 : 0);
+    light.properties = glm::vec4(li.radius, li.intensity, li.inner, li.outer);
+    
     _lights.push_back(light);
 
     return true;
@@ -855,7 +857,7 @@ bool Scene::create_scene_ubo()
     Log("#     Create Matrices Uniform Buffer\n");
     VkBufferCreateInfo uniform_buffer_create_info = {};
     uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    uniform_buffer_create_info.size = sizeof(_camera_t) + sizeof(_light_t); // one camera and one light
+    uniform_buffer_create_info.size = sizeof(_camera_t) + sizeof(_lighting_block); // one camera and max lights
     uniform_buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
     uniform_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -989,7 +991,7 @@ bool Scene::update_scene_ubo()
 {
     auto &scene_ubo = get_scene_ubo();
     auto camera = _cameras["perspective"];
-    auto light = _lights[_current_light];
+    //auto light = _lights[_current_light];
 
     VkResult result;
 
@@ -1005,11 +1007,12 @@ bool Scene::update_scene_ubo()
     // TODO: use offsetof
     memcpy(mapped, glm::value_ptr(camera.v), sizeof(camera.v));
     memcpy(((float *)mapped + 16), glm::value_ptr(camera.p), sizeof(camera.p));
-    memcpy(((float *)mapped + 32), glm::value_ptr(light.sky_color), sizeof(light.sky_color));
-    // for each light
-    memcpy(((float *)mapped + 32 + 4), glm::value_ptr(light.position), sizeof(light.position));
-    memcpy(((float *)mapped + 32 + 8), glm::value_ptr(light.color), sizeof(light.color));
-    memcpy(((float *)mapped + 32 + 12), glm::value_ptr(light.light_radius), sizeof(light.light_radius));
+    memcpy(((float *)mapped + 32), &_lighting_block, sizeof(_lighting_block));
+    //memcpy(((float *)mapped + 32), glm::value_ptr(light.sky_color), sizeof(light.sky_color));
+    //// for each light
+    //memcpy(((float *)mapped + 32 + 4), glm::value_ptr(light.position), sizeof(light.position));
+    //memcpy(((float *)mapped + 32 + 8), glm::value_ptr(light.color), sizeof(light.color));
+    //memcpy(((float *)mapped + 32 + 12), glm::value_ptr(light.light_radius), sizeof(light.light_radius));
 
     VkMappedMemoryRange memory_range = {};
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;

@@ -10,7 +10,8 @@ struct light_t
 {
     vec4 position;
     vec4 color;
-    vec4 radius;
+    vec4 direction;
+    vec4 properties;
 };
 
 //
@@ -340,12 +341,13 @@ void main()
         // apply lighting
 
         vec3 light_color = sRGB_to_Linear(light.color.rgb);
-        float light_radius = light.radius.x;
-        float light_intensity = light.radius.y;
+        float light_radius = light.properties.x;
+        float light_intensity = light.properties.y;
 
-        vec3 spot_direction = vec3(0,-1,0);
-        float inner_angle = PI/4;
-        float outer_angle = PI/3;
+        bool is_spot = light.direction.w > 0;
+        vec3 spot_direction = light.direction.xyz;
+        float inner_angle = light.properties.z;
+        float outer_angle = light.properties.w;
 
         // directional
         //vec3 I = light_color; // light intensity, in lux
@@ -355,7 +357,10 @@ void main()
         float I = light_intensity; // = luminous_power / (4*PI)
         float attenuation = square_falloff_attenuation(to_light, 1.0 / light_radius);
         //for spot
-        //attenuation *= spot_angle_attenuation(l, spot_direction, inner_angle, outer_angle);
+        if (is_spot) 
+        {
+            attenuation *= spot_angle_attenuation(l, spot_direction, inner_angle, outer_angle);
+        }
         float E = I * attenuation * NdotL;
         luminance = BSDF * E * light_color;
     }

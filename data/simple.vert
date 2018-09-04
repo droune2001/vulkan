@@ -5,7 +5,8 @@ struct light_t
 {
     vec4 position;
     vec4 color;
-    vec4 radius;
+    vec4 direction;
+    vec4 properties;
 };
 
 layout( set = 0, binding = 0 ) uniform scene_ubo

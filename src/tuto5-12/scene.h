@@ -12,6 +12,12 @@
 #define MAX_LIGHTS 8
 #define MAX_CAMERAS 16
 
+#ifndef PI 
+#   define PI 3.1415f
+#   define PI_4 (PI/4.0f)
+#   define PI_5 (PI/5.0f)
+#endif
+
 struct vulkan_context;
 struct vulkan_queue;
 
@@ -88,10 +94,14 @@ public:
 
     struct light_description_t
     {
+        enum { POINT_LIGHT_TYPE, CONE_LIGHT_TYPE } type = POINT_LIGHT_TYPE;
         glm::vec3 position = glm::vec3(0, 0, 0);
         glm::vec3 color = glm::vec3(1, 1, 1);
+        glm::vec3 direction = glm::vec3(0, -1, 0);
         float     radius = 10.0f;
         float     intensity = 1.0f;
+        float     inner = PI_5;
+        float     outer = PI_4;
     };
 
     using view_id_t = std::string;
@@ -291,20 +301,29 @@ private:
     bool _global_object_ibo_created = false;          //
     bool _global_staging_vbo_created = false;         //
 
-                                                      //
-                                                      // LIGHTS 
-                                                      //
+    //
+    // LIGHTS 
+    //
 
     struct _light_t
     {
+        // TODO: do I still need to pass this to the VS?
         // VS
         glm::vec4 position = glm::vec4(0, 0, 0, 1);
         // FS
         glm::vec4 color = glm::vec4(1, 1, 1, 1);
-        glm::vec4 light_radius = glm::vec4(10.0, 1, 1, 1); // x = radius
+        glm::vec4 direction = glm::vec4(0, -1, 0, 0); // cone direction, w == 0 if point light, 1 if cone
+        glm::vec4 properties = glm::vec4(10.0f, 0.0f, PI_5, PI_4); // x = radius, y = intensity (0 if inactive), z = inner angle, w = outer angle
+    };
+
+    #define MAX_LIGHTS_PER_SHADER 8
+    struct _lighting_block_t
+    {
         glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 1);
         //glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
-    };
+
+        std::array<_light_t, MAX_LIGHTS_PER_SHADER> lights;
+    } _lighting_block;
 
     std::vector<_light_t> _lights;
     //uniform_buffer_t _lights_ubo;

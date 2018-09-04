@@ -164,17 +164,19 @@ void VulkanApplication::BuildScene()
     _scene->add_light(light_0);
 
     Scene::light_description_t light_1;
+    light_1.type = Scene::light_description_t::CONE_LIGHT_TYPE;
     light_1.position = glm::vec3(0, 0, 0);
     light_1.color = glm::vec3(1, 0, 1);
     light_1.radius = 25.0f;
-    // TODO: add intensity
+    light_1.direction = glm::normalize(glm::vec3(0.2f, -1, 0.3f));
+    light_1.inner = PI_5;
+    light_1.outer = PI_4;
     _scene->add_light(light_1);
 
     Scene::light_description_t light_2;
     light_2.position = glm::vec3(0, 0, 0);
     light_2.color = glm::vec3(0, 1, 1);
     light_2.radius = 25.0f;
-    // TODO: add intensity
     _scene->add_light(light_2);
 
     //
