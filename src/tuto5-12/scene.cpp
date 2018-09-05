@@ -978,14 +978,16 @@ void Scene::animate_light(float dt)
         lights[1].position = glm::vec4(lx, ly, lz, 1.0f);
     }
 
+    for (int i = 2; i < 8; ++i)
     {
-        const float r_xz = 4.0f; // radius
+        float fi = (float)i;
+        const float r_xz = 7.0f; // radius
         const float r_y = 1.2f; // radius
         const float as = 1.4f; // angular_speed, radians/sec
-        float lx = r_xz * std::sin(as * accum_dt);
-        float ly = r_y * std::sin(as * accum_dt);
-        float lz = r_xz * std::cos(2.0f * as * accum_dt);
-        lights[2].position = glm::vec4(lx, ly, lz, 1.0f);
+        float lx = r_xz * std::sin(as * accum_dt + fi);
+        float ly = 2.0f + r_y * std::sin(as * accum_dt + fi);
+        float lz = r_xz * std::cos(2.0f * as * accum_dt + fi);
+        lights[i].position = glm::vec4(lx, ly, lz, 1.0f);
     }
     // TODO: vary color
 }

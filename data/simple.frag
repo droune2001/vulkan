@@ -24,7 +24,7 @@ layout( set = 0, binding = 0, std140 ) uniform scene_ubo
 
     vec4 sky_color;
 
-    light_t lights[3];
+    light_t lights[8];
 
     // + light type, outer/inner cone angles?
     // + camera lens properties?
@@ -319,7 +319,7 @@ void main()
     vec3 luminance = vec3(0);
 
     // FOR EACH LIGHT
-    for (int i=0; i<3; i++)
+    for (int i=0; i<8; i++)
     {
         light_t light = Scene_UBO.lights[i];
 

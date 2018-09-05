@@ -149,6 +149,9 @@ void VulkanApplication::clean()
 
 void VulkanApplication::BuildScene()
 {
+    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    auto real_rand = std::bind(std::uniform_real_distribution<float>(0, 1), std::mt19937((unsigned int)seed));
+
     _scene = new Scene(_r->context());
     _scene->init(_r->render_pass());
 
@@ -174,11 +177,20 @@ void VulkanApplication::BuildScene()
     light_1.outer = PI_4;
     _scene->add_light(light_1);
 
-    Scene::light_description_t light_2;
-    light_2.position = glm::vec3(0, 0, 0);
-    light_2.color = glm::vec3(0, 1, 1);
-    light_2.radius = 25.0f;
-    _scene->add_light(light_2);
+    float l_min = 0.2f;
+    float l_scale = (1.0f - l_min);
+    for (int i = 2; i < 8; i++)
+    {
+        Scene::light_description_t light;
+        light.position = glm::vec3(0, 0, 0);
+        float r = l_min + l_scale * real_rand();
+        float g = l_min + l_scale * real_rand();
+        float b = l_min + l_scale * real_rand();
+        light.color = glm::vec3(r, g, b);
+        light.radius = 25.0f;
+        light.intensity = 4.0f;
+        _scene->add_light(light);
+    }
 
     //
     // Cameras
@@ -347,8 +359,8 @@ void VulkanApplication::BuildScene()
     {
         for (uint32_t j = 0; j < 19; ++j)
         {
-            auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-            auto real_rand = std::bind(std::uniform_real_distribution<float>(0, 1), std::mt19937((unsigned int)seed));
+            //auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            //auto real_rand = std::bind(std::uniform_real_distribution<float>(0, 1), std::mt19937((unsigned int)seed));
 
             IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
             Scene::object_description_t obj_desc = {};
