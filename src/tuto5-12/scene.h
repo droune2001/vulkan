@@ -28,7 +28,7 @@ public:
     ~Scene();
 
     using object_id_t = std::string;
-    using material_id_t = std::string;
+    using pipeline_id_t = std::string;
     using material_instance_id_t = std::string;
     using texture_id_t = std::string;
 
@@ -116,7 +116,7 @@ public:
         float far_plane = 1000.0f;
     };
 
-    struct material_description_t
+    struct pipeline_description_t
     {
         std::string id;
         std::string vertex_shader_path;
@@ -127,7 +127,7 @@ public:
     // TODO: make it an abstract class and derive for each material
     struct material_instance_description_t
     {
-        material_id_t material_id;
+        pipeline_id_t pipeline_id;
         material_instance_id_t instance_id;
 
         texture_id_t base_tex = "default"; // diffuse or specular, depending on metalness.
@@ -140,7 +140,7 @@ public:
     bool add_object(object_description_t od);
     bool add_light(light_description_t li);
     bool add_camera(camera_description_t ca);
-    bool add_material(material_description_t ma);
+    bool add_pipeline(pipeline_description_t p);
     bool add_material_instance(material_instance_description_t mi);
 
     bool init(VkRenderPass rp);
@@ -211,7 +211,7 @@ private:
     bool create_shader_module(const std::string &file_path, VkShaderModule *shader_module);
 
     bool build_pipelines(VkRenderPass rp);
-    void destroy_materials();
+    void destroy_pipelines();
 
     bool create_all_descriptor_set_layouts(VkDevice device, VkDescriptorSetLayout *layouts);
     bool create_all_descriptor_sets_pool();
@@ -288,33 +288,6 @@ private:
     // TODO: map, with name and index in global buffers.
     std::vector<_object_t> _objects;
     std::vector<object_id_t> _object_names = {};
-
-    struct _instanced_object_t
-    {
-        uint32_t vertexCount = 0;
-        uint32_t index_offset = 0;
-        VkBuffer index_buffer = VK_NULL_HANDLE; // ref
-
-        uint32_t indexCount = 0;
-        uint32_t vertex_offset = 0;
-        VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
-
-        VkBuffer instance_buffer = VK_NULL_HANDLE;
-
-        uint32_t instance_count = 0;
-
-        #define MAX_INSTANCE_COUNT 256
-
-        // for animation
-        std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
-        std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
-        std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
-
-        material_instance_id_t material_ref; // same material for all objects in the instance set.
-    };
-
-    std::vector<_instanced_object_t> _instanced_objects;
-
 
     void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
     dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
@@ -425,10 +398,7 @@ private:
     };
     std::array<VkDescriptorSetLayout, DESCRIPTOR_SET_LAYOUT_COUNT> _descriptor_set_layouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
 
-    VkPipeline       _instance_pipeline = VK_NULL_HANDLE;
-    VkPipelineLayout _instance_pipeline_layout = VK_NULL_HANDLE;
-
-    struct _material_t
+    struct _pipeline_t
     {
         VkShaderModule vs = VK_NULL_HANDLE;
         VkShaderModule fs = VK_NULL_HANDLE;
@@ -437,7 +407,7 @@ private:
         VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
     };
 
-    std::unordered_map<material_id_t, _material_t> _materials;
+    std::unordered_map<pipeline_id_t, _pipeline_t> _pipelines;
 
 
     struct _material_instance_t
@@ -449,6 +419,38 @@ private:
         //         binding = 1 texture2d spec;
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
+
+
+    //
+    // instances
+    //
+    struct _instanced_object_t
+    {
+        uint32_t vertexCount = 0;
+        uint32_t index_offset = 0;
+        VkBuffer index_buffer = VK_NULL_HANDLE; // ref
+
+        uint32_t indexCount = 0;
+        uint32_t vertex_offset = 0;
+        VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
+
+        VkBuffer instance_buffer = VK_NULL_HANDLE;
+
+        uint32_t instance_count = 0;
+
+#define MAX_INSTANCE_COUNT 256
+
+        // for animation
+        std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
+        std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
+        std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+
+        material_instance_id_t material_ref; // same material for all objects in the instance set.
+    };
+
+    std::vector<_instanced_object_t> _instanced_objects;
+
+    _pipeline_t _instance_pipe;
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_

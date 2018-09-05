@@ -72,8 +72,8 @@ void Scene::de_init()
 {
     vkQueueWaitIdle(_ctx->graphics.queue);
 
-    Log("#   Destroy Materials\n");
-    destroy_materials();
+    Log("#   Destroy Pipelines\n");
+    destroy_pipelines();
 
     Log("#   Destroy Procedural Textures\n");
     destroy_textures();
@@ -227,15 +227,15 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
 {
     // RENDER PASS BEGIN ---
 
-    auto default_material = _materials["default"];
+    auto default_pipeline = _pipelines["default"];
     auto default_view = _views["perspective"];
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline.pipeline);
 
     //
     // SET 0
     // scene/view bindings, one time
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline.pipeline_layout,
         0, // bind to set #0
         1, &default_view.descriptor_set, 0, nullptr);
 
@@ -247,7 +247,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         //
         // SET 1
         //
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline.pipeline_layout,
             1, 1, &m.second.descriptor_set, 0, nullptr);
 
         // TODO: loop in objects per material instances
@@ -271,7 +271,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
             //
             // SET 2
             // Bind Per-Object Uniforms
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_material.pipeline_layout,
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline.pipeline_layout,
                 2, 1, &_global_objects_descriptor_set, //obj.descriptor_set,
                 (uint32_t)dynamic_offsets.size(), dynamic_offsets.data()); // dynamic offsets
 
@@ -283,13 +283,13 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     //
     // Instanced Sets
     //
-
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipeline);
+#if 0
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipe.pipeline);
 
     //
     // SET 0
     // scene/view bindings, one time
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipeline_layout,
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipe.pipeline_layout,
         0, // bind to set #0
         1, &default_view.descriptor_set, 0, nullptr);
 
@@ -298,7 +298,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         //
         // SET 1
         //
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipeline_layout,
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipe.pipeline_layout,
             1, 1, &m.second.descriptor_set, 0, nullptr);
 
         // TODO: loop in objects per material instances
@@ -317,7 +317,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
             vkCmdDrawIndexed(cmd, obj.indexCount, obj.instance_count, 0, 0, 0);
         }
     }
-
+#endif
     // RENDER PASS END ---
 }
 
@@ -1610,26 +1610,41 @@ bool Scene::build_pipelines(VkRenderPass rp)
 {
     VkResult result;
 
-    _material_t &default_material = _materials["default"];
+    _pipeline_t &default_pipeline = _pipelines["default"];
 
     Log("#     Create Default Vertex Shader\n");
-    if (!create_shader_module("./simple.vert.spv", &default_material.vs))
+    if (!create_shader_module("./simple.vert.spv", &default_pipeline.vs))
         return false;
 
     Log("#     Create Default Fragment Shader\n");
-    if (!create_shader_module("./simple.frag.spv", &default_material.fs))
+    if (!create_shader_module("./simple.frag.spv", &default_pipeline.fs))
         return false;
+
+    Log("#     Create Instancing Vertex Shader\n");
+    if (!create_shader_module("./instancing.vert.spv", &_instance_pipe.vs))
+        return false;
+
+    Log("#     Create Instancing Fragment Shader\n");
+    if (!create_shader_module("./instancing.frag.spv", &_instance_pipe.fs))
+        return false;
+
+    // TODO: check if local var will not cause any problem...
+    std::array<VkDescriptorSetLayout, 3> default_pipeline_descriptor_set_layouts = {
+        _descriptor_set_layouts[0], // if problem, rename this all_descriptor_set_layouts
+        _descriptor_set_layouts[1], // and put the 2 sub arrays as class members.
+        _descriptor_set_layouts[2]
+    };
 
     // use it later to define uniform buffer
     VkPipelineLayoutCreateInfo layout_create_info = {};
     layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_create_info.setLayoutCount = DESCRIPTOR_SET_LAYOUT_COUNT;
-    layout_create_info.pSetLayouts = _descriptor_set_layouts.data();
+    layout_create_info.setLayoutCount = (uint32_t)default_pipeline_descriptor_set_layouts.size();
+    layout_create_info.pSetLayouts = default_pipeline_descriptor_set_layouts.data();
     layout_create_info.pushConstantRangeCount = 0;
     layout_create_info.pPushConstantRanges = nullptr; // constant into shader for opti???
 
     Log("#     Create Default Pipeline Layout\n");
-    result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &default_material.pipeline_layout);
+    result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &default_pipeline.pipeline_layout);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1637,13 +1652,13 @@ bool Scene::build_pipelines(VkRenderPass rp)
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stage_create_infos = {};
     shader_stage_create_infos[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shader_stage_create_infos[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shader_stage_create_infos[0].module = default_material.vs;
+    shader_stage_create_infos[0].module = default_pipeline.vs;
     shader_stage_create_infos[0].pName = "main";        // shader entry point function name
     shader_stage_create_infos[0].pSpecializationInfo = nullptr;
 
     shader_stage_create_infos[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shader_stage_create_infos[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shader_stage_create_infos[1].module = default_material.fs;
+    shader_stage_create_infos[1].module = default_pipeline.fs;
     shader_stage_create_infos[1].pName = "main";        // shader entry point function name
     shader_stage_create_infos[1].pSpecializationInfo = nullptr;
 
@@ -1707,7 +1722,7 @@ bool Scene::build_pipelines(VkRenderPass rp)
     pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
     pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
     pipeline_create_info.pDynamicState = &dynamic_state_create_info;
-    pipeline_create_info.layout = default_material.pipeline_layout;
+    pipeline_create_info.layout = default_pipeline.pipeline_layout;
     pipeline_create_info.renderPass = rp; // TODO: create a render pass inside Scene
     pipeline_create_info.subpass = 0;
     pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE; // only if VK_PIPELINE_CREATE_DERIVATIVE flag is set.
@@ -1720,7 +1735,7 @@ bool Scene::build_pipelines(VkRenderPass rp)
         1,
         &pipeline_create_info,
         nullptr,
-        &default_material.pipeline);
+        &default_pipeline.pipeline);
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
@@ -1730,7 +1745,7 @@ bool Scene::build_pipelines(VkRenderPass rp)
     return true;
 }
 
-void Scene::destroy_materials()
+void Scene::destroy_pipelines()
 {
     Log("#    Destroy Descriptor Pool\n");
     vkDestroyDescriptorPool(_ctx->device, _descriptor_pool, nullptr);
@@ -1741,30 +1756,30 @@ void Scene::destroy_materials()
         vkDestroyDescriptorSetLayout(_ctx->device, _descriptor_set_layouts[i], nullptr);
     }
 
-    for (auto m : _materials)
+    for (auto p : _pipelines)
     {
-        auto mat = m.second;
+        auto pipe = p.second;
 
         Log("#    Destroy Shader Modules\n");
-        vkDestroyShaderModule(_ctx->device, mat.vs, nullptr);
-        vkDestroyShaderModule(_ctx->device, mat.fs, nullptr);
+        vkDestroyShaderModule(_ctx->device, pipe.vs, nullptr);
+        vkDestroyShaderModule(_ctx->device, pipe.fs, nullptr);
 
         Log("#    Destroy Pipeline\n");
-        vkDestroyPipeline(_ctx->device, mat.pipeline, nullptr);
+        vkDestroyPipeline(_ctx->device, pipe.pipeline, nullptr);
 
         Log("#    Destroy Pipeline Layout\n");
-        vkDestroyPipelineLayout(_ctx->device, mat.pipeline_layout, nullptr);
+        vkDestroyPipelineLayout(_ctx->device, pipe.pipeline_layout, nullptr);
     }
 }
 
-bool Scene::add_material(material_description_t ma)
+bool Scene::add_pipeline(pipeline_description_t p)
 {
-    _material_t material = {};
+    _pipeline_t pipe = {};
 
     // TODO:
     // load shaders, create descriptor layouts, create pipeline, ...
 
-    _materials[ma.id] = material;
+    _pipelines[p.id] = pipe;
 
     return true;
 }

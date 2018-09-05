@@ -211,25 +211,25 @@ void VulkanApplication::BuildScene()
     {
         Scene::material_instance_description_t mi = {};
         mi.instance_id = "neutral_dielectric";
-        mi.material_id = "default"; // not much choice for the moment
+        mi.pipeline_id = "default";
         mi.base_tex = "neutral_base";
         mi.specular_tex = "neutral_dielectric_spec";
         _scene->add_material_instance(mi);
     }
-#if 1
+
     {
         Scene::material_instance_description_t mi = {};
         mi.instance_id = "half_metal_checker";
-        mi.material_id = "default"; // not much choice for the moment
+        mi.pipeline_id = "default";
         mi.base_tex = "checker_base";
         mi.specular_tex = "checker_spec";
         _scene->add_material_instance(mi);
     }
-#endif
+
     {
         Scene::material_instance_description_t mi = {};
         mi.instance_id = "neutral_metal";
-        mi.material_id = "default"; // not much choice for the moment
+        mi.pipeline_id = "default";
         mi.base_tex = "neutral_base";
         mi.specular_tex = "neutral_metal_spec";
         _scene->add_material_instance(mi);
