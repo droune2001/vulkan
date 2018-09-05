@@ -60,8 +60,28 @@
     <ClCompile Include="..\src\tuto5-12\window_win32.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\data\simple.frag" />
-    <None Include="..\data\simple.vert" />
+    <CustomBuild Include="..\data\simple.frag">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\data\simple.vert">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(VULKAN_SDK_DIR)\bin\glslangValidator.exe -V %(FullPath) -o %(RelativeDir)%(Filename)%(Extension).spv</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RelativeDir)%(Filename)%(Extension).spv</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{EAC54162-F4EC-4544-A723-42E898B088E3}</ProjectGuid>
