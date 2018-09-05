@@ -289,6 +289,33 @@ private:
     std::vector<_object_t> _objects;
     std::vector<object_id_t> _object_names = {};
 
+    struct _instanced_object_t
+    {
+        uint32_t vertexCount = 0;
+        uint32_t index_offset = 0;
+        VkBuffer index_buffer = VK_NULL_HANDLE; // ref
+
+        uint32_t indexCount = 0;
+        uint32_t vertex_offset = 0;
+        VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
+
+        VkBuffer instance_buffer = VK_NULL_HANDLE;
+
+        uint32_t instance_count = 0;
+
+        #define MAX_INSTANCE_COUNT 256
+
+        // for animation
+        std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
+        std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
+        std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+
+        material_instance_id_t material_ref; // same material for all objects in the instance set.
+    };
+
+    std::vector<_instanced_object_t> _instanced_objects;
+
+
     void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
     dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
     dynamic_uniform_buffer_t _global_object_material_ubo; // all objects material overrides in one buffer
@@ -398,12 +425,15 @@ private:
     };
     std::array<VkDescriptorSetLayout, DESCRIPTOR_SET_LAYOUT_COUNT> _descriptor_set_layouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
 
+    VkPipeline       _instance_pipeline = VK_NULL_HANDLE;
+    VkPipelineLayout _instance_pipeline_layout = VK_NULL_HANDLE;
+
     struct _material_t
     {
         VkShaderModule vs = VK_NULL_HANDLE;
         VkShaderModule fs = VK_NULL_HANDLE;
 
-        VkPipeline       pipeline = {};
+        VkPipeline       pipeline = VK_NULL_HANDLE;
         VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
     };
 

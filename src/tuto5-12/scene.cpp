@@ -280,6 +280,44 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         }
     }
 
+    //
+    // Instanced Sets
+    //
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipeline);
+
+    //
+    // SET 0
+    // scene/view bindings, one time
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipeline_layout,
+        0, // bind to set #0
+        1, &default_view.descriptor_set, 0, nullptr);
+
+    for (const auto &m : _material_instances)
+    {
+        //
+        // SET 1
+        //
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipeline_layout,
+            1, 1, &m.second.descriptor_set, 0, nullptr);
+
+        // TODO: loop in objects per material instances
+        for (size_t i = 0; i < _instanced_objects.size(); ++i)
+        {
+            const _instanced_object_t &obj = _instanced_objects[i];
+            if (obj.material_ref != m.first)
+                continue;
+
+            // Bind Attribs Vertex/Index
+            VkDeviceSize offsets = obj.vertex_offset;
+            vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets); // bind point 0, per-vertex data
+            vkCmdBindVertexBuffers(cmd, 1, 1, &obj.instance_buffer, &offsets); // bind point 1, per-instance data
+            vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
+
+            vkCmdDrawIndexed(cmd, obj.indexCount, obj.instance_count, 0, 0, 0);
+        }
+    }
+
     // RENDER PASS END ---
 }
 
