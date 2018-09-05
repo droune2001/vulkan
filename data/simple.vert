@@ -9,14 +9,14 @@ struct light_t
     vec4 properties;
 };
 
-layout( set = 0, binding = 0 ) uniform scene_ubo
+layout( set = 0, binding = 0, std140 ) uniform scene_ubo
 {
     mat4 view_matrix;
     mat4 proj_matrix;
 
     vec4 sky_color;
 
-    light_t lights[];
+    light_t lights[3];
 } Scene_UBO;
 
 layout( set = 2, binding = 0 ) uniform object_ubo

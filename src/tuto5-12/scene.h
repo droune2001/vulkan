@@ -319,7 +319,7 @@ private:
     #define MAX_LIGHTS_PER_SHADER 8
     struct _lighting_block_t
     {
-        glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 1);
+        glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 0.3f); // RGB: color A:intensity
         //glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
 
         std::array<_light_t, MAX_LIGHTS_PER_SHADER> lights;

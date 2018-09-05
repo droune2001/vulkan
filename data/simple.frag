@@ -17,14 +17,14 @@ struct light_t
 //
 // SCENE/VIEW
 // Common to VS and FS
-layout( set = 0, binding = 0 ) uniform scene_ubo
+layout( set = 0, binding = 0, std140 ) uniform scene_ubo
 {
     mat4 view_matrix;
     mat4 proj_matrix;
 
     vec4 sky_color;
 
-    light_t lights[];
+    light_t lights[3];
 
     // + light type, outer/inner cone angles?
     // + camera lens properties?
@@ -319,9 +319,10 @@ void main()
     vec3 luminance = vec3(0);
 
     // FOR EACH LIGHT
-    light_t light = Scene_UBO.lights[0];
-
+    for (int i=0; i<3; i++)
     {
+        light_t light = Scene_UBO.lights[i];
+
         vec3 to_light = light.position.xyz - IN.world_pos;
         vec3 l = normalize( to_light );
         vec3 h = normalize( v + l );
@@ -362,13 +363,13 @@ void main()
             attenuation *= spot_angle_attenuation(l, spot_direction, inner_angle, outer_angle);
         }
         float E = I * attenuation * NdotL;
-        luminance = BSDF * E * light_color;
+        luminance += BSDF * E * light_color;
     }
 
 
     // sky
     vec3 sky_color = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
-    float sky_intensity = 0.1;//0.5;
+    float sky_intensity = Scene_UBO.sky_color.a;
 
     vec3 Ls = vec3(0,1,0);
     vec3 Hs = normalize( v + Ls );

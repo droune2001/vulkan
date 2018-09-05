@@ -954,6 +954,8 @@ void Scene::animate_light(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
+    auto &lights = _lighting_block.lights;
+
     {
         const float r_x = 10.0f; // radius
         const float r_y = 0.5f; // radius
@@ -962,17 +964,18 @@ void Scene::animate_light(float dt)
         float lx = r_x * std::cos(3.0f * as * accum_dt);
         float ly = 1.5f + r_y * std::sin(as * accum_dt);
         float lz = r_z * std::cos(7.0f * as * accum_dt);
-        _lights[0].position = glm::vec4(lx, ly, lz, 1.0f);
+        lights[0].position = glm::vec4(lx, ly, lz, 1.0f);
     }
 
     {
         const float r_xz = 3.0f; // radius
         const float r_y = 1.2f; // radius
+        const float o_y = 2.0f;
         const float as = 2.4f; // angular_speed, radians/sec
         float lx = r_xz * std::cos(as * accum_dt);
-        float ly = r_y * std::cos(as * accum_dt);
+        float ly = o_y;
         float lz = r_xz * std::cos(2.0f * as * accum_dt);
-        _lights[1].position = glm::vec4(lx, ly, lz, 1.0f);
+        lights[1].position = glm::vec4(lx, ly, lz, 1.0f);
     }
 
     {
@@ -982,7 +985,7 @@ void Scene::animate_light(float dt)
         float lx = r_xz * std::sin(as * accum_dt);
         float ly = r_y * std::sin(as * accum_dt);
         float lz = r_xz * std::cos(2.0f * as * accum_dt);
-        _lights[2].position = glm::vec4(lx, ly, lz, 1.0f);
+        lights[2].position = glm::vec4(lx, ly, lz, 1.0f);
     }
     // TODO: vary color
 }
@@ -1008,12 +1011,7 @@ bool Scene::update_scene_ubo()
     memcpy(mapped, glm::value_ptr(camera.v), sizeof(camera.v));
     memcpy(((float *)mapped + 16), glm::value_ptr(camera.p), sizeof(camera.p));
     memcpy(((float *)mapped + 32), &_lighting_block, sizeof(_lighting_block));
-    //memcpy(((float *)mapped + 32), glm::value_ptr(light.sky_color), sizeof(light.sky_color));
-    //// for each light
-    //memcpy(((float *)mapped + 32 + 4), glm::value_ptr(light.position), sizeof(light.position));
-    //memcpy(((float *)mapped + 32 + 8), glm::value_ptr(light.color), sizeof(light.color));
-    //memcpy(((float *)mapped + 32 + 12), glm::value_ptr(light.light_radius), sizeof(light.light_radius));
-
+    
     VkMappedMemoryRange memory_range = {};
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memory_range.memory = _scene_ubo.memory;
