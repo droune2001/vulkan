@@ -4,6 +4,9 @@
 #include <map>
 #include <array>
 #include <fstream>
+#include <chrono>
+#include <random>
+#include <functional>
 
 //
 // ICO SPHERE
@@ -293,6 +296,9 @@ namespace utils
 
     void create_checker_spec_image(loaded_image *checker_image)
     {
+        auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto real_rand = std::bind(std::uniform_real_distribution<float>(0, 1), std::mt19937((unsigned int)seed));
+
         checker_image->width = 512;
         checker_image->height = 512;
         checker_image->size = sizeof(float) * checker_image->width * checker_image->height * 3;
@@ -308,21 +314,21 @@ namespace utils
 
                 float *pixel = ((float *)checker_image->data) + 3 * (y * checker_image->width + x);
 
-                float r = 0.5f;
+                float r = 0.9f;
                 float m = 0.0f;
                 float s = 0.5f;
                 if (x % 40 < 20 && y % 40 < 20)
                 { 
                     float dx = (x % 20) / 20.0f;
                     float dy = (y % 20) / 20.0f;
-                    r = 0.05f+0.2f*dx*dy; m = 1.0f; s = 1.0f; 
+                    r = 0.05f+0.6f*dx*dy + 0.1f*real_rand()*dx*dy; m = 1.0f; s = 1.0f;
                 }
                 if (x % 40 >= 20 && y % 40 >= 20) 
                 { 
                     float dx = (x % 20) / 20.0f; dx -= 0.5f;
                     float dy = (y % 20) / 20.0f; dy -= 0.5f;
                     float r2 = dx * dx + dy * dy;
-                    r = 0.05f + 0.2f * r2; m = 1.0f; s = 1.0f;
+                    r = 0.05f + 0.6f * r2 + 0.1f*real_rand()*r2; m = 1.0f; s = 1.0f;
                 }
 
                 pixel[0] = r; // roughness

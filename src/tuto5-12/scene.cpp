@@ -1225,7 +1225,7 @@ bool Scene::create_procedural_textures()
 
     Log("#     Compute Procedural Texture\n");
 
-    typedef void(*create_func)(utils::loaded_image*);
+    using create_func = void(*)(utils::loaded_image*);
     auto create_texture = [&](const std::string &name, VkFormat format, create_func f)
     {
         utils::loaded_image image;
