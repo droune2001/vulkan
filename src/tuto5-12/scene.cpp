@@ -58,8 +58,8 @@ VkVertexInputBindingDescription *Scene::instance_data_t::binding_descriptions()
 {
     static VkVertexInputBindingDescription vertex_binding_description = {};
     vertex_binding_description.binding = 0; // = 1????????
-    vertex_binding_description.stride = sizeof(Scene::vertex_t);
-    vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    vertex_binding_description.stride = sizeof(Scene::instance_data_t);
+    vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
     return &vertex_binding_description;
 }
@@ -75,17 +75,17 @@ VkVertexInputAttributeDescription *Scene::instance_data_t::attribute_description
 
     vertex_attribute_description[0].location = 4;
     vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 2nd row (column??) = 4 float
     vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16; // 0;
 
     vertex_attribute_description[0].location = 5;
     vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 3rd row (column??) = 4 float
     vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16+16; // 0;
 
     vertex_attribute_description[0].location = 6;
     vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 4th row (column??) = 4 float
     vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16+16+16; // 0;
 
     vertex_attribute_description[1].location = 7;
