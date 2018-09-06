@@ -242,7 +242,7 @@ void VulkanApplication::BuildScene()
     //
 #define WITH_WALLS 1
 #define WITH_CUBES 0
-#define WITH_INSTANCED_CUBES 1
+#define WITH_INSTANCED_CUBES 0
 
 #define NB_SPHERES 10
     // SPHERE - shiny red plastic
@@ -454,7 +454,7 @@ void VulkanApplication::BuildScene()
                 obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
                 obj_desc.specular = glm::vec4(roughness, metallic, 0.5f, 0);
             }
-            _scene->add_object(obj_desc);
+            //_scene->add_object(obj_desc);
         }
     }
 #endif
