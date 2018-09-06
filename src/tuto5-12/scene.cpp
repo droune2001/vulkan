@@ -14,6 +14,94 @@
 
 #define MAX_NB_OBJECTS 1024
 
+//
+// VERTEX
+//
+uint32_t Scene::vertex_t::binding_description_count() { return 1; }
+VkVertexInputBindingDescription *Scene::vertex_t::binding_descriptions()
+{
+    static VkVertexInputBindingDescription vertex_binding_description = {};
+    vertex_binding_description.binding = 0;
+    vertex_binding_description.stride = sizeof(Scene::vertex_t);
+    vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    return &vertex_binding_description;
+}
+
+uint32_t Scene::vertex_t::attribute_description_count() { return 3; }
+VkVertexInputAttributeDescription *Scene::vertex_t::attribute_descriptions()
+{
+    static std::array<VkVertexInputAttributeDescription, 3> vertex_attribute_description = {};
+    vertex_attribute_description[0].location = 0;
+    vertex_attribute_description[0].binding = 0;
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
+    vertex_attribute_description[0].offset = offsetof(Scene::vertex_t, p); //0;
+
+    vertex_attribute_description[1].location = 1;
+    vertex_attribute_description[1].binding = 0;
+    vertex_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
+    vertex_attribute_description[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
+
+    vertex_attribute_description[2].location = 2;
+    vertex_attribute_description[2].binding = 0;
+    vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
+    vertex_attribute_description[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
+
+    return vertex_attribute_description.data();
+}
+
+//
+// INSTANCE DATA
+//
+uint32_t Scene::instance_data_t::binding_description_count() { return 1; }
+VkVertexInputBindingDescription *Scene::instance_data_t::binding_descriptions()
+{
+    static VkVertexInputBindingDescription vertex_binding_description = {};
+    vertex_binding_description.binding = 0; // = 1????????
+    vertex_binding_description.stride = sizeof(Scene::vertex_t);
+    vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    return &vertex_binding_description;
+}
+
+uint32_t Scene::instance_data_t::attribute_description_count() { return 4+2; }
+VkVertexInputAttributeDescription *Scene::instance_data_t::attribute_descriptions()
+{
+    static std::array<VkVertexInputAttributeDescription, 4+2> vertex_attribute_description = {};
+    vertex_attribute_description[0].location = 3;
+    vertex_attribute_description[0].binding = 0;
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m); // 0;
+
+    vertex_attribute_description[0].location = 4;
+    vertex_attribute_description[0].binding = 0;
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16; // 0;
+
+    vertex_attribute_description[0].location = 5;
+    vertex_attribute_description[0].binding = 0;
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16+16; // 0;
+
+    vertex_attribute_description[0].location = 6;
+    vertex_attribute_description[0].binding = 0;
+    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16+16+16; // 0;
+
+    vertex_attribute_description[1].location = 7;
+    vertex_attribute_description[1].binding = 0;
+    vertex_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
+    vertex_attribute_description[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
+
+    vertex_attribute_description[2].location = 8;
+    vertex_attribute_description[2].binding = 0;
+    vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
+    vertex_attribute_description[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
+
+    return vertex_attribute_description.data();
+}
+
+
 Scene::Scene(vulkan_context *c) : _ctx(c)
 {
     _view_t v;
@@ -174,6 +262,16 @@ bool Scene::add_object(object_description_t desc)
     _object_names.push_back(desc.name);
     _objects.push_back(obj);
 
+    return true;
+}
+
+bool Scene::add_instance_set(instance_set_description_t is)
+{
+    return true;
+}
+
+bool Scene::add_object_to_instance_set(instanced_object_description_t o)
+{
     return true;
 }
 
