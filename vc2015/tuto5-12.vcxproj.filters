@@ -130,7 +130,19 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\data\simple.frag" />
-    <CustomBuild Include="..\data\simple.vert" />
+    <CustomBuild Include="..\data\simple.vert">
+      <Filter>Resource Files\Shaders Source</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\data\simple.frag">
+      <Filter>Resource Files\Shaders Source</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\data\instancing.frag">
+      <Filter>Resource Files\Shaders Source</Filter>
+    </None>
+    <None Include="..\data\instancing.vert">
+      <Filter>Resource Files\Shaders Source</Filter>
+    </None>
   </ItemGroup>
 </Project>
