@@ -1,6 +1,9 @@
 #pragma once
 
-#include "vk_mem_alloc_usage.h"
+//#define USE_VMA
+#ifdef USE_VMA
+#   include "vk_mem_alloc_usage.h"
+#endif
 
 #include <vector>
 #include <array>
@@ -117,7 +120,10 @@ private:
 private:
 
     vulkan_context _ctx;
+
+#ifdef USE_VMA
     VmaAllocator   _allocator = VK_NULL_HANDLE;
+#endif
 
     Window * _w = nullptr;
     Scene  * _scene = nullptr;

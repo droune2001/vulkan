@@ -740,6 +740,7 @@ void Renderer::SetupFeatures()
 
 bool Renderer::InitVma()
 {
+#ifdef USE_VMA
     VmaVulkanFunctions vulkan_functions = {};
     vulkan_functions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
     vulkan_functions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
@@ -765,11 +766,16 @@ bool Renderer::InitVma()
 
     VkResult result = vmaCreateAllocator(&allocator_info, &_allocator);
     return(result == VK_SUCCESS);
+#else
+    return true;
+#endif
 }
 
 void Renderer::DeInitVma()
 {
+#ifdef USE_VMA
     vmaDestroyAllocator(_allocator);
+#endif
 }
 
 bool Renderer::InitSynchronizations()
