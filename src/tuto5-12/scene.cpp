@@ -53,52 +53,79 @@ VkVertexInputAttributeDescription *Scene::vertex_t::attribute_descriptions()
 //
 // INSTANCE DATA
 //
-uint32_t Scene::instance_data_t::binding_description_count() { return 1; }
+uint32_t Scene::instance_data_t::binding_description_count() { return 2; }
 VkVertexInputBindingDescription *Scene::instance_data_t::binding_descriptions()
 {
-    static VkVertexInputBindingDescription vertex_binding_description = {};
-    vertex_binding_description.binding = 0; // = 1????????
-    vertex_binding_description.stride = sizeof(Scene::instance_data_t);
-    vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    static std::array<VkVertexInputBindingDescription, 2> vertex_binding_descriptions = {};
+    vertex_binding_descriptions[0].binding = 0;
+    vertex_binding_descriptions[0].stride = sizeof(Scene::vertex_t);
+    vertex_binding_descriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    return &vertex_binding_description;
+    vertex_binding_descriptions[1].binding = 1;
+    vertex_binding_descriptions[1].stride = sizeof(Scene::instance_data_t);
+    vertex_binding_descriptions[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+
+    return vertex_binding_descriptions.data();
 }
 
-uint32_t Scene::instance_data_t::attribute_description_count() { return 4+2; }
+uint32_t Scene::instance_data_t::attribute_description_count() { return 3+4+2; }
 VkVertexInputAttributeDescription *Scene::instance_data_t::attribute_descriptions()
 {
-    static std::array<VkVertexInputAttributeDescription, 4+2> vertex_attribute_description = {};
-    vertex_attribute_description[0].location = 3;
-    vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
-    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m); // 0;
+    static std::array<VkVertexInputAttributeDescription, 3 + 4 + 2> vertex_attribute_descriptions = {};
 
-    vertex_attribute_description[0].location = 4;
-    vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 2nd row (column??) = 4 float
-    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16; // 0;
+    //
+    // vertex_t
+    //
+    vertex_attribute_descriptions[0].location = 0;
+    vertex_attribute_descriptions[0].binding = 0;
+    vertex_attribute_descriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
+    vertex_attribute_descriptions[0].offset = offsetof(Scene::vertex_t, p); //0;
 
-    vertex_attribute_description[0].location = 5;
-    vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 3rd row (column??) = 4 float
-    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16+16; // 0;
+    vertex_attribute_descriptions[1].location = 1;
+    vertex_attribute_descriptions[1].binding = 0;
+    vertex_attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
+    vertex_attribute_descriptions[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
 
-    vertex_attribute_description[0].location = 6;
-    vertex_attribute_description[0].binding = 0;
-    vertex_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 4th row (column??) = 4 float
-    vertex_attribute_description[0].offset = offsetof(Scene::instance_data_t, m)+16+16+16; // 0;
+    vertex_attribute_descriptions[2].location = 2;
+    vertex_attribute_descriptions[2].binding = 0;
+    vertex_attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
+    vertex_attribute_descriptions[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
 
-    vertex_attribute_description[1].location = 7;
-    vertex_attribute_description[1].binding = 0;
-    vertex_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
-    vertex_attribute_description[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
+    //
+    // instance_t
+    //
 
-    vertex_attribute_description[2].location = 8;
-    vertex_attribute_description[2].binding = 0;
-    vertex_attribute_description[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
-    vertex_attribute_description[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
+    vertex_attribute_descriptions[3].location = 3;
+    vertex_attribute_descriptions[3].binding = 0;
+    vertex_attribute_descriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
+    vertex_attribute_descriptions[3].offset = offsetof(Scene::instance_data_t, m); // 0;
 
-    return vertex_attribute_description.data();
+    vertex_attribute_descriptions[4].location = 4;
+    vertex_attribute_descriptions[4].binding = 0;
+    vertex_attribute_descriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 2nd row (column??) = 4 float
+    vertex_attribute_descriptions[4].offset = offsetof(Scene::instance_data_t, m)+16; // 0;
+
+    vertex_attribute_descriptions[5].location = 5;
+    vertex_attribute_descriptions[5].binding = 0;
+    vertex_attribute_descriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 3rd row (column??) = 4 float
+    vertex_attribute_descriptions[5].offset = offsetof(Scene::instance_data_t, m)+16+16; // 0;
+
+    vertex_attribute_descriptions[6].location = 6;
+    vertex_attribute_descriptions[6].binding = 0;
+    vertex_attribute_descriptions[6].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 4th row (column??) = 4 float
+    vertex_attribute_descriptions[6].offset = offsetof(Scene::instance_data_t, m)+16+16+16; // 0;
+
+    vertex_attribute_descriptions[7].location = 7;
+    vertex_attribute_descriptions[7].binding = 0;
+    vertex_attribute_descriptions[7].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
+    vertex_attribute_descriptions[7].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
+
+    vertex_attribute_descriptions[8].location = 8;
+    vertex_attribute_descriptions[8].binding = 0;
+    vertex_attribute_descriptions[8].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
+    vertex_attribute_descriptions[8].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
+
+    return vertex_attribute_descriptions.data();
 }
 
 
@@ -177,12 +204,14 @@ void Scene::de_init()
     if (_scene_ubo_created) destroy_scene_ubo();
 }
 
-bool Scene::_add_object(const object_description_t &desc, _object_t &obj)
+uint32_t Scene::_add_object(const object_description_t &desc )
 {
     Log("#   Add Object\n");
 
     VkResult result;
     VkDevice device = _ctx->device;
+
+    _object_t obj = {};
 
     // with lazy init
     auto &global_vbo = get_global_object_vbo();
@@ -257,37 +286,59 @@ bool Scene::_add_object(const object_description_t &desc, _object_t &obj)
     materials->base_color = desc.base_color;
     materials->specular = desc.specular;
 
-    return true;
-}
+    uint32_t index = (uint32_t)_objects.size();
 
-bool Scene::add_object(object_description_t desc)
-{
-    _object_t obj = {};
-
-    _add_object(desc, obj);
-
-    //_object_names[desc.name] = _objects.size();
-    _object_names.push_back(desc.name);
     _objects.push_back(obj);
 
+    return index;
+}
+
+bool Scene::add_object_to_global_instance_set(object_description_t desc)
+{
+    uint32_t index = _add_object(desc);
+
+    _object_names.push_back(desc.name);
+    _global_instance_set.push_back(index);
+
     return true;
 }
 
-bool Scene::add_instance_set(instance_set_description_t is)
+bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_instance_count)
 {
-    // TODO: create instance set.
     _instance_set_t _is;
-    _add_object(is.object_desc, _is.model);
+    _is.model_index = _add_object(is.object_desc);
+    _is.material_ref = is.object_desc.material;
 
-    // ...
+    _instance_sets[is.instance_set] = _is;
+
+    if (estimated_instance_count > 0)
+    {
+        // TODO: reserve.
+    }
+
+    Log("#     Create Instance Set VBO\n");
+    if (!create_buffer(
+        &_instance_sets[is.instance_set].instance_buffer.buffer,
+        &_instance_sets[is.instance_set].instance_buffer.memory,
+        256 * sizeof(instance_data_t),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
+
     return true;
 }
 
-bool Scene::add_object_to_instance_set(instanced_object_description_t o, instance_set_id_t is)
+uint32_t Scene::add_object_to_instance_set(instanced_object_description_t o, instance_set_id_t id)
 {
-    
+    auto &is = _instance_sets[id];
+    uint32_t idx = is.instance_count;
+    is.base_colors[idx] = o.base_color;
+    is.speculars[idx] = o.specular;
+    is.positions[idx] = o.position;
+    is.rotations[idx] = o.rotation;
+    is.scales[idx] = o.scale;
 
-    return true;
+    return is.instance_count++;
 }
 
 bool Scene::add_light(light_description_t li)
@@ -1230,6 +1281,26 @@ bool Scene::update_all_objects_ubos()
     return true;
 }
 
+bool Scene::update_all_instances_vbos()
+{
+    //Log("#    Map (Staging) Vertex Buffer\n");
+    //size_t vertex_data_size = desc.vertexCount * sizeof(vertex_t);
+
+    //Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
+    //result = vkMapMemory(device, staging_buffer.memory, 0, vertex_data_size, 0, &mapped);
+    //ErrorCheck(result);
+    //if (result != VK_SUCCESS)
+    //    return false;
+
+    //vertex_t *vertices = (vertex_t*)mapped;
+    //memcpy(vertices, desc.vertices, vertex_data_size);
+
+    //Log("#    UnMap Vertex Buffer\n");
+    //vkUnmapMemory(device, staging_buffer.memory);
+
+    return true;
+}
+
 bool Scene::create_procedural_textures()
 {
     Log("#     Create Texture Staging Buffer.\n");
@@ -1712,6 +1783,7 @@ bool Scene::create_all_descriptor_sets()
 
 bool Scene::compile()
 {
+    // All descriptor sets, for all objects/instance_set
     Log("#     Create Scene and global object Descriptor Ses\n");
     if (!create_all_descriptor_sets())
         return false;
@@ -1725,41 +1797,37 @@ bool Scene::build_pipelines(VkRenderPass rp)
 
     _pipeline_t &default_pipeline = _pipelines["default"];
 
+    {
+        // TODO: check if local var will not cause any problem...
+        // if problem, rename "_descriptor_set_layouts" to "_all_descriptor_set_layouts"
+        // and put the 2 sub arrays as class members.
+        std::array<VkDescriptorSetLayout, 3> pipeline_descriptor_set_layouts = {
+            _descriptor_set_layouts[0], // scene ubo
+            _descriptor_set_layouts[1], // sampler
+            _descriptor_set_layouts[2]  // material override per object ubo
+        };
+
+        // use it later to define uniform buffer
+        VkPipelineLayoutCreateInfo layout_create_info = {};
+        layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layout_create_info.setLayoutCount = (uint32_t)pipeline_descriptor_set_layouts.size();
+        layout_create_info.pSetLayouts = pipeline_descriptor_set_layouts.data();
+        layout_create_info.pushConstantRangeCount = 0;
+        layout_create_info.pPushConstantRanges = nullptr; // constant into shader for opti???
+
+        Log("#     Create Default Pipeline Layout\n");
+        result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &default_pipeline.pipeline_layout);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+
     Log("#     Create Default Vertex Shader\n");
     if (!create_shader_module("./simple.vert.spv", &default_pipeline.vs))
         return false;
 
     Log("#     Create Default Fragment Shader\n");
     if (!create_shader_module("./simple.frag.spv", &default_pipeline.fs))
-        return false;
-
-    Log("#     Create Instancing Vertex Shader\n");
-    if (!create_shader_module("./instancing.vert.spv", &_instance_pipe.vs))
-        return false;
-
-    Log("#     Create Instancing Fragment Shader\n");
-    if (!create_shader_module("./instancing.frag.spv", &_instance_pipe.fs))
-        return false;
-
-    // TODO: check if local var will not cause any problem...
-    std::array<VkDescriptorSetLayout, 3> default_pipeline_descriptor_set_layouts = {
-        _descriptor_set_layouts[0], // if problem, rename this all_descriptor_set_layouts
-        _descriptor_set_layouts[1], // and put the 2 sub arrays as class members.
-        _descriptor_set_layouts[2]
-    };
-
-    // use it later to define uniform buffer
-    VkPipelineLayoutCreateInfo layout_create_info = {};
-    layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_create_info.setLayoutCount = (uint32_t)default_pipeline_descriptor_set_layouts.size();
-    layout_create_info.pSetLayouts = default_pipeline_descriptor_set_layouts.data();
-    layout_create_info.pushConstantRangeCount = 0;
-    layout_create_info.pPushConstantRanges = nullptr; // constant into shader for opti???
-
-    Log("#     Create Default Pipeline Layout\n");
-    result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &default_pipeline.pipeline_layout);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
         return false;
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stage_create_infos = {};
@@ -1853,7 +1921,82 @@ bool Scene::build_pipelines(VkRenderPass rp)
     if (result != VK_SUCCESS)
         return false;
 
-    // TODO: create other pipelines, for other passes.
+
+    //
+    // Pipeline for instancing.
+    //
+
+    {
+        std::array<VkDescriptorSetLayout, 2> pipeline_descriptor_set_layouts = {
+            _descriptor_set_layouts[0], // scene ubo
+            _descriptor_set_layouts[1]  // sampler
+        };
+
+        // use it later to define uniform buffer
+        VkPipelineLayoutCreateInfo layout_create_info = {};
+        layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layout_create_info.setLayoutCount = (uint32_t)pipeline_descriptor_set_layouts.size();
+        layout_create_info.pSetLayouts = pipeline_descriptor_set_layouts.data();
+        layout_create_info.pushConstantRangeCount = 0;
+        layout_create_info.pPushConstantRanges = nullptr; // constant into shader for opti???
+
+        Log("#     Create Instancing Pipeline Layout\n");
+        result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &_instance_pipe.pipeline_layout);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+
+    Log("#     Create Instancing Vertex Shader\n");
+    if (!create_shader_module("./instancing.vert.spv", &_instance_pipe.vs))
+        return false;
+
+    Log("#     Create Instancing Fragment Shader\n");
+    if (!create_shader_module("./instancing.frag.spv", &_instance_pipe.fs))
+        return false;
+
+    shader_stage_create_infos[0].module = _instance_pipe.vs;
+    shader_stage_create_infos[1].module = _instance_pipe.fs;
+
+    {
+        VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
+        vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertex_input_state_create_info.vertexBindingDescriptionCount = instance_data_t::binding_description_count();
+        vertex_input_state_create_info.pVertexBindingDescriptions = instance_data_t::binding_descriptions();
+        vertex_input_state_create_info.vertexAttributeDescriptionCount = instance_data_t::attribute_description_count();
+        vertex_input_state_create_info.pVertexAttributeDescriptions = instance_data_t::attribute_descriptions();
+
+        VkGraphicsPipelineCreateInfo pipeline_create_info = {};
+        pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipeline_create_info.stageCount = (uint32_t)shader_stage_create_infos.size();
+        pipeline_create_info.pStages = shader_stage_create_infos.data(); // <-- instancing shaders
+        pipeline_create_info.pVertexInputState = &vertex_input_state_create_info; // <--- instancing 2 vertex buffers (vertex and instance data)
+        pipeline_create_info.pInputAssemblyState = &input_assembly_state_create_info;
+        pipeline_create_info.pTessellationState = nullptr;
+        pipeline_create_info.pViewportState = &viewport_state_create_info;
+        pipeline_create_info.pRasterizationState = &raster_state_create_info;
+        pipeline_create_info.pMultisampleState = &multisample_state_create_info;
+        pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
+        pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
+        pipeline_create_info.pDynamicState = &dynamic_state_create_info;
+        pipeline_create_info.layout = _instance_pipe.pipeline_layout; // <--- instancing pipe layout
+        pipeline_create_info.renderPass = rp;
+        pipeline_create_info.subpass = 0;
+        pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+        pipeline_create_info.basePipelineIndex = 0;
+
+        Log("#     Create Instancing Pipeline\n");
+        result = vkCreateGraphicsPipelines(
+            _ctx->device,
+            VK_NULL_HANDLE, // cache
+            1,
+            &pipeline_create_info,
+            nullptr,
+            &_instance_pipe.pipeline);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
 
     return true;
 }
@@ -1883,6 +2026,17 @@ void Scene::destroy_pipelines()
         Log("#    Destroy Pipeline Layout\n");
         vkDestroyPipelineLayout(_ctx->device, pipe.pipeline_layout, nullptr);
     }
+
+    // instancing pipeline
+    Log("#    Destroy Shader Modules\n");
+    vkDestroyShaderModule(_ctx->device, _instance_pipe.vs, nullptr);
+    vkDestroyShaderModule(_ctx->device, _instance_pipe.fs, nullptr);
+
+    Log("#    Destroy Pipeline\n");
+    vkDestroyPipeline(_ctx->device, _instance_pipe.pipeline, nullptr);
+
+    Log("#    Destroy Pipeline Layout\n");
+    vkDestroyPipelineLayout(_ctx->device, _instance_pipe.pipeline_layout, nullptr);
 }
 
 bool Scene::add_pipeline(pipeline_description_t p)

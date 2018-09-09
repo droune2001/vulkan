@@ -260,7 +260,7 @@ void VulkanApplication::BuildScene()
         obj_desc.material = "neutral_dielectric";
         obj_desc.base_color = glm::vec4(0.97, 0.74, 0.62, 1); // copper tint
         obj_desc.specular = glm::vec4(0.045f + 0.955f*ith, 0, 0.5f, 0);
-        _scene->add_object(obj_desc);
+        _scene->add_object_to_global_instance_set(obj_desc);
     }
 
     // SPHERE - rough green metal
@@ -278,7 +278,7 @@ void VulkanApplication::BuildScene()
         obj_desc.material = "neutral_metal";
         obj_desc.base_color = glm::vec4(0.97, 0.74, 0.62, 1); // copper
         obj_desc.specular = glm::vec4(0.045f + 0.955f*ith, 1, 1, 0);
-        _scene->add_object(obj_desc);
+        _scene->add_object_to_global_instance_set(obj_desc);
     }
 
 #if WITH_WALLS == 1
@@ -287,6 +287,7 @@ void VulkanApplication::BuildScene()
     {
         IndexedMesh obj = make_flat_cube(20.0f, 1.0f, 20.0f); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
+        obj_desc.name = std::string("Floor");
         obj_desc.vertexCount = (uint32_t)obj.first.size();
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
@@ -295,13 +296,14 @@ void VulkanApplication::BuildScene()
         obj_desc.material = "half_metal_checker";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
-        _scene->add_object(obj_desc);
+        _scene->add_object_to_global_instance_set(obj_desc);
     }
 #if 0
     // LEFT WALL
     {
         IndexedMesh obj = make_flat_cube(1.0f, 10.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
+        obj_desc.name = std::string("LeftWall");
         obj_desc.vertexCount = (uint32_t)obj.first.size();
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
@@ -310,13 +312,14 @@ void VulkanApplication::BuildScene()
         obj_desc.material = "half_metal_checker";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
-        _scene->add_object(obj_desc);
+        _scene->add_object_to_global_instance_set(obj_desc);
     }
 
     // RIGHT WALL
     {
         IndexedMesh obj = make_flat_cube(1.0f, 10.0f, 10.0f); // 24 vtx, 12 tri, 36 idx
         Scene::object_description_t obj_desc = {};
+        obj_desc.name = std::string("RightWall");
         obj_desc.vertexCount = (uint32_t)obj.first.size();
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
@@ -325,7 +328,7 @@ void VulkanApplication::BuildScene()
         obj_desc.material = "half_metal_checker";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
         obj_desc.specular = glm::vec4(1, 1, 0, 0); // no modification
-        _scene->add_object(obj_desc);
+        _scene->add_object_to_global_instance_set(obj_desc);
     }
 
     // FAR WALL
@@ -341,7 +344,7 @@ void VulkanApplication::BuildScene()
         obj_desc.material = "half_metal_checker";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1); // no modification
         obj_desc.specular = glm::vec4(1, 1, 0.5, 0); // common reflectance for dielectric cells
-        _scene->add_object(obj_desc);
+        _scene->add_object_to_global_instance_set(obj_desc);
     }
 #endif
 #endif
@@ -396,7 +399,7 @@ void VulkanApplication::BuildScene()
                 obj_desc.base_color = glm::vec4(r, g, b, 1); // random tint
                 obj_desc.specular = glm::vec4(roughness, metallic, 0.5f, 0);
             }
-            _scene->add_object(obj_desc);
+            _scene->add_object_to_global_instance_set(obj_desc);
         }
     }
 #endif
@@ -422,16 +425,16 @@ void VulkanApplication::BuildScene()
         is_desc.instance_set = "plastic_cubes";
         is_desc.object_desc = obj_desc;
 
-        _scene->add_instance_set(is_desc);
+        _scene->add_instance_set(is_desc, 256);
     }
 
     //
     // METAL instance set
     //
     {
-        IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
+        IndexedMesh obj = make_icosphere(1, 0.5f);
         Scene::object_description_t obj_desc = {};
-        obj_desc.name = std::string("Cube_Template");
+        obj_desc.name = std::string("Sphere_Template");
         obj_desc.vertexCount = (uint32_t)obj.first.size();
         obj_desc.vertices = obj.first.data();
         obj_desc.indexCount = (uint32_t)obj.second.size();
@@ -442,10 +445,10 @@ void VulkanApplication::BuildScene()
         obj_desc.specular = glm::vec4(0.1, 1, 0.5, 0);
 
         Scene::instance_set_description_t is_desc;
-        is_desc.instance_set = "metal_cubes";
+        is_desc.instance_set = "metal_spheres";
         is_desc.object_desc = obj_desc;
 
-        _scene->add_instance_set(is_desc);
+        _scene->add_instance_set(is_desc, 256);
     }
 
     // metal [170..255]
@@ -478,6 +481,7 @@ void VulkanApplication::BuildScene()
             instanced_object_desc.specular = glm::vec4(roughness, metallic, 0.5f, 0);
 
             _scene->add_object_to_instance_set(instanced_object_desc, "plastic_cubes");
+            _scene->add_object_to_instance_set(instanced_object_desc, "metal_spheres");
         }
     }
 #endif

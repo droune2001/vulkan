@@ -146,9 +146,9 @@ public:
         float metalness = 0.0f;
     };
 
-    bool add_object(object_description_t od);
-    bool add_instance_set(instance_set_description_t is);
-    bool add_object_to_instance_set(instanced_object_description_t o, instance_set_id_t is);
+    bool add_object_to_global_instance_set(object_description_t od);
+    bool add_instance_set(instance_set_description_t is, uint32_t estimated_instance_count = 0);
+    uint32_t add_object_to_instance_set(instanced_object_description_t o, instance_set_id_t is);
     bool add_light(light_description_t li);
     bool add_camera(camera_description_t ca);
     bool add_pipeline(pipeline_description_t p);
@@ -201,6 +201,7 @@ private:
 
     bool update_scene_ubo();
     bool update_all_objects_ubos();
+    bool update_all_instances_vbos();
 
     uniform_buffer_t &get_scene_ubo();
     bool create_scene_ubo();
@@ -227,7 +228,7 @@ private:
     bool create_all_descriptor_set_layouts(VkDevice device, VkDescriptorSetLayout *layouts);
     bool create_all_descriptor_sets_pool();
     bool create_all_descriptor_sets();
-
+    
     // utils
 
     uint32_t find_memory_type(uint32_t memory_type_bits, VkMemoryPropertyFlags desired_memory_flags);
@@ -296,10 +297,12 @@ private:
     //        binding #1 material overrides : FS
     VkDescriptorSet _global_objects_descriptor_set = VK_NULL_HANDLE;
 
-    // TODO: map, with name and index in global buffers.
     std::vector<_object_t> _objects;
+    uint32_t _add_object(const object_description_t &desc);
+
+    // global list of free roaming objects.
     std::vector<object_id_t> _object_names = {};
-    bool _add_object(const object_description_t &desc, _object_t &obj);
+    std::vector<uint32_t> _global_instance_set = {};
 
     void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
     dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
@@ -338,7 +341,6 @@ private:
     } _lighting_block;
 
     std::vector<_light_t> _lights;
-    //uniform_buffer_t _lights_ubo;
 
     //
     // CAMERAS
@@ -439,7 +441,7 @@ private:
     #define MAX_INSTANCE_COUNT 256
     struct _instance_set_t
     {
-        _object_t model; // reference mesh for the instances
+        uint32_t model_index; // reference mesh for the instances
 
         uint32_t instance_count = 0;
         vertex_buffer_object_t instance_buffer;
