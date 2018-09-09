@@ -177,7 +177,7 @@ void Scene::de_init()
     if (_scene_ubo_created) destroy_scene_ubo();
 }
 
-bool Scene::add_object(object_description_t desc)
+bool Scene::_add_object(const object_description_t &desc, _object_t &obj)
 {
     Log("#   Add Object\n");
 
@@ -191,7 +191,6 @@ bool Scene::add_object(object_description_t desc)
     auto &global_material_ubo = get_global_object_material_ubo();
     auto &staging_buffer = get_global_staging_vbo();
 
-    _object_t obj = {};
     obj.position = desc.position;
     obj.vertexCount = desc.vertexCount;
     obj.vertex_buffer = global_vbo.buffer;
@@ -258,6 +257,15 @@ bool Scene::add_object(object_description_t desc)
     materials->base_color = desc.base_color;
     materials->specular = desc.specular;
 
+    return true;
+}
+
+bool Scene::add_object(object_description_t desc)
+{
+    _object_t obj = {};
+
+    _add_object(desc, obj);
+
     //_object_names[desc.name] = _objects.size();
     _object_names.push_back(desc.name);
     _objects.push_back(obj);
@@ -267,11 +275,18 @@ bool Scene::add_object(object_description_t desc)
 
 bool Scene::add_instance_set(instance_set_description_t is)
 {
+    // TODO: create instance set.
+    _instance_set_t _is;
+    _add_object(is.object_desc, _is.model);
+
+    // ...
     return true;
 }
 
-bool Scene::add_object_to_instance_set(instanced_object_description_t o)
+bool Scene::add_object_to_instance_set(instanced_object_description_t o, instance_set_id_t is)
 {
+    
+
     return true;
 }
 

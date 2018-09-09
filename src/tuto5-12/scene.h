@@ -76,26 +76,29 @@ public:
 
         // for each instance
         glm::vec3 position = glm::vec3(0, 0, 0);
+        // TODO: add rotation and scale.
 
-        material_instance_id_t material = "white_rough"; // material parameters set
 
-                                                         // material overrides.
+        material_instance_id_t material = "white_rough";
+
+        // material overrides.
         glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
-        glm::vec4 specular = glm::vec4(0.5, 0.0, 0.0, 0.0); // roughness, metallic, 0, 0
+        glm::vec4 specular = glm::vec4(0.5, 0.0, 0.0, 0.0); // roughness, metallic, reflectance, 0
     };
 
     struct instance_set_description_t
     {
         instance_set_id_t instance_set = "";
-        object_id_t object = "";
-        material_instance_id_t material = "white_rough";
+        object_description_t object_desc;
     };
 
     struct instanced_object_description_t
     {
         glm::vec3 position = glm::vec3(0, 0, 0);
+        glm::vec3 rotation = glm::vec3(0, 0, 0);
+        glm::vec3 scale = glm::vec3(1, 1, 1);
         glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
-        glm::vec4 specular = glm::vec4(0.5, 0.0, 0.0, 0.0); // roughness, metallic, 0, 0
+        glm::vec4 specular = glm::vec4(0.5, 0.0, 0.0, 0.0); // roughness, metallic, reflectance, 0
     };
 
     struct light_description_t
@@ -145,7 +148,7 @@ public:
 
     bool add_object(object_description_t od);
     bool add_instance_set(instance_set_description_t is);
-    bool add_object_to_instance_set(instanced_object_description_t o);
+    bool add_object_to_instance_set(instanced_object_description_t o, instance_set_id_t is);
     bool add_light(light_description_t li);
     bool add_camera(camera_description_t ca);
     bool add_pipeline(pipeline_description_t p);
@@ -281,7 +284,7 @@ private:
         uint32_t vertex_offset = 0;
         VkBuffer vertex_buffer = VK_NULL_HANDLE; // ref
 
-                                                 // for animation
+        // for animation
         glm::vec3 position = glm::vec3(0, 0, 0);
         glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
         glm::vec4 specular = glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
@@ -296,6 +299,7 @@ private:
     // TODO: map, with name and index in global buffers.
     std::vector<_object_t> _objects;
     std::vector<object_id_t> _object_names = {};
+    bool _add_object(const object_description_t &desc, _object_t &obj);
 
     void *get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx);
     dynamic_uniform_buffer_t _global_object_matrices_ubo; // all objects model matrices in one buffer
@@ -432,25 +436,18 @@ private:
     //
     // instances
     //
-    struct _instanced_object_t
+    #define MAX_INSTANCE_COUNT 256
+    struct _instance_set_t
     {
-        uint32_t vertexCount = 0;
-        uint32_t vertex_offset = 0;
-        VkBuffer vertex_buffer = VK_NULL_HANDLE;
-        //vertex_buffer_object_t vertex_buffer; // maybe only use a ref to an already loaded object in the global buffer
-
-        uint32_t indexCount = 0;
-        uint32_t index_offset = 0;
-        VkBuffer index_buffer = VK_NULL_HANDLE;
-        //vertex_buffer_object_t index_buffer; // maybe only use a ref to an already loaded object in the global buffer
+        _object_t model; // reference mesh for the instances
 
         uint32_t instance_count = 0;
         vertex_buffer_object_t instance_buffer;
 
-#define MAX_INSTANCE_COUNT 256
-
         // for animation
         std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
+        std::array<glm::vec3, MAX_INSTANCE_COUNT> rotations = {};
+        std::array<glm::vec3, MAX_INSTANCE_COUNT> scales = {};
         std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
         std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
 
@@ -458,7 +455,7 @@ private:
         material_instance_id_t material_ref; // same material for all objects in the instance set.
     };
 
-    std::vector<_instanced_object_t> _instanced_objects;
+    std::unordered_map<instance_set_id_t, _instance_set_t> _instance_sets;
 
     _pipeline_t _instance_pipe;
 };
