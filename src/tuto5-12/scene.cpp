@@ -385,16 +385,25 @@ void Scene::upload()
 {
     update_scene_ubo();
     update_all_objects_ubos();
+    update_all_instances_vbos();
 }
 
 void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect)
 {
+#define DRAW_GLOBAL_INSTANCES 0
+#define DRAW_INSTANCED_INSTANCES 1
+
     // RENDER PASS BEGIN ---
 
     auto default_pipeline = _pipelines["default"];
     auto default_view = _views["perspective"];
 
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
+
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline.pipeline);
+
+#if DRAW_GLOBAL_INSTANCES == 1
 
     //
     // SET 0
@@ -402,9 +411,6 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline.pipeline_layout,
         0, // bind to set #0
         1, &default_view.descriptor_set, 0, nullptr);
-
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
-    vkCmdSetScissor(cmd, 0, 1, &scissor_rect);
 
     for (const auto &m : _material_instances)
     {
@@ -415,7 +421,7 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
             1, 1, &m.second.descriptor_set, 0, nullptr);
 
         // TODO: loop in objects per material instances
-        for (size_t i = 0; i < _objects.size(); ++i)
+        for (auto i : _global_instance_set)
         {
             const _object_t &obj = _objects[i];
             if (obj.material_ref != m.first)
@@ -443,11 +449,12 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
             vkCmdDrawIndexed(cmd, obj.indexCount, 1, 0, 0, 0);
         }
     }
+#endif
 
+#if DRAW_INSTANCED_INSTANCES == 1
     //
     // Instanced Sets
     //
-#if 0
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipe.pipeline);
 
     //
@@ -457,29 +464,23 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         0, // bind to set #0
         1, &default_view.descriptor_set, 0, nullptr);
 
-    for (const auto &m : _material_instances)
+    for (const auto &is : _instance_sets)
     {
         //
         // SET 1
         //
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipe.pipeline_layout,
-            1, 1, &m.second.descriptor_set, 0, nullptr);
+            1, 1, &_material_instances[is.second.material_ref].descriptor_set , 0, nullptr);
 
-        // TODO: loop in objects per material instances
-        for (size_t i = 0; i < _instanced_objects.size(); ++i)
-        {
-            const _instanced_object_t &obj = _instanced_objects[i];
-            if (obj.material_ref != m.first)
-                continue;
+        const auto &obj = _objects[is.second.model_index];
 
-            // Bind Attribs Vertex/Index
-            VkDeviceSize offsets = obj.vertex_offset;
-            vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets); // bind point 0, per-vertex data
-            vkCmdBindVertexBuffers(cmd, 1, 1, &obj.instance_buffer, &offsets); // bind point 1, per-instance data
-            vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
+        // Bind Attribs Vertex/Index
+        VkDeviceSize offsets = obj.vertex_offset;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets); // bind point 0, per-vertex data
+        vkCmdBindVertexBuffers(cmd, 1, 1, &is.second.instance_buffer.buffer, &offsets); // bind point 1, per-instance data
+        vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
 
-            vkCmdDrawIndexed(cmd, obj.indexCount, obj.instance_count, 0, 0, 0);
-        }
+        vkCmdDrawIndexed(cmd, obj.indexCount, is.second.instance_count, 0, 0, 0);
     }
 #endif
     // RENDER PASS END ---
@@ -1283,20 +1284,37 @@ bool Scene::update_all_objects_ubos()
 
 bool Scene::update_all_instances_vbos()
 {
-    //Log("#    Map (Staging) Vertex Buffer\n");
-    //size_t vertex_data_size = desc.vertexCount * sizeof(vertex_t);
+    VkResult result;
+    void *mapped = nullptr;
+    for (auto _is : _instance_sets)
+    {
+        auto &is = _is.second;
 
-    //Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
-    //result = vkMapMemory(device, staging_buffer.memory, 0, vertex_data_size, 0, &mapped);
-    //ErrorCheck(result);
-    //if (result != VK_SUCCESS)
-    //    return false;
+        // TODO: dont rebuild everything
+        instance_data_t instance_data[256] = {};
+        for (uint32_t i = 0; i < is.instance_count; ++i)
+        {
+            instance_data[i].m = glm::translate(glm::mat4(1), is.positions[i].xyz());
+            instance_data[i].b = is.base_colors[i];
+            instance_data[i].s = is.speculars[i];
+        }
 
-    //vertex_t *vertices = (vertex_t*)mapped;
-    //memcpy(vertices, desc.vertices, vertex_data_size);
+        //Log("#    Map (Staging) Vertex Buffer\n");
+        size_t instance_data_size = is.instance_count * sizeof(instance_data_t);
 
-    //Log("#    UnMap Vertex Buffer\n");
-    //vkUnmapMemory(device, staging_buffer.memory);
+        // TODO: map persistent, stored in instance_set
+
+        //Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
+        result = vkMapMemory(_ctx->device, is.instance_buffer.memory, 0, instance_data_size, 0, &mapped);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+
+        memcpy(mapped, instance_data, instance_data_size);
+
+        //Log("#    UnMap Vertex Buffer\n");
+        vkUnmapMemory(_ctx->device, is.instance_buffer.memory);
+    }
 
     return true;
 }
