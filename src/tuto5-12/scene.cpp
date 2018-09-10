@@ -281,6 +281,8 @@ uint32_t Scene::_add_object(const object_description_t &desc )
     glm::mat4* model_mat = (glm::mat4*)((uint64_t)global_matrices_ubo.host_data + (_objects.size() * global_matrices_ubo.alignment));
     *model_mat = glm::translate(glm::mat4(1), desc.position);
 
+    // TODO: add normal matrix as a mat3 -> Matrices.uNormalMatrix = glm::inverseTranspose( glm::mat3( Matrices.uModelMatrix ) );
+
     Log("#    Fill Material Overrides into its aligned buffer\n");
     _material_override_t *materials = (_material_override_t*)((uint64_t)global_material_ubo.host_data + (_objects.size() * global_material_ubo.alignment));
     materials->base_color = desc.base_color;
