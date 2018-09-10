@@ -26,7 +26,7 @@ layout( location = 2 ) in vec2 uv;
 
 // Per-Instance
 layout( location = 3 ) in mat4 model_matrix;
-layout( location = 7) in vec4 base; // xyz = albedo or specular. a = alpha
+layout( location = 7 ) in vec4 base; // xyz = albedo or specular. a = alpha
 layout( location = 8 ) in vec4 spec; // x = roughness, y = metallic, z = reflectance
 
 // OUT

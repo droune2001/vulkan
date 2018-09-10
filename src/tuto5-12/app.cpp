@@ -432,7 +432,7 @@ void VulkanApplication::BuildScene()
     // METAL instance set
     //
     {
-        IndexedMesh obj = make_icosphere(1, 0.5f);
+        IndexedMesh obj = make_icosphere(1, 0.2f);
         Scene::object_description_t obj_desc = {};
         obj_desc.name = std::string("Sphere_Template");
         obj_desc.vertexCount = (uint32_t)obj.first.size();
@@ -481,6 +481,26 @@ void VulkanApplication::BuildScene()
             instanced_object_desc.specular = glm::vec4(roughness, metallic, 0.5f, 0);
 
             _scene->add_object_to_instance_set(instanced_object_desc, "plastic_cubes");
+        }
+    }
+
+    for (uint32_t i = 0; i < ROWS_COUNT; ++i)
+    {
+        for (uint32_t j = 0; j < COLS_COUNT; ++j)
+        {
+            Scene::instanced_object_description_t instanced_object_desc;
+            instanced_object_desc.position = glm::vec3(-4.5f + i * 0.5f, -1.0f, 10 + -4.5f + j * 0.5f);
+            instanced_object_desc.rotation = glm::vec3(0, 0, 0);
+            instanced_object_desc.scale = glm::vec3(1, 1, 1);
+
+            float roughness = 0.045f + 0.955f * real_rand(); // random roughness
+            float metallic = 1.0f;
+            float r = metal_min + metal_scale * real_rand();
+            float g = metal_min + metal_scale * real_rand();
+            float b = metal_min + metal_scale * real_rand();
+            instanced_object_desc.base_color = glm::vec4(r, g, b, 1); // random tint
+            instanced_object_desc.specular = glm::vec4(roughness, metallic, 1, 0);
+
             _scene->add_object_to_instance_set(instanced_object_desc, "metal_spheres");
         }
     }

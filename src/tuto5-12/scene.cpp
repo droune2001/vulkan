@@ -96,34 +96,34 @@ VkVertexInputAttributeDescription *Scene::instance_data_t::attribute_description
     //
 
     vertex_attribute_descriptions[3].location = 3;
-    vertex_attribute_descriptions[3].binding = 0;
+    vertex_attribute_descriptions[3].binding = 1;
     vertex_attribute_descriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
     vertex_attribute_descriptions[3].offset = offsetof(Scene::instance_data_t, m); // 0;
 
     vertex_attribute_descriptions[4].location = 4;
-    vertex_attribute_descriptions[4].binding = 0;
+    vertex_attribute_descriptions[4].binding = 1;
     vertex_attribute_descriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 2nd row (column??) = 4 float
     vertex_attribute_descriptions[4].offset = offsetof(Scene::instance_data_t, m)+16; // 0;
 
     vertex_attribute_descriptions[5].location = 5;
-    vertex_attribute_descriptions[5].binding = 0;
+    vertex_attribute_descriptions[5].binding = 1;
     vertex_attribute_descriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 3rd row (column??) = 4 float
     vertex_attribute_descriptions[5].offset = offsetof(Scene::instance_data_t, m)+16+16; // 0;
 
     vertex_attribute_descriptions[6].location = 6;
-    vertex_attribute_descriptions[6].binding = 0;
+    vertex_attribute_descriptions[6].binding = 1;
     vertex_attribute_descriptions[6].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 4th row (column??) = 4 float
     vertex_attribute_descriptions[6].offset = offsetof(Scene::instance_data_t, m)+16+16+16; // 0;
 
     vertex_attribute_descriptions[7].location = 7;
-    vertex_attribute_descriptions[7].binding = 0;
-    vertex_attribute_descriptions[7].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
-    vertex_attribute_descriptions[7].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
+    vertex_attribute_descriptions[7].binding = 1;
+    vertex_attribute_descriptions[7].format = VK_FORMAT_R32G32B32A32_SFLOAT; // base color = 4 floats
+    vertex_attribute_descriptions[7].offset = offsetof(Scene::instance_data_t, b);
 
     vertex_attribute_descriptions[8].location = 8;
-    vertex_attribute_descriptions[8].binding = 0;
-    vertex_attribute_descriptions[8].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
-    vertex_attribute_descriptions[8].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
+    vertex_attribute_descriptions[8].binding = 1;
+    vertex_attribute_descriptions[8].format = VK_FORMAT_R32G32B32A32_SFLOAT; // specular = 4 floats
+    vertex_attribute_descriptions[8].offset = offsetof(Scene::instance_data_t, s);
 
     return vertex_attribute_descriptions.data();
 }
@@ -475,9 +475,10 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         const auto &obj = _objects[is.second.model_index];
 
         // Bind Attribs Vertex/Index
-        VkDeviceSize offsets = obj.vertex_offset;
-        vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &offsets); // bind point 0, per-vertex data
-        vkCmdBindVertexBuffers(cmd, 1, 1, &is.second.instance_buffer.buffer, &offsets); // bind point 1, per-instance data
+        VkDeviceSize vertex_offsets = obj.vertex_offset;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &vertex_offsets); // bind point 0, per-vertex data
+        VkDeviceSize instance_offsets = 0;
+        vkCmdBindVertexBuffers(cmd, 1, 1, &is.second.instance_buffer.buffer, &instance_offsets); // bind point 1, per-instance data
         vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
 
         vkCmdDrawIndexed(cmd, obj.indexCount, is.second.instance_count, 0, 0, 0);
