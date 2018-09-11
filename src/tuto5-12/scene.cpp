@@ -392,7 +392,7 @@ void Scene::upload()
 
 void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect)
 {
-#define DRAW_GLOBAL_INSTANCES 0
+#define DRAW_GLOBAL_INSTANCES 1
 #define DRAW_INSTANCED_INSTANCES 1
 
     // RENDER PASS BEGIN ---
@@ -1173,6 +1173,8 @@ void Scene::animate_object(float dt)
             uint32_t col = i % 16;
             float norm_start_x = (col - 8.0f) / 8.0f;
             float norm_start_z = (row - 8.0f) / 8.0f;
+            glm::vec2 dir = glm::vec2(norm_start_x, norm_start_z);
+            glm::vec2 ndir = glm::normalize(dir);
 
             float d2 = norm_start_x * norm_start_x + norm_start_z * norm_start_z;
             float d = sqrtf((float)d2 / SQRT_2); // normalized distance
@@ -1180,9 +1182,9 @@ void Scene::animate_object(float dt)
             constexpr float speed = 3.0f; // radian/sec
             constexpr float radius = 5.0f;
             constexpr float height = 1.0f;
-            is.positions[i].x = 2.0f*radius*(norm_start_x/ norm_start_x) + radius * norm_start_x;// radius * d * std::cos(speed * accum);
+            is.positions[i].x = radius * ( ndir.x + norm_start_x );// radius * d * std::cos(speed * accum);
             is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
-            is.positions[i].z = 2.0f*radius*(norm_start_z*norm_start_z) + radius * norm_start_z;// radius * d * std::sin(speed * accum);
+            is.positions[i].z = radius * ( ndir.y + norm_start_z );// radius * d * std::sin(speed * accum);
         }
     }
 
@@ -1204,10 +1206,10 @@ void Scene::animate_camera(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
-    const float cam_r = 5.0f; // radius
-    const float cam_as = 0.6f; // angular_speed, radians/sec
+    const float cam_r = 10.0f; // radius
+    const float cam_as = 0.4f; // angular_speed, radians/sec
     float cx = cam_r * std::cos(cam_as * accum_dt);
-    float cy = 3.0f;
+    float cy = 5.0f;
     float cz = cam_r * std::sin(cam_as * accum_dt);
     auto &camera = _cameras["perspective"];
     camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
