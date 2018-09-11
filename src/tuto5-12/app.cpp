@@ -468,7 +468,7 @@ void VulkanApplication::BuildScene()
         for (uint32_t j = 0; j < COLS_COUNT; ++j)
         {
             Scene::instanced_object_description_t instanced_object_desc;
-            instanced_object_desc.position = glm::vec3(-4.5f + i * 0.5f, -1.0f, -4.5f + j * 0.5f);
+            instanced_object_desc.position = glm::vec3(0, 0, 0);// glm::vec3(-4.5f + i * 0.5f, -1.0f, -4.5f + j * 0.5f);
             instanced_object_desc.rotation = glm::vec3(0, 0, 0);
             instanced_object_desc.scale = glm::vec3(1, 1, 1);
             

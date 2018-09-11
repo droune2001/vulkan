@@ -1119,8 +1119,10 @@ void Scene::animate_object(float dt)
     static float obj_y = 0.0f;
     static float obj_z = 0.0f;
     static float accum = 0.0f; // in seconds
-#if 0
+
     accum += dt;
+
+#if 0
     float speed = 3.0f; // radian/sec
     float radius = 1.5f;
     obj_x = radius * std::cos(speed * accum);
@@ -1137,8 +1139,64 @@ void Scene::animate_object(float dt)
     *model_mat_obj_0 = glm::translate(glm::mat4(1), obj_0.position + glm::vec3(obj_x, obj_y, obj_z));
     *model_mat_obj_1 = glm::translate(glm::mat4(1), obj_1.position + glm::vec3(-obj_x, obj_y, -obj_z));
 
-    // TODO: animate floor instance objects
-    // ...
+    //
+    // animate instanced objects
+    //
+
+#define SQRT_2 1.414213562f
+    {
+        auto &is = _instance_sets["plastic_cubes"];
+        for (uint32_t i = 0; i < is.instance_count; ++i)
+        {
+            uint32_t row = i / 16;
+            uint32_t col = i % 16;
+            float norm_start_x = (col - 8.0f) / 8.0f;
+            float norm_start_z = (row - 8.0f) / 8.0f;
+
+            float d2 = norm_start_x * norm_start_x + norm_start_z * norm_start_z;
+            float d = sqrtf((float)d2/SQRT_2) ; // normalized distance
+
+            constexpr float speed = 3.0f; // radian/sec
+            constexpr float radius = 5.0f;
+            constexpr float height = 1.0f;
+            is.positions[i].x = radius * norm_start_x;// radius * d * std::cos(speed * accum);
+            is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
+            is.positions[i].z = radius * norm_start_z;// radius * d * std::sin(speed * accum);
+        }
+    }
+
+    {
+        auto &is = _instance_sets["metal_spheres"];
+        for (uint32_t i = 0; i < is.instance_count; ++i)
+        {
+            uint32_t row = i / 16;
+            uint32_t col = i % 16;
+            float norm_start_x = (col - 8.0f) / 8.0f;
+            float norm_start_z = (row - 8.0f) / 8.0f;
+
+            float d2 = norm_start_x * norm_start_x + norm_start_z * norm_start_z;
+            float d = sqrtf((float)d2 / SQRT_2); // normalized distance
+
+            constexpr float speed = 3.0f; // radian/sec
+            constexpr float radius = 5.0f;
+            constexpr float height = 1.0f;
+            is.positions[i].x = 2.0f*radius*(norm_start_x/ norm_start_x) + radius * norm_start_x;// radius * d * std::cos(speed * accum);
+            is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
+            is.positions[i].z = 2.0f*radius*(norm_start_z*norm_start_z) + radius * norm_start_z;// radius * d * std::sin(speed * accum);
+        }
+    }
+
+    // fill instance buffer data
+    for (auto &_is : _instance_sets)
+    {
+        auto &is = _is.second;
+        for (uint32_t i = 0; i < is.instance_count; ++i)
+        {
+            is.instance_data[i].m = glm::translate(glm::mat4(1), is.positions[i].xyz());
+            is.instance_data[i].b = is.base_colors[i];
+            is.instance_data[i].s = is.speculars[i];
+        }
+    }
 }
 
 void Scene::animate_camera(float dt)
@@ -1293,15 +1351,6 @@ bool Scene::update_all_instances_vbos()
     {
         auto &is = _is.second;
 
-        // TODO: dont rebuild everything
-        instance_data_t instance_data[256] = {};
-        for (uint32_t i = 0; i < is.instance_count; ++i)
-        {
-            instance_data[i].m = glm::translate(glm::mat4(1), is.positions[i].xyz());
-            instance_data[i].b = is.base_colors[i];
-            instance_data[i].s = is.speculars[i];
-        }
-
         //Log("#    Map (Staging) Vertex Buffer\n");
         size_t instance_data_size = is.instance_count * sizeof(instance_data_t);
 
@@ -1313,7 +1362,7 @@ bool Scene::update_all_instances_vbos()
         if (result != VK_SUCCESS)
             return false;
 
-        memcpy(mapped, instance_data, instance_data_size);
+        memcpy(mapped, is.instance_data.data(), instance_data_size);
 
         //Log("#    UnMap Vertex Buffer\n");
         vkUnmapMemory(_ctx->device, is.instance_buffer.memory);

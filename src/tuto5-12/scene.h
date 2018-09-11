@@ -452,6 +452,8 @@ private:
         std::array<glm::vec3, MAX_INSTANCE_COUNT> scales = {};
         std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
         std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+        
+        std::array<instance_data_t, MAX_INSTANCE_COUNT> instance_data = {};
 
         // TODO: array of material indices.
         material_instance_id_t material_ref; // same material for all objects in the instance set.
