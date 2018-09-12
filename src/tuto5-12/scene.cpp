@@ -326,7 +326,6 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
         &_instance_sets[is.instance_set].instance_buffer.memory,
         256 * sizeof(instance_data_t),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        //VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
 
@@ -344,7 +343,7 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
         &_instance_sets[is.instance_set].instance_buffer.memory,
         256 * sizeof(instance_data_t),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
 #endif
 
