@@ -316,7 +316,13 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
 
     if (estimated_instance_count > 0)
     {
-        // TODO: reserve.
+        // NOTE(nfauvet): resize et pas reserve parce que je m'en sers comme un tableau tab[i], pas push_back
+        _instance_sets[is.instance_set].positions.resize(MAX_INSTANCE_COUNT);
+        _instance_sets[is.instance_set].rotations.resize(MAX_INSTANCE_COUNT);
+        _instance_sets[is.instance_set].scales.resize(MAX_INSTANCE_COUNT);
+        _instance_sets[is.instance_set].base_colors.resize(MAX_INSTANCE_COUNT);
+        _instance_sets[is.instance_set].speculars.resize(MAX_INSTANCE_COUNT);
+        _instance_sets[is.instance_set].instance_data.resize(MAX_INSTANCE_COUNT);
     }
 
 #if USE_STAGING_FOR_INSTANCING == 1
@@ -324,7 +330,7 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
     if (!create_buffer(
         &_instance_sets[is.instance_set].instance_buffer.buffer,
         &_instance_sets[is.instance_set].instance_buffer.memory,
-        256 * sizeof(instance_data_t),
+        ROWS_COUNT * COLS_COUNT * sizeof(instance_data_t),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
@@ -332,7 +338,7 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
     if (!create_buffer(
         &_instance_sets[is.instance_set].staging_buffer.buffer,
         &_instance_sets[is.instance_set].staging_buffer.memory,
-        256 * sizeof(instance_data_t),
+        ROWS_COUNT * COLS_COUNT * sizeof(instance_data_t),
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
         return false;
@@ -341,7 +347,7 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
     if (!create_buffer(
         &_instance_sets[is.instance_set].instance_buffer.buffer,
         &_instance_sets[is.instance_set].instance_buffer.memory,
-        256 * sizeof(instance_data_t),
+        ROWS_COUNT * COLS_COUNT * sizeof(instance_data_t),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
@@ -412,7 +418,7 @@ void Scene::upload()
 
 void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect)
 {
-#define DRAW_GLOBAL_INSTANCES 1
+#define DRAW_GLOBAL_INSTANCES 0
 #define DRAW_INSTANCED_INSTANCES 1
 
     // RENDER PASS BEGIN ---
@@ -1165,22 +1171,22 @@ void Scene::animate_object(float dt)
     //
     // animate instanced objects
     //
+    constexpr float SQRT_2 = 1.414213562f;
 
-#define SQRT_2 1.414213562f
     {
         auto &is = _instance_sets["plastic_cubes"];
         for (uint32_t i = 0; i < is.instance_count; ++i)
         {
-            uint32_t row = i / 16;
-            uint32_t col = i % 16;
-            float norm_start_x = (col - 8.0f) / 8.0f;
-            float norm_start_z = (row - 8.0f) / 8.0f;
+            uint32_t row = i / ROWS_COUNT;
+            uint32_t col = i % COLS_COUNT;
+            float norm_start_x = (0.5f + (col - (ROWS_COUNT / 2.0f))) / ((ROWS_COUNT / 2.0f) - 0.5f);
+            float norm_start_z = (0.5f + (row - (COLS_COUNT / 2.0f))) / ((COLS_COUNT / 2.0f) - 0.5f);
 
             float d2 = norm_start_x * norm_start_x + norm_start_z * norm_start_z;
             float d = sqrtf((float)d2/SQRT_2) ; // normalized distance
 
             constexpr float speed = 3.0f; // radian/sec
-            constexpr float radius = 5.0f;
+            float radius = _instances_layout_radius;// 20.0f; // dependant de rows/cols_count
             constexpr float height = 1.0f;
             is.positions[i].x = radius * norm_start_x;// radius * d * std::cos(speed * accum);
             is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
@@ -1192,10 +1198,10 @@ void Scene::animate_object(float dt)
         auto &is = _instance_sets["metal_spheres"];
         for (uint32_t i = 0; i < is.instance_count; ++i)
         {
-            uint32_t row = i / 16;
-            uint32_t col = i % 16;
-            float norm_start_x = (col - 8.0f) / 8.0f;
-            float norm_start_z = (row - 8.0f) / 8.0f;
+            uint32_t row = i / ROWS_COUNT;
+            uint32_t col = i % COLS_COUNT;
+            float norm_start_x = (0.5f + (col - (ROWS_COUNT / 2.0f))) / ((ROWS_COUNT / 2.0f) - 0.5f);
+            float norm_start_z = (0.5f + (row - (COLS_COUNT / 2.0f))) / ((COLS_COUNT / 2.0f) - 0.5f);
             glm::vec2 dir = glm::vec2(norm_start_x, norm_start_z);
             glm::vec2 ndir = glm::normalize(dir);
 
@@ -1203,11 +1209,11 @@ void Scene::animate_object(float dt)
             float d = sqrtf((float)d2 / SQRT_2); // normalized distance
 
             constexpr float speed = 3.0f; // radian/sec
-            constexpr float radius = 5.0f;
+            float radius = _instances_layout_radius;//20.0f; // dependant de rows/cols_count
             constexpr float height = 1.0f;
-            is.positions[i].x = radius * ( ndir.x + norm_start_x );// radius * d * std::cos(speed * accum);
+            is.positions[i].x = radius * (1.5f * ndir.x + norm_start_x );// radius * d * std::cos(speed * accum);
             is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
-            is.positions[i].z = radius * ( ndir.y + norm_start_z );// radius * d * std::sin(speed * accum);
+            is.positions[i].z = radius * (1.5f * ndir.y + norm_start_z );// radius * d * std::sin(speed * accum);
         }
     }
 
@@ -1229,10 +1235,10 @@ void Scene::animate_camera(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
-    const float cam_r = 10.0f; // radius
-    const float cam_as = 0.4f; // angular_speed, radians/sec
+    const float cam_r = 30.0f; // radius
+    const float cam_as = 0.3f; // angular_speed, radians/sec
     float cx = cam_r * std::cos(cam_as * accum_dt);
-    float cy = 5.0f;
+    float cy = 10.0f;
     float cz = cam_r * std::sin(cam_as * accum_dt);
     auto &camera = _cameras["perspective"];
     camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
@@ -1243,6 +1249,8 @@ void Scene::animate_light(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
+    const float BASE_Y_OFFSET = 2.0f;
+
     auto &lights = _lighting_block.lights;
 
     {
@@ -1251,7 +1259,7 @@ void Scene::animate_light(float dt)
         const float r_z = 3.0f; // radius
         const float as = 0.2f;//1.4f; // angular_speed, radians/sec
         float lx = r_x * std::cos(3.0f * as * accum_dt);
-        float ly = 1.5f + r_y * std::sin(as * accum_dt);
+        float ly = BASE_Y_OFFSET+1.5f + r_y * std::sin(as * accum_dt);
         float lz = r_z * std::cos(7.0f * as * accum_dt);
         lights[0].position = glm::vec4(lx, ly, lz, 1.0f);
     }
@@ -1262,7 +1270,7 @@ void Scene::animate_light(float dt)
         const float o_y = 2.0f;
         const float as = 2.4f; // angular_speed, radians/sec
         float lx = r_xz * std::cos(as * accum_dt);
-        float ly = o_y;
+        float ly = BASE_Y_OFFSET+o_y;
         float lz = r_xz * std::cos(2.0f * as * accum_dt);
         lights[1].position = glm::vec4(lx, ly, lz, 1.0f);
     }
@@ -1274,7 +1282,7 @@ void Scene::animate_light(float dt)
         const float r_y = 1.2f; // radius
         const float as = 1.4f; // angular_speed, radians/sec
         float lx = r_xz * std::sin(as * accum_dt + fi);
-        float ly = 2.0f + r_y * std::sin(as * accum_dt + fi);
+        float ly = BASE_Y_OFFSET+2.0f + r_y * std::sin(as * accum_dt + fi);
         float lz = r_xz * std::cos(2.0f * as * accum_dt + fi);
         lights[i].position = glm::vec4(lx, ly, lz, 1.0f);
     }
@@ -2249,6 +2257,8 @@ void Scene::show_property_sheet()
         ImGui::Checkbox("Animate light", &_animate_light);
         ImGui::Checkbox("Animate object", &_animate_object);
         ImGui::Checkbox("Animate instances", &_animate_instance_data);
+
+        ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 200.0f);
     }
     ImGui::End();
 }

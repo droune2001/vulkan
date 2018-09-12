@@ -12,6 +12,10 @@
 #define MAX_LIGHTS 8
 #define MAX_CAMERAS 16
 
+#define ROWS_COUNT 64
+#define COLS_COUNT 64
+#define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT)
+
 #ifndef PI 
 #   define PI 3.1415f
 #   define PI_4 (PI/4.0f)
@@ -439,7 +443,6 @@ private:
     //
     // instances
     //
-    #define MAX_INSTANCE_COUNT 256
     struct _instance_set_t
     {
         uint32_t model_index; // reference mesh for the instances
@@ -448,20 +451,28 @@ private:
         vertex_buffer_object_t instance_buffer;
         staging_buffer_t staging_buffer;
 
-        // for animation
-        std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
-        std::array<glm::vec3, MAX_INSTANCE_COUNT> rotations = {};
-        std::array<glm::vec3, MAX_INSTANCE_COUNT> scales = {};
-        std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
-        std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
-        
-        std::array<instance_data_t, MAX_INSTANCE_COUNT> instance_data = {};
+        // STACK OVERFLOW
+        //std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
+        //std::array<glm::vec3, MAX_INSTANCE_COUNT> rotations = {};
+        //std::array<glm::vec3, MAX_INSTANCE_COUNT> scales = {};
+        //std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
+        //std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+        //std::array<instance_data_t, MAX_INSTANCE_COUNT> instance_data = {};
+
+        std::vector<glm::vec3> positions = {};
+        std::vector<glm::vec3> rotations = {};
+        std::vector<glm::vec3> scales = {};
+        std::vector<glm::vec4> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
+        std::vector<glm::vec4> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+        std::vector<instance_data_t> instance_data = {};
 
         // TODO: array of material indices.
         material_instance_id_t material_ref; // same material for all objects in the instance set.
     };
 
     std::unordered_map<instance_set_id_t, _instance_set_t> _instance_sets;
+    
+    float _instances_layout_radius = ROWS_COUNT/4.0f;
 
     _pipeline_t _instance_pipe;
 };
