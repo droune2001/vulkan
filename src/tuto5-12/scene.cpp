@@ -13,6 +13,7 @@
 #include <string>
 
 #define MAX_NB_OBJECTS 1024
+#define USE_STAGING_FOR_INSTANCING 0
 
 //
 // VERTEX
@@ -318,14 +319,34 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
         // TODO: reserve.
     }
 
+#if USE_STAGING_FOR_INSTANCING == 1
+    Log("#     Create Instance Set VBO\n");
+    if (!create_buffer(
+        &_instance_sets[is.instance_set].instance_buffer.buffer,
+        &_instance_sets[is.instance_set].instance_buffer.memory,
+        256 * sizeof(instance_data_t),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        //VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        return false;
+
+    if (!create_buffer(
+        &_instance_sets[is.instance_set].staging_buffer.buffer,
+        &_instance_sets[is.instance_set].staging_buffer.memory,
+        256 * sizeof(instance_data_t),
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
+#else
     Log("#     Create Instance Set VBO\n");
     if (!create_buffer(
         &_instance_sets[is.instance_set].instance_buffer.buffer,
         &_instance_sets[is.instance_set].instance_buffer.memory,
         256 * sizeof(instance_data_t),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
+#endif
 
     return true;
 }
@@ -666,7 +687,7 @@ bool Scene::create_texture_2d(_texture_t *texture)
     return true;
 }
 
-bool Scene::copy_data_to_staging_buffer(staging_buffer_t buffer, void *data, VkDeviceSize size)
+bool Scene::copy_data_to_staging_buffer(staging_buffer_t buffer, void *data, VkDeviceSize size, bool flush)
 {
     VkResult result;
     auto device = _ctx->device;
@@ -680,12 +701,15 @@ bool Scene::copy_data_to_staging_buffer(staging_buffer_t buffer, void *data, VkD
 
     memcpy(image_mapped, data, size);
 
-    VkMappedMemoryRange memory_range = {};
-    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memory_range.memory = buffer.memory;
-    memory_range.offset = 0;
-    memory_range.size = size;
-    vkFlushMappedMemoryRanges(device, 1, &memory_range);
+    if (flush)
+    {
+        VkMappedMemoryRange memory_range = {};
+        memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+        memory_range.memory = buffer.memory;
+        memory_range.offset = 0;
+        memory_range.size = size;
+        vkFlushMappedMemoryRanges(device, 1, &memory_range);
+    }
 
     vkUnmapMemory(device, buffer.memory);
 
@@ -1347,29 +1371,32 @@ bool Scene::update_all_objects_ubos()
 
 bool Scene::update_all_instances_vbos()
 {
-    VkResult result;
-    void *mapped = nullptr;
-    for (auto _is : _instance_sets)
+    if (_animate_instance_data)
     {
-        auto &is = _is.second;
+        for (auto _is : _instance_sets)
+        {
+            auto &is = _is.second;
 
-        //Log("#    Map (Staging) Vertex Buffer\n");
-        size_t instance_data_size = is.instance_count * sizeof(instance_data_t);
+            //Log("#    Map (Staging) Vertex Buffer\n");
+            size_t instance_data_size = is.instance_count * sizeof(instance_data_t);
+#if USE_STAGING_FOR_INSTANCING == 1
+            // TODO: map persistent, stored in instance_set
+            copy_data_to_staging_buffer(is.staging_buffer, is.instance_data.data(), instance_data_size, false);
+            copy_buffer_to_buffer(is.staging_buffer.buffer, is.instance_buffer.buffer, instance_data_size, 0, 0);
+#else
+            VkResult result;
+            void *mapped = nullptr;
+            result = vkMapMemory(_ctx->device, is.instance_buffer.memory, 0, instance_data_size, 0, &mapped);
+            ErrorCheck(result);
+            if (result != VK_SUCCESS)
+                return false;
 
-        // TODO: map persistent, stored in instance_set
+            memcpy(mapped, is.instance_data.data(), instance_data_size);
 
-        //Log("#     offset: " + std::to_string(global_vbo.offset) + std::string(" size: ") + std::to_string(vertex_data_size) + "\n");
-        result = vkMapMemory(_ctx->device, is.instance_buffer.memory, 0, instance_data_size, 0, &mapped);
-        ErrorCheck(result);
-        if (result != VK_SUCCESS)
-            return false;
-
-        memcpy(mapped, is.instance_data.data(), instance_data_size);
-
-        //Log("#    UnMap Vertex Buffer\n");
-        vkUnmapMemory(_ctx->device, is.instance_buffer.memory);
+            vkUnmapMemory(_ctx->device, is.instance_buffer.memory);
+#endif
+        }
     }
-
     return true;
 }
 
@@ -2222,6 +2249,7 @@ void Scene::show_property_sheet()
         ImGui::Checkbox("Animate camera", &_animate_camera);
         ImGui::Checkbox("Animate light", &_animate_light);
         ImGui::Checkbox("Animate object", &_animate_object);
+        ImGui::Checkbox("Animate instances", &_animate_instance_data);
     }
     ImGui::End();
 }

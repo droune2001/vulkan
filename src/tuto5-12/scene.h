@@ -242,7 +242,7 @@ private:
     bool copy_buffer_to_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size, VkDeviceSize src_offset = 0, VkDeviceSize dst_offset = 0);
     bool copy_buffer_to_image(VkBuffer src, VkImage dst, VkExtent3D extent);
     bool transition_texture(VkImage *pImage, VkImageLayout old_layout, VkImageLayout new_layout);
-    bool copy_data_to_staging_buffer(staging_buffer_t buffer, void *data, VkDeviceSize size);
+    bool copy_data_to_staging_buffer(staging_buffer_t buffer, void *data, VkDeviceSize size, bool flush = true);
 
     VkCommandBuffer begin_single_time_commands(const vulkan_queue &queue);
     void end_single_time_commands(VkCommandBuffer cmd, const vulkan_queue &queue);
@@ -258,6 +258,7 @@ private:
     bool _animate_camera = true;
     bool _animate_light = true;
     bool _animate_object = true;
+    bool _animate_instance_data = true;
     int _current_item_idx = 0;
     int _current_light = 0;
 
@@ -445,6 +446,7 @@ private:
 
         uint32_t instance_count = 0;
         vertex_buffer_object_t instance_buffer;
+        staging_buffer_t staging_buffer;
 
         // for animation
         std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
