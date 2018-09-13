@@ -198,6 +198,57 @@ IndexedMesh make_flat_cube(float width, float height, float depth)
     return {vertices, indices};
 }
 
+namespace hexagon
+{
+
+#define COS_30 0.866f
+#define SIN_30 0.5f
+
+    static const VertexList vertices =
+    {
+        // starting at top, clock-wise
+        {{ 0,       0,      0, 1},{0, 0, 1},{0, 1}},
+        {{ 0,       1,      0, 1},{0, 0, 1},{0, 1}},
+        {{ COS_30,  SIN_30, 0, 1},{0, 0, 1},{0, 1}},
+        {{ COS_30, -SIN_30, 0, 1},{0, 0, 1},{0, 1}},
+        {{ 0,      -1,      0, 1},{0, 0, 1},{0, 1}},
+        {{-COS_30, -SIN_30, 0, 1},{0, 0, 1},{0, 1}},
+        {{-COS_30,  SIN_30, 0, 1},{0, 0, 1},{0, 1}}
+    };
+
+    static const TriangleList triangles =
+    {
+        {0,1,2},{0,2,3},{0,3,4},
+        {0,4,5},{0,5,6},{0,6,1}
+    };
+
+    //enum { X_POS, X_NEG, Y_POS, Y_NEG, Z_POS, Z_NEG };
+}
+
+IndexedMesh make_hexagon(float width, float height, glm::vec3 normal)
+{
+    VertexList vertices;
+    vertices.reserve(hexagon::vertices.size());
+    for (auto v : hexagon::vertices)
+    {
+        Scene::vertex_t scaled_v = v;
+        scaled_v.p *= glm::vec4(0.5f*width, 0.5f*height, 1.0f, 1.0f);
+        scaled_v.n = normal;
+        vertices.push_back(scaled_v);
+    }
+    TriangleList triangles = hexagon::triangles;
+
+    IndexList indices;
+    indices.resize(triangles.size() * 3);
+    for (auto t : triangles)
+    {
+        indices.push_back(t.vertex_index[0]);
+        indices.push_back(t.vertex_index[1]);
+        indices.push_back(t.vertex_index[2]);
+    }
+
+    return{vertices, indices};
+}
 
 namespace utils
 {

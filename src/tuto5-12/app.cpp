@@ -361,7 +361,8 @@ void VulkanApplication::BuildScene()
     // PLASTIC instance set
     //
     {
-        IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
+        //IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
+        IndexedMesh obj = make_hexagon(5.0f, 5.0f, glm::vec3(0,1,0));
         Scene::object_description_t obj_desc = {};
         obj_desc.name = std::string("Cube_Template");
         obj_desc.vertexCount = (uint32_t)obj.first.size();

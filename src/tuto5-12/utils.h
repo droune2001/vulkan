@@ -25,6 +25,7 @@ using IndexedMesh = std::pair<VertexList, IndexList>;
 
 IndexedMesh make_icosphere(int subdivisions, float radius = 1.0f);
 IndexedMesh make_flat_cube(float width = 1.0f, float height = 1.0f, float depth = 1.0f);
+IndexedMesh make_hexagon(float width, float height, glm::vec3 normal = glm::vec3(0, 0, 1));
 
 namespace utils
 {
