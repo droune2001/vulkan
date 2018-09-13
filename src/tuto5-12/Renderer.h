@@ -1,7 +1,7 @@
 #pragma once
 
-//#define USE_VMA
-#ifdef USE_VMA
+#define USE_VMA 1
+#if USE_VMA == 1
 #   include "vk_mem_alloc_usage.h"
 #endif
 
@@ -121,8 +121,8 @@ private:
 
     vulkan_context _ctx;
 
-#ifdef USE_VMA
-    VmaAllocator   _allocator = VK_NULL_HANDLE;
+#if USE_VMA == 1
+    VmaAllocator _allocator = VK_NULL_HANDLE;
 #endif
 
     Window * _w = nullptr;
