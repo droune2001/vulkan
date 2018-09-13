@@ -12,10 +12,11 @@
 #define MAX_LIGHTS 8
 #define MAX_CAMERAS 16
 
-#define ROWS_COUNT 64
-#define COLS_COUNT 64
+#define ROWS_COUNT 96
+#define COLS_COUNT 96
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT)
-
+// 96x96 = 9216
+// 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
 #ifndef PI 
 #   define PI 3.1415f
 #   define PI_4 (PI/4.0f)

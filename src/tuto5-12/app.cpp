@@ -199,8 +199,8 @@ void VulkanApplication::BuildScene()
     Scene::camera_description_t camera = {};
     camera.camera_id = "perspective";
     camera.position = glm::vec3(10, 0, 0);
-    camera.near_plane = 0.1f;
-    camera.far_plane = 100.0f;
+    camera.near_plane = 1.0f;
+    camera.far_plane = 1000.0f;
     camera.aspect = (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
     camera.fovy = 45.0f;
     _scene->add_camera(camera);

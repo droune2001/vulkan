@@ -1235,10 +1235,10 @@ void Scene::animate_camera(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
-    const float cam_r = 30.0f; // radius
+    const float cam_r = 80.0f; // radius
     const float cam_as = 0.3f; // angular_speed, radians/sec
     float cx = cam_r * std::cos(cam_as * accum_dt);
-    float cy = 10.0f;
+    float cy = 30.0f;
     float cz = cam_r * std::sin(cam_as * accum_dt);
     auto &camera = _cameras["perspective"];
     camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
