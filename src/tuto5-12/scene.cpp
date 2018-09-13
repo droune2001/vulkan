@@ -13,7 +13,7 @@
 #include <string>
 
 #define MAX_NB_OBJECTS 1024
-#define USE_STAGING_FOR_INSTANCING 0
+#define USE_STAGING_FOR_INSTANCING 1
 
 //
 // VERTEX
@@ -349,7 +349,7 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
         &_instance_sets[is.instance_set].instance_buffer.memory,
         ROWS_COUNT * COLS_COUNT * sizeof(instance_data_t),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ))//| VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
 #endif
 
@@ -1235,10 +1235,10 @@ void Scene::animate_camera(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
-    const float cam_r = 80.0f; // radius
+    const float cam_r = 500.0f; // radius
     const float cam_as = 0.3f; // angular_speed, radians/sec
     float cx = cam_r * std::cos(cam_as * accum_dt);
-    float cy = 30.0f;
+    float cy = 150.0f;
     float cz = cam_r * std::sin(cam_as * accum_dt);
     auto &camera = _cameras["perspective"];
     camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
@@ -2258,7 +2258,7 @@ void Scene::show_property_sheet()
         ImGui::Checkbox("Animate object", &_animate_object);
         ImGui::Checkbox("Animate instances", &_animate_instance_data);
 
-        ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 200.0f);
+        ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 400.0f);
     }
     ImGui::End();
 }

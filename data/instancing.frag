@@ -24,7 +24,7 @@ layout( set = 0, binding = 0, std140 ) uniform scene_ubo
 
     vec4 sky_color;
 
-    light_t lights[3];
+    light_t lights[8];
 
     // + light type, outer/inner cone angles?
     // + camera lens properties?
@@ -311,8 +311,9 @@ void main()
 
     vec3 luminance = vec3(0);
 
+    #if 0
     // FOR EACH LIGHT
-    for (int i=0; i<3; i++)
+    for (int i=0; i<8; i++)
     {
         light_t light = Scene_UBO.lights[i];
 
@@ -358,7 +359,7 @@ void main()
         float E = I * attenuation * NdotL;
         luminance += BSDF * E * light_color;
     }
-
+    #endif
 
     // sky
     vec3 sky_color = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
@@ -384,10 +385,8 @@ void main()
     float Es = Is * NdotLs;
     luminance += BSDF_Sky * Es * sky_color;
 
-
-
     uFragColor = vec4(Linear_to_sRGB(luminance), 1);
-    
+
     // DEBUG
     //uFragColor = vec4(0.5*(N+1),1);
     //uFragColor = vec4(0.5*(V+1),1);

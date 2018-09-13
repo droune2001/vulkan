@@ -16,7 +16,7 @@ layout( set = 0, binding = 0 ) uniform scene_ubo
 
     vec4 sky_color;
 
-    light_t lights[3];
+    light_t lights[8];
 } Scene_UBO;
 
 // Per-Vertex
