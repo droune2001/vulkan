@@ -51,7 +51,7 @@ void main()
     gl_Position = Scene_UBO.proj_matrix * modelView * pos;
 
     OUT.uv = uv;
-    OUT.normal = normal;//( inverse( transpose( modelView ) ) * vec4( normal, 0.0 )).xyz;
+    OUT.normal = ( inverse( transpose( modelView ) ) * vec4( normal, 0.0 )).xyz;
     OUT.to_camera = camera_pos.xyz - world_pos.xyz;
     OUT.world_pos = world_pos.xyz;
     OUT.base = base;

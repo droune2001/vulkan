@@ -117,7 +117,7 @@ IndexedMesh make_icosphere(int subdivisions, float radius)
     }
 
     IndexList indices;
-    indices.resize(triangles.size()*3);
+    indices.reserve(triangles.size()*3);
     for (auto t : triangles)
     {
         indices.push_back(t.vertex_index[0]);
@@ -187,7 +187,7 @@ IndexedMesh make_flat_cube(float width, float height, float depth)
     TriangleList triangles = flat_cube::triangles;
 
     IndexList indices;
-    indices.resize(triangles.size() * 3);
+    indices.reserve(triangles.size() * 3);
     for (auto t : triangles)
     {
         indices.push_back(t.vertex_index[0]);
@@ -239,7 +239,7 @@ IndexedMesh make_hexagon(float width, float height, glm::vec3 normal)
     TriangleList triangles = hexagon::triangles;
 
     IndexList indices;
-    indices.resize(triangles.size() * 3);
+    indices.reserve(triangles.size() * 3);
     for (auto t : triangles)
     {
         indices.push_back(t.vertex_index[0]);

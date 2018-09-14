@@ -13,7 +13,7 @@
 #include <string>
 
 #define MAX_NB_OBJECTS 1024
-#define USE_STAGING_FOR_INSTANCING 1
+#define USE_STAGING_FOR_INSTANCING 0
 
 //
 // VERTEX
@@ -402,7 +402,7 @@ void Scene::update(float dt)
     if (_animate_object)
         animate_object(dt);
 
-    if (_animate_camera)
+    //if (_animate_camera)
         animate_camera(dt);
 
     if (_animate_light)
@@ -492,10 +492,10 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         0, // bind to set #0
         1, &default_view.descriptor_set, 0, nullptr);
 
-    //for (const auto &_is : _instance_sets)
+    for (const auto &_is : _instance_sets)
     {
-        //const auto &is = _is.second;
-        const auto &is = _instance_sets["plastic_cubes"];
+        const auto &is = _is.second;
+        //const auto &is = _instance_sets["plastic_cubes"];
         //
         // SET 1
         //
@@ -1223,9 +1223,21 @@ void Scene::animate_object(float dt)
             constexpr float speed = 3.0f; // radian/sec
             float radius = _instances_layout_radius;//20.0f; // dependant de rows/cols_count
             constexpr float height = 1.0f;
-            is.positions[i].x = radius * (1.5f * ndir.x + norm_start_x );// radius * d * std::cos(speed * accum);
-            is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
-            is.positions[i].z = radius * (1.5f * ndir.y + norm_start_z );// radius * d * std::sin(speed * accum);
+            //is.positions[i].x = radius * (1.5f * ndir.x + norm_start_x );// radius * d * std::cos(speed * accum);
+            //is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
+            //is.positions[i].z = radius * (1.5f * ndir.y + norm_start_z );// radius * d * std::sin(speed * accum);
+            is.positions[i].x = radius * norm_start_x;// radius * d * std::cos(speed * accum);
+            is.positions[i].y = 1.0f ;
+            is.positions[i].z = radius * norm_start_z;// radius * d * std::sin(speed * accum);
+
+            constexpr float rotation_speed = 70.0f;
+            is.rotations[i].x = glm::radians((1+d) * rotation_speed * accum);
+            is.rotations[i].y = 0.0f;
+            is.rotations[i].z = 0.0f;
+
+            is.scales[i].x = 1.0f;
+            is.scales[i].y = 1.0f;
+            is.scales[i].z = 1.0f;
         }
     }
 #endif
@@ -1257,9 +1269,19 @@ void Scene::animate_camera(float dt)
 
     const float cam_r = _camera_distance; // radius
     const float cam_as = 0.3f; // angular_speed, radians/sec
-    float cx = cam_r * std::cos(cam_as * accum_dt);
-    float cy = _camera_elevation;
-    float cz = cam_r * std::sin(cam_as * accum_dt);
+    float cx, cy, cz;
+    if (_animate_camera)
+    {
+        cx = cam_r * std::cos(cam_as * accum_dt);
+        cy = _camera_elevation;
+        cz = cam_r * std::sin(cam_as * accum_dt);
+    }
+    else
+    {
+        cx = cam_r;
+        cy = _camera_elevation;
+        cz = cam_r;
+    }
     auto &camera = _cameras["perspective"];
     camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 }
@@ -2273,7 +2295,7 @@ void Scene::show_property_sheet()
             tmp_change_sphere_spec_color(_current_item_idx, spec_color);
         }
 
-        ImGui::Checkbox("Animate camera", &_animate_camera);
+        ImGui::Checkbox("Rotate camera", &_animate_camera);
         ImGui::Checkbox("Animate light", &_animate_light);
         ImGui::Checkbox("Animate object", &_animate_object);
         ImGui::Checkbox("Animate instances", &_animate_instance_data);
@@ -2281,6 +2303,9 @@ void Scene::show_property_sheet()
         ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 400.0f);
         ImGui::SliderFloat("Camera Distance", &_camera_distance, 1.0f, 1000.0f);
         ImGui::SliderFloat("Camera Elevation", &_camera_elevation, 0.0f, 500.0f);
+
+        ImGui::ColorEdit4("Sun Color", glm::value_ptr(_lighting_block.sky_color));
+        ImGui::ColorEdit4("Background Color", glm::value_ptr(_bg_color));
     }
     ImGui::End();
 }

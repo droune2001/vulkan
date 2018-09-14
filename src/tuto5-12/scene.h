@@ -12,13 +12,13 @@
 #define MAX_LIGHTS 8
 #define MAX_CAMERAS 16
 
-#define ROWS_COUNT 512
-#define COLS_COUNT 512
+#define ROWS_COUNT 256
+#define COLS_COUNT 256
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
-#define USE_INSTANCE_SET_1 1
-#define USE_INSTANCE_SET_2 0
+#define USE_INSTANCE_SET_1 0
+#define USE_INSTANCE_SET_2 1
 
 #ifndef PI 
 #   define PI 3.1415f
@@ -168,6 +168,9 @@ public:
     void update(float dt);
     void upload();
     void draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect);
+
+    const glm::vec4 &sky_color() { return _lighting_block.sky_color; }
+    const glm::vec4 &bg_color() { return _bg_color; }
 
 private:
 
@@ -343,7 +346,8 @@ private:
     #define MAX_LIGHTS_PER_SHADER 8
     struct _lighting_block_t
     {
-        glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 0.3f); // RGB: color A:intensity
+        //glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 0.3f); // RGB: color A:intensity
+        glm::vec4 sky_color = glm::vec4(255 / 255.0f, 166 / 255.0f, 76 / 255.0f, 0.3f);
         //glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
 
         std::array<_light_t, MAX_LIGHTS_PER_SHADER> lights;
@@ -479,9 +483,10 @@ private:
     _pipeline_t _instance_pipe;
 
     // IMGUI controlled vars
-    float _instances_layout_radius = 250.0f;// ROWS_COUNT / 4.0f;
-    float _camera_distance = 10.0f;
-    float _camera_elevation = 2.0f;
+    float _instances_layout_radius = 120;// ROWS_COUNT / 4.0f;
+    float _camera_distance = 67.0f;
+    float _camera_elevation = 40.0f;
+    glm::vec4 _bg_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_
