@@ -492,24 +492,26 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         0, // bind to set #0
         1, &default_view.descriptor_set, 0, nullptr);
 
-    for (const auto &is : _instance_sets)
+    //for (const auto &_is : _instance_sets)
     {
+        //const auto &is = _is.second;
+        const auto &is = _instance_sets["plastic_cubes"];
         //
         // SET 1
         //
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _instance_pipe.pipeline_layout,
-            1, 1, &_material_instances[is.second.material_ref].descriptor_set , 0, nullptr);
+            1, 1, &_material_instances[is.material_ref].descriptor_set , 0, nullptr);
 
-        const auto &obj = _objects[is.second.model_index];
+        const auto &obj = _objects[is.model_index];
 
         // Bind Attribs Vertex/Index
         VkDeviceSize vertex_offsets = obj.vertex_offset;
         vkCmdBindVertexBuffers(cmd, 0, 1, &obj.vertex_buffer, &vertex_offsets); // bind point 0, per-vertex data
         VkDeviceSize instance_offsets = 0;
-        vkCmdBindVertexBuffers(cmd, 1, 1, &is.second.instance_buffer.buffer, &instance_offsets); // bind point 1, per-instance data
+        vkCmdBindVertexBuffers(cmd, 1, 1, &is.instance_buffer.buffer, &instance_offsets); // bind point 1, per-instance data
         vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
 
-        vkCmdDrawIndexed(cmd, obj.indexCount, is.second.instance_count, 0, 0, 0);
+        vkCmdDrawIndexed(cmd, obj.indexCount, is.instance_count, 0, 0, 0);
     }
 #endif
     // RENDER PASS END ---
@@ -1172,7 +1174,7 @@ void Scene::animate_object(float dt)
     // animate instanced objects
     //
     constexpr float SQRT_2 = 1.414213562f;
-
+#if USE_INSTANCE_SET_1 == 1
     {
         auto &is = _instance_sets["plastic_cubes"];
         for (uint32_t i = 0; i < is.instance_count; ++i)
@@ -1191,9 +1193,19 @@ void Scene::animate_object(float dt)
             is.positions[i].x = radius * norm_start_x;// radius * d * std::cos(speed * accum);
             is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
             is.positions[i].z = radius * norm_start_z;// radius * d * std::sin(speed * accum);
+
+            constexpr float rotation_speed = 30.0f;
+            is.rotations[i].x = glm::radians(d * rotation_speed * accum);
+            is.rotations[i].y = 0.0f;
+            is.rotations[i].z = 0.0f;
+
+            is.scales[i].x = 1.0f;
+            is.scales[i].y = 1.0f;
+            is.scales[i].z = 1.0f;
         }
     }
-
+#endif
+#if USE_INSTANCE_SET_2 == 1
     {
         auto &is = _instance_sets["metal_spheres"];
         for (uint32_t i = 0; i < is.instance_count; ++i)
@@ -1216,6 +1228,7 @@ void Scene::animate_object(float dt)
             is.positions[i].z = radius * (1.5f * ndir.y + norm_start_z );// radius * d * std::sin(speed * accum);
         }
     }
+#endif
 
     // fill instance buffer data
     for (auto &_is : _instance_sets)
@@ -1223,7 +1236,14 @@ void Scene::animate_object(float dt)
         auto &is = _is.second;
         for (uint32_t i = 0; i < is.instance_count; ++i)
         {
-            is.instance_data[i].m = glm::translate(glm::mat4(1), is.positions[i].xyz());
+            glm::mat4 m(1);
+            m = glm::translate(m, is.positions[i].xyz());
+            m = glm::rotate(m, is.rotations[i].x, glm::vec3(1, 0, 0));
+            m = glm::rotate(m, is.rotations[i].y, glm::vec3(0, 1, 0));
+            m = glm::rotate(m, is.rotations[i].z, glm::vec3(0, 0, 1)); 
+            m = glm::scale(m, is.scales[i]);
+
+            is.instance_data[i].m = m;
             is.instance_data[i].b = is.base_colors[i];
             is.instance_data[i].s = is.speculars[i];
         }
@@ -1235,10 +1255,10 @@ void Scene::animate_camera(float dt)
     static float accum_dt = 0.0f;
     accum_dt += dt;
 
-    const float cam_r = 500.0f; // radius
+    const float cam_r = _camera_distance; // radius
     const float cam_as = 0.3f; // angular_speed, radians/sec
     float cx = cam_r * std::cos(cam_as * accum_dt);
-    float cy = 150.0f;
+    float cy = _camera_elevation;
     float cz = cam_r * std::sin(cam_as * accum_dt);
     auto &camera = _cameras["perspective"];
     camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
@@ -2259,6 +2279,8 @@ void Scene::show_property_sheet()
         ImGui::Checkbox("Animate instances", &_animate_instance_data);
 
         ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 400.0f);
+        ImGui::SliderFloat("Camera Distance", &_camera_distance, 1.0f, 1000.0f);
+        ImGui::SliderFloat("Camera Elevation", &_camera_elevation, 0.0f, 500.0f);
     }
     ImGui::End();
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#define USE_VMA 1
+#define USE_VMA 0
 #if USE_VMA == 1
 #   include "vk_mem_alloc_usage.h"
 #endif

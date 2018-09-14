@@ -17,6 +17,9 @@
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
+#define USE_INSTANCE_SET_1 1
+#define USE_INSTANCE_SET_2 0
+
 #ifndef PI 
 #   define PI 3.1415f
 #   define PI_4 (PI/4.0f)
@@ -473,9 +476,12 @@ private:
 
     std::unordered_map<instance_set_id_t, _instance_set_t> _instance_sets;
     
-    float _instances_layout_radius = ROWS_COUNT/4.0f;
-
     _pipeline_t _instance_pipe;
+
+    // IMGUI controlled vars
+    float _instances_layout_radius = 250.0f;// ROWS_COUNT / 4.0f;
+    float _camera_distance = 10.0f;
+    float _camera_elevation = 2.0f;
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_
