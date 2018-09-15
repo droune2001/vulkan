@@ -322,6 +322,7 @@ bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_i
         _instance_sets[is.instance_set].scales.resize(MAX_INSTANCE_COUNT);
         _instance_sets[is.instance_set].base_colors.resize(MAX_INSTANCE_COUNT);
         _instance_sets[is.instance_set].speculars.resize(MAX_INSTANCE_COUNT);
+        _instance_sets[is.instance_set].jitters.resize(MAX_INSTANCE_COUNT);
         _instance_sets[is.instance_set].instance_data.resize(MAX_INSTANCE_COUNT);
     }
 
@@ -365,6 +366,7 @@ uint32_t Scene::add_object_to_instance_set(instanced_object_description_t o, ins
     is.positions[idx] = o.position;
     is.rotations[idx] = o.rotation;
     is.scales[idx] = o.scale;
+    is.jitters[idx] = o.jitters;
 
     return is.instance_count++;
 }
@@ -1170,6 +1172,12 @@ void Scene::animate_object(float dt)
     *model_mat_obj_0 = glm::translate(glm::mat4(1), obj_0.position + glm::vec3(obj_x, obj_y, obj_z));
     *model_mat_obj_1 = glm::translate(glm::mat4(1), obj_1.position + glm::vec3(-obj_x, obj_y, -obj_z));
 
+    if (!_animate_instance_data)
+        return;
+
+    static float t = 0.0f; // in seconds
+    t += dt;
+
     //
     // animate instanced objects
     //
@@ -1210,34 +1218,25 @@ void Scene::animate_object(float dt)
         auto &is = _instance_sets["metal_spheres"];
         for (uint32_t i = 0; i < is.instance_count; ++i)
         {
-            uint32_t row = i / ROWS_COUNT;
-            uint32_t col = i % COLS_COUNT;
-            float norm_start_x = (0.5f + (col - (ROWS_COUNT / 2.0f))) / ((ROWS_COUNT / 2.0f) - 0.5f);
-            float norm_start_z = (0.5f + (row - (COLS_COUNT / 2.0f))) / ((COLS_COUNT / 2.0f) - 0.5f);
-            glm::vec2 dir = glm::vec2(norm_start_x, norm_start_z);
-            glm::vec2 ndir = glm::normalize(dir);
+            float tt = _speed * t + i * _pdt; // delay each successive particle
+            
+            auto J = is.jitters[i];
+            J *= glm::vec4(_e0, _e1, _e2, _e3);
+            // J.x = offset sur position de depart, decale toute la track.
+            // J.y = offset sur taille des petits cercles.
+            // J.z = rotatin scale
 
-            float d2 = norm_start_x * norm_start_x + norm_start_z * norm_start_z;
-            float d = sqrtf((float)d2 / SQRT_2); // normalized distance
+            is.positions[i].x = _ax * std::cos(_bx*tt) + (_cx + J.y) * std::sin(_dx*tt) + J.x;
+            is.positions[i].y = _ay * std::sin(_by*tt) + (_cy + J.y) * std::cos(_dy*tt) + J.x;
+            is.positions[i].z = _az * std::sin(_bz*tt) + (_cz + J.y) * std::cos(_dz*tt) + J.x;
 
-            constexpr float speed = 3.0f; // radian/sec
-            float radius = _instances_layout_radius;//20.0f; // dependant de rows/cols_count
-            constexpr float height = 1.0f;
-            //is.positions[i].x = radius * (1.5f * ndir.x + norm_start_x );// radius * d * std::cos(speed * accum);
-            //is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
-            //is.positions[i].z = radius * (1.5f * ndir.y + norm_start_z );// radius * d * std::sin(speed * accum);
-            is.positions[i].x = radius * norm_start_x;// radius * d * std::cos(speed * accum);
-            is.positions[i].y = 1.0f ;
-            is.positions[i].z = radius * norm_start_z;// radius * d * std::sin(speed * accum);
+            is.rotations[i].x = glm::radians(J.z * _rsx * tt);
+            is.rotations[i].y = glm::radians(J.z * _rsy * tt);
+            is.rotations[i].z = glm::radians(J.z * _rsz * tt);
 
-            constexpr float rotation_speed = 70.0f;
-            is.rotations[i].x = glm::radians((1+d) * rotation_speed * accum);
-            is.rotations[i].y = 0.0f;
-            is.rotations[i].z = 0.0f;
-
-            is.scales[i].x = 1.0f;
-            is.scales[i].y = 1.0f;
-            is.scales[i].z = 1.0f;
+            is.scales[i].x = _psx;
+            is.scales[i].y = _psy;
+            is.scales[i].z = _psz;
         }
     }
 #endif
@@ -1265,25 +1264,25 @@ void Scene::animate_object(float dt)
 void Scene::animate_camera(float dt)
 {
     static float accum_dt = 0.0f;
-    accum_dt += dt;
+
+    auto &camera = _cameras["perspective"];
 
     const float cam_r = _camera_distance; // radius
     const float cam_as = 0.3f; // angular_speed, radians/sec
-    float cx, cy, cz;
     if (_animate_camera)
     {
-        cx = cam_r * std::cos(cam_as * accum_dt);
-        cy = _camera_elevation;
-        cz = cam_r * std::sin(cam_as * accum_dt);
+        accum_dt += dt;
+        camera.pos.x = cam_r * std::cos(cam_as * accum_dt);
+        camera.pos.y = _camera_elevation;
+        camera.pos.z = cam_r * std::sin(cam_as * accum_dt);
     }
     else
     {
-        cx = cam_r;
-        cy = _camera_elevation;
-        cz = cam_r;
+//        camera.pos.x = cam_r;
+//        camera.pos.y = _camera_elevation;
+//        camera.pos.z = cam_r;
     }
-    auto &camera = _cameras["perspective"];
-    camera.v = glm::lookAt(glm::vec3(cx, cy, cz), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+    camera.v = glm::lookAt(camera.pos.xyz(), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 }
 
 void Scene::animate_light(float dt)
@@ -2306,6 +2305,34 @@ void Scene::show_property_sheet()
 
         ImGui::ColorEdit4("Sun Color", glm::value_ptr(_lighting_block.sky_color));
         ImGui::ColorEdit4("Background Color", glm::value_ptr(_bg_color));
+
+        //ImGui::SliderFloat("Ax(big radius)", &_ax, 1.0f, 20.0f);
+        //ImGui::SliderFloat("Ay(big radius)", &_ay, 1.0f, 20.0f);
+        //ImGui::SliderFloat("Az(big radius)", &_az, 1.0f, 20.0f);
+        //ImGui::SliderFloat("Bx(nb big circles)", &_bx, 1.0f, 10.0f);
+        //ImGui::SliderFloat("By(nb big circles)", &_by, 1.0f, 10.0f);
+        //ImGui::SliderFloat("Bz(nb big circles)", &_bz, 1.0f, 10.0f);
+        //ImGui::SliderFloat("Cx(small radius)", &_cx, 0.1f, 1.0f);
+        //ImGui::SliderFloat("Cy(small radius)", &_cy, 0.1f, 1.0f);
+        //ImGui::SliderFloat("Cz(small radius)", &_cz, 0.1f, 1.0f);
+        //ImGui::SliderFloat("Dx(nb small circ)", &_dx, 1.0f, 200.0f);
+        //ImGui::SliderFloat("Dy(nb small circ)", &_dy, 1.0f, 200.0f);
+        //ImGui::SliderFloat("Dz(nb small circ)", &_dz, 1.0f, 200.0f);
+        ImGui::SliderFloat("E0(jitter 0)", &_e0, 0.1f, 5.0f);
+        ImGui::SliderFloat("E1(jitter 1)", &_e1, 0.01f, 1.0f);
+        ImGui::SliderFloat("E2(jitter 2)", &_e2, 0.01f, 1.0f);
+        ImGui::SliderFloat("E3(jitter 3)", &_e3, 0.01f, 1.0f);
+
+        ImGui::SliderFloat("Rx", &_rsx, 0.0f, 100.0f);
+        ImGui::SliderFloat("Ry", &_rsy, 0.0f, 100.0f);
+        ImGui::SliderFloat("Rz", &_rsz, 0.0f, 100.0f);
+
+        ImGui::SliderFloat("Psx(particle scale)", &_psx, 0.01f, 1.0f);
+        ImGui::SliderFloat("Psy", &_psy, 0.01f, 1.0f);
+        //ImGui::SliderFloat("Psz", &_psz, 0.01f, 1.0f);
+
+        ImGui::SliderFloat("Delta time", &_pdt, 0.001f, 1.0f);
+        ImGui::SliderFloat("Speed", &_speed, 0.001f, 1.0f);
     }
     ImGui::End();
 }

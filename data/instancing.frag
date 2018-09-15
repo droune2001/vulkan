@@ -307,7 +307,9 @@ void main()
     vec3 n = normalize( IN.normal );
     vec3 v = normalize( IN.to_camera );
     
-    float NdotV = abs( dot( n, v ) ) + 1e-5;
+    // double-sided
+    //float NdotV = abs( dot( n, v ) ) + 1e-5;
+    float NdotV = ( dot( n, v ) ) + 1e-5;
 
     vec3 luminance = vec3(0);
 
@@ -384,6 +386,19 @@ void main()
     float Is = sky_intensity;
     float Es = Is * NdotLs;
     luminance += BSDF_Sky * Es * sky_color;
+
+    // fake envmap
+    //vec3 r = reflect( -v, n );
+//    float m = 2. * sqrt(pow( r.x, 2. ) + pow( r.y, 2. ) + pow( r.z + 1., 2.0));
+//    vec2 vReflectionCoord = r.xy / m + .5;
+//    //vReflectionCoord.y = -vReflectionCoord.y;
+//
+//    sky_color.r = vReflectionCoord.y < 0.5 ? 0.5 : 1.0;
+//    sky_color.g = vReflectionCoord.y < 0.5 ? 1.0 : 1.0;
+//    sky_color.b = vReflectionCoord.y < 0.5 ? 0.0 : 2.0 * (vReflectionCoord.y - 0.5);
+//    float Is = sky_intensity;
+//    float Es = Is;// * NdotLs;
+//    luminance += BSDF_Sky * Es * sky_color;
 
     uFragColor = vec4(Linear_to_sRGB(luminance), 1);
 

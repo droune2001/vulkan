@@ -12,8 +12,8 @@
 #define MAX_LIGHTS 8
 #define MAX_CAMERAS 16
 
-#define ROWS_COUNT 256
-#define COLS_COUNT 256
+#define ROWS_COUNT 16 //256
+#define COLS_COUNT 16 //256
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
@@ -107,6 +107,7 @@ public:
         glm::vec3 scale = glm::vec3(1, 1, 1);
         glm::vec4 base_color = glm::vec4(0.5, 0.5, 0.5, 1.0);
         glm::vec4 specular = glm::vec4(0.5, 0.0, 0.0, 0.0); // roughness, metallic, reflectance, 0
+        glm::vec4 jitters = glm::vec4(0, 0, 0, 0);
     };
 
     struct light_description_t
@@ -363,6 +364,7 @@ private:
     {
         glm::mat4 v = glm::mat4(1); // view matrix
         glm::mat4 p = glm::mat4(1); // proj matrix
+        glm::vec4 pos = glm::vec4(1);
     };
     std::unordered_map<camera_id_t, _camera_t> _cameras;
 
@@ -472,6 +474,7 @@ private:
         std::vector<glm::vec3> scales = {};
         std::vector<glm::vec4> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
         std::vector<glm::vec4> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+        std::vector<glm::vec4> jitters = {};
         std::vector<instance_data_t> instance_data = {};
 
         // TODO: array of material indices.
@@ -484,9 +487,37 @@ private:
 
     // IMGUI controlled vars
     float _instances_layout_radius = 120;// ROWS_COUNT / 4.0f;
-    float _camera_distance = 67.0f;
-    float _camera_elevation = 40.0f;
+    float _camera_distance = 25.0f;// 67.0f;
+    float _camera_elevation = 15.0f;// 40.0f;
     glm::vec4 _bg_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
+    float _ax = 10.0f;
+    float _ay = 10.0f;
+    float _az = 10.0f;
+    float _bx = 1.3f;
+    float _by = 1.6f;
+    float _bz = 1.3f;
+    float _cx = 1.0f;
+    float _cy = 1.0f;
+    float _cz = 1.0f;
+    float _dx = 50.0f;
+    float _dy = 50.0f;
+    float _dz = 50.0f;
+    float _e0 = 0.1f; // jitter 0 mult
+    float _e1 = 1.0f;
+    float _e2 = 1.0f;
+    float _e3 = 0.0f;
+
+    float _psx = 0.1f; // particle scale
+    float _psy = 0.1f;
+    float _psz = 1.0f;
+
+    float _rsx = 100.0f; // particle self rotation speed
+    float _rsy = 100.0f;
+    float _rsz = 100.0f;
+
+    float _pdt = 0.001f; // delta time in sec
+
+    float _speed = 0.039f;
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_

@@ -356,6 +356,8 @@ void VulkanApplication::BuildScene()
     }
 #endif
 
+    constexpr float roughness_min = 0.045f;
+
     // metal [170..255]
     constexpr float metal_min = 170.0f / 255.0f;
     constexpr float metal_scale = (255.0f - 170.0f) / 255.0f;
@@ -446,17 +448,14 @@ void VulkanApplication::BuildScene()
             instanced_object_desc.position = glm::vec3(-4.5f + i * 0.5f, -1.0f, 10 + -4.5f + j * 0.5f);
             instanced_object_desc.rotation = glm::vec3(0, 0, 0);
             instanced_object_desc.scale = glm::vec3(1, 1, 1);
+            instanced_object_desc.jitters = glm::vec4(real_rand(), real_rand(), real_rand(), real_rand());
 
-            //float roughness = 0.045f + 0.955f * real_rand(); // random roughness
-            //float metallic = 1.0f;
-            //float r = metal_min + metal_scale * real_rand();
-            //float g = metal_min + metal_scale * real_rand();
-            //float b = metal_min + metal_scale * real_rand();
+            float roughness = roughness_min;
+            float metallic = 0.0f;
             glm::vec4 gold_reflectance(1.0f, 0.85f, 0.57f, 1.0f);
-            //instanced_object_desc.base_color = glm::vec4(r, g, b, 1); // random tint
+            //instanced_object_desc.base_color = glm::vec4(r, g, b, 1);
             instanced_object_desc.base_color = gold_reflectance;
-            //instanced_object_desc.specular = glm::vec4(roughness, metallic, 1, 0);
-            instanced_object_desc.specular = glm::vec4(0.045f, 1.0f, 1, 0);
+            instanced_object_desc.specular = glm::vec4(roughness, metallic, 1, 0);
 
             _scene->add_object_to_instance_set(instanced_object_desc, "metal_spheres");
         }
