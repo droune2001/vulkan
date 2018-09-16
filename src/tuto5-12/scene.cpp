@@ -513,7 +513,8 @@ void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect
         vkCmdBindVertexBuffers(cmd, 1, 1, &is.instance_buffer.buffer, &instance_offsets); // bind point 1, per-instance data
         vkCmdBindIndexBuffer(cmd, obj.index_buffer, obj.index_offset, VK_INDEX_TYPE_UINT16);
 
-        vkCmdDrawIndexed(cmd, obj.indexCount, is.instance_count, 0, 0, 0);
+        uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
+        vkCmdDrawIndexed(cmd, obj.indexCount, instance_count, 0, 0, 0);
     }
 #endif
     // RENDER PASS END ---
@@ -1181,6 +1182,7 @@ void Scene::animate_object(float dt)
     //
     // animate instanced objects
     //
+    constexpr float TWO_PI = 6.2831853071f;
     constexpr float SQRT_2 = 1.414213562f;
 #if USE_INSTANCE_SET_1 == 1
     {
@@ -1216,23 +1218,33 @@ void Scene::animate_object(float dt)
 #if USE_INSTANCE_SET_2 == 1
     {
         auto &is = _instance_sets["metal_spheres"];
-        for (uint32_t i = 0; i < is.instance_count; ++i)
+        uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
+        for (uint32_t i = 0; i < instance_count; ++i)
         {
             float tt = _speed * t + i * _pdt; // delay each successive particle
-            
+            float rt = _rotation_speed * t + i * _pdt; // delay each successive particle
+
             auto J = is.jitters[i];
-            J *= glm::vec4(_e0, _e1, _e2, _e3);
-            // J.x = offset sur position de depart, decale toute la track.
-            // J.y = offset sur taille des petits cercles.
-            // J.z = rotatin scale
+            // J.xyz = = offset sur position de depart, decale toute la track.
+            // _e0 = facteur de jitter sur la position de depart 
+            // _e1 = facteur de jitter sur taille des petits cercles.
+            // _e2 = facteur de jitter sur rotatin speed.
 
-            is.positions[i].x = _ax * std::cos(_bx*tt) + (_cx + J.y) * std::sin(_dx*tt) + J.x;
-            is.positions[i].y = _ay * std::sin(_by*tt) + (_cy + J.y) * std::cos(_dy*tt) + J.x;
-            is.positions[i].z = _az * std::sin(_bz*tt) + (_cz + J.y) * std::cos(_dz*tt) + J.x;
+            float global_pos_offset_x = _e0 * (2.0f * J.x - 1.0f);
+            float global_pos_offset_y = _e0 * (2.0f * J.y - 1.0f);
+            float global_pos_offset_z = _e0 * (2.0f * J.z - 1.0f);
 
-            is.rotations[i].x = glm::radians(J.z * _rsx * tt);
-            is.rotations[i].y = glm::radians(J.z * _rsy * tt);
-            is.rotations[i].z = glm::radians(J.z * _rsz * tt);
+            float local_pos_offset_x = _e1 * (2.0f * J.x - 1.0f);
+            float local_pos_offset_y = _e1 * (2.0f * J.y - 1.0f);
+            float local_pos_offset_z = _e1 * (2.0f * J.z - 1.0f);
+
+            is.positions[i].x = _ax * std::cos(_bx*tt) + (_cx + local_pos_offset_x) * std::sin(_dx*tt) + global_pos_offset_x;
+            is.positions[i].y = _ay * std::sin(_by*tt) + (_cy + local_pos_offset_y) * std::cos(_dy*tt) + global_pos_offset_y;
+            is.positions[i].z = _az * std::sin(_bz*tt) + (_cz + local_pos_offset_z) * std::cos(_dz*tt) + global_pos_offset_z;
+
+            is.rotations[i].x = glm::radians(_e2*J.x * _rsx * TWO_PI * rt);
+            is.rotations[i].y = glm::radians(_e2*J.y * _rsy * TWO_PI * rt);
+            is.rotations[i].z = glm::radians(_e2*J.z * _rsz * TWO_PI * rt);
 
             is.scales[i].x = _psx;
             is.scales[i].y = _psy;
@@ -1245,7 +1257,8 @@ void Scene::animate_object(float dt)
     for (auto &_is : _instance_sets)
     {
         auto &is = _is.second;
-        for (uint32_t i = 0; i < is.instance_count; ++i)
+        uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
+        for (uint32_t i = 0; i < instance_count; ++i)
         {
             glm::mat4 m(1);
             m = glm::translate(m, is.positions[i].xyz());
@@ -1426,7 +1439,8 @@ bool Scene::update_all_instances_vbos()
             auto &is = _is.second;
 
             //Log("#    Map (Staging) Vertex Buffer\n");
-            size_t instance_data_size = is.instance_count * sizeof(instance_data_t);
+            uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
+            size_t instance_data_size = instance_count * sizeof(instance_data_t);
 #if USE_STAGING_FOR_INSTANCING == 1
             // TODO: map persistent, stored in instance_set
             copy_data_to_staging_buffer(is.staging_buffer, is.instance_data.data(), instance_data_size, false);
@@ -2252,87 +2266,108 @@ void Scene::show_property_sheet()
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
     bool *pOpen = nullptr;
 
-    ImGui::Begin("Objects Properties", pOpen, window_flags);
+    ImGui::Begin("Properties", pOpen, window_flags);
     {
-        if (!_object_names.empty())
+        if (ImGui::CollapsingHeader("Object/Light Material"))
         {
-            ImGuiComboFlags combo_flags = ImGuiComboFlags_None;
-            combo_flags |= ImGuiComboFlags_HeightLargest;
-            if (ImGui::BeginCombo("Object", _object_names[_current_item_idx].c_str(), combo_flags))
+            if (!_object_names.empty())
             {
-                for (int n = 0; n < _object_names.size(); ++n)
+                ImGuiComboFlags combo_flags = ImGuiComboFlags_None;
+                combo_flags |= ImGuiComboFlags_HeightLargest;
+                if (ImGui::BeginCombo("Object", _object_names[_current_item_idx].c_str(), combo_flags))
                 {
-                    bool is_selected = (_current_item_idx == n);
-                    if (ImGui::Selectable(_object_names[n].c_str(), is_selected))
-                        _current_item_idx = n;
-                    if (is_selected)
-                        ImGui::SetItemDefaultFocus();   // Set the initial focus when opening the combo (scrolling + for keyboard navigation support in the upcoming navigation branch)
+                    for (int n = 0; n < _object_names.size(); ++n)
+                    {
+                        bool is_selected = (_current_item_idx == n);
+                        if (ImGui::Selectable(_object_names[n].c_str(), is_selected))
+                            _current_item_idx = n;
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();   // Set the initial focus when opening the combo (scrolling + for keyboard navigation support in the upcoming navigation branch)
+                    }
+                    ImGui::EndCombo();
                 }
-                ImGui::EndCombo();
             }
+
+            ImGui::Combo("Current Light", &_current_light, "Light_0\0Light_1\0Light_2\0\0");
+
+            glm::vec4 base_color = get_object_base_color(_current_item_idx);
+            if (ImGui::ColorEdit4("base_color", glm::value_ptr(base_color)))
+            {
+                tmp_change_sphere_base_color(_current_item_idx, base_color);
+            }
+
+            glm::vec4 spec_color = get_object_spec_color(_current_item_idx);
+            float roughness = (spec_color.x - 0.045f) / 0.955f;
+            if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f))
+            {
+                spec_color.x = 0.045f + 0.955f * roughness;
+                tmp_change_sphere_spec_color(_current_item_idx, spec_color);
+            }
+            float metalness = spec_color.y;
+            if (ImGui::SliderFloat("Metalness", &metalness, 0.0f, 1.0f))
+            {
+                spec_color.y = metalness;
+                tmp_change_sphere_spec_color(_current_item_idx, spec_color);
+            }
+            ImGui::ColorEdit4("Sun Color", glm::value_ptr(_lighting_block.sky_color));
+            ImGui::ColorEdit4("Background Color", glm::value_ptr(_bg_color));
         }
 
-        ImGui::Combo("Current Light", &_current_light, "Light_0\0Light_1\0Light_2\0\0");
-
-        glm::vec4 base_color = get_object_base_color(_current_item_idx);
-        if (ImGui::ColorEdit4("base_color", glm::value_ptr(base_color)))
+        if (ImGui::CollapsingHeader("Options"))
         {
-            tmp_change_sphere_base_color(_current_item_idx, base_color);
+            ImGui::Checkbox("Animate light", &_animate_light);
+            ImGui::Checkbox("Animate object", &_animate_object);
+            ImGui::Checkbox("Animate instances", &_animate_instance_data);
         }
 
-        glm::vec4 spec_color = get_object_spec_color(_current_item_idx);
-        float roughness = (spec_color.x - 0.045f) / 0.955f;
-        if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f))
+        if (ImGui::CollapsingHeader("Camera"))
         {
-            spec_color.x = 0.045f + 0.955f * roughness;
-            tmp_change_sphere_spec_color(_current_item_idx, spec_color);
+            ImGui::Checkbox("Rotate camera", &_animate_camera);
+            ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 400.0f);
+            ImGui::SliderFloat("Camera Distance", &_camera_distance, 1.0f, 1000.0f);
+            ImGui::SliderFloat("Camera Elevation", &_camera_elevation, 0.0f, 500.0f);
         }
-        float metalness = spec_color.y;
-        if (ImGui::SliderFloat("Metalness", &metalness, 0.0f, 1.0f))
+
+        if (ImGui::CollapsingHeader("Curve Shape"))
         {
-            spec_color.y = metalness;
-            tmp_change_sphere_spec_color(_current_item_idx, spec_color);
+            ImGui::SliderFloat("Ax(big radius)", &_ax, 1.0f, 20.0f);
+            ImGui::SliderFloat("Ay(big radius)", &_ay, 1.0f, 20.0f);
+            ImGui::SliderFloat("Az(big radius)", &_az, 1.0f, 20.0f);
+            ImGui::SliderFloat("Bx(nb big circles)", &_bx, 1.0f, 10.0f);
+            ImGui::SliderFloat("By(nb big circles)", &_by, 1.0f, 10.0f);
+            ImGui::SliderFloat("Bz(nb big circles)", &_bz, 1.0f, 10.0f);
+            ImGui::SliderFloat("Cx(small radius)", &_cx, 0.1f, 5.0f);
+            ImGui::SliderFloat("Cy(small radius)", &_cy, 0.1f, 5.0f);
+            ImGui::SliderFloat("Cz(small radius)", &_cz, 0.1f, 5.0f);
+            ImGui::SliderFloat("Dx(nb small circ)", &_dx, 0.0f, 200.0f);
+            ImGui::SliderFloat("Dy(nb small circ)", &_dy, 0.0f, 200.0f);
+            ImGui::SliderFloat("Dz(nb small circ)", &_dz, 0.0f, 200.0f);
         }
 
-        ImGui::Checkbox("Rotate camera", &_animate_camera);
-        ImGui::Checkbox("Animate light", &_animate_light);
-        ImGui::Checkbox("Animate object", &_animate_object);
-        ImGui::Checkbox("Animate instances", &_animate_instance_data);
+        if (ImGui::CollapsingHeader("Jitter"))
+        {
+            ImGui::SliderFloat("E0(jitter 0)", &_e0, 0.0f, 5.0f);
+            ImGui::SliderFloat("E1(jitter 1)", &_e1, 0.01f, 1.0f);
+            ImGui::SliderFloat("E2(jitter 2)", &_e2, 1.0f, 100.0f);
+            ImGui::SliderFloat("E3(jitter 3)", &_e3, 0.01f, 1.0f);
+        }
 
-        ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 400.0f);
-        ImGui::SliderFloat("Camera Distance", &_camera_distance, 1.0f, 1000.0f);
-        ImGui::SliderFloat("Camera Elevation", &_camera_elevation, 0.0f, 500.0f);
+        if (ImGui::CollapsingHeader("Misc"))
+        {
+            ImGui::SliderFloat("Rx", &_rsx, 0.0f, 100.0f);
+            ImGui::SliderFloat("Ry", &_rsy, 0.0f, 100.0f);
+            //ImGui::SliderFloat("Rz", &_rsz, 0.0f, 100.0f);
 
-        ImGui::ColorEdit4("Sun Color", glm::value_ptr(_lighting_block.sky_color));
-        ImGui::ColorEdit4("Background Color", glm::value_ptr(_bg_color));
+            ImGui::SliderFloat("Psx", &_psx, 0.01f, 1.0f);
+            ImGui::SliderFloat("Psy", &_psy, 0.01f, 1.0f);
+            //ImGui::SliderFloat("Psz", &_psz, 0.01f, 1.0f);
 
-        //ImGui::SliderFloat("Ax(big radius)", &_ax, 1.0f, 20.0f);
-        //ImGui::SliderFloat("Ay(big radius)", &_ay, 1.0f, 20.0f);
-        //ImGui::SliderFloat("Az(big radius)", &_az, 1.0f, 20.0f);
-        //ImGui::SliderFloat("Bx(nb big circles)", &_bx, 1.0f, 10.0f);
-        //ImGui::SliderFloat("By(nb big circles)", &_by, 1.0f, 10.0f);
-        //ImGui::SliderFloat("Bz(nb big circles)", &_bz, 1.0f, 10.0f);
-        //ImGui::SliderFloat("Cx(small radius)", &_cx, 0.1f, 1.0f);
-        //ImGui::SliderFloat("Cy(small radius)", &_cy, 0.1f, 1.0f);
-        //ImGui::SliderFloat("Cz(small radius)", &_cz, 0.1f, 1.0f);
-        //ImGui::SliderFloat("Dx(nb small circ)", &_dx, 1.0f, 200.0f);
-        //ImGui::SliderFloat("Dy(nb small circ)", &_dy, 1.0f, 200.0f);
-        //ImGui::SliderFloat("Dz(nb small circ)", &_dz, 1.0f, 200.0f);
-        ImGui::SliderFloat("E0(jitter 0)", &_e0, 0.1f, 5.0f);
-        ImGui::SliderFloat("E1(jitter 1)", &_e1, 0.01f, 1.0f);
-        ImGui::SliderFloat("E2(jitter 2)", &_e2, 0.01f, 1.0f);
-        ImGui::SliderFloat("E3(jitter 3)", &_e3, 0.01f, 1.0f);
+            ImGui::SliderFloat("Delta time", &_pdt, 0.0001f, 0.01f);
+            ImGui::SliderFloat("Speed", &_speed, 0.001f, 1.0f);
+            ImGui::SliderFloat("R. Speed", &_rotation_speed, 0.001f, 1.0f);
 
-        ImGui::SliderFloat("Rx", &_rsx, 0.0f, 100.0f);
-        ImGui::SliderFloat("Ry", &_rsy, 0.0f, 100.0f);
-        ImGui::SliderFloat("Rz", &_rsz, 0.0f, 100.0f);
-
-        ImGui::SliderFloat("Psx(particle scale)", &_psx, 0.01f, 1.0f);
-        ImGui::SliderFloat("Psy", &_psy, 0.01f, 1.0f);
-        //ImGui::SliderFloat("Psz", &_psz, 0.01f, 1.0f);
-
-        ImGui::SliderFloat("Delta time", &_pdt, 0.001f, 1.0f);
-        ImGui::SliderFloat("Speed", &_speed, 0.001f, 1.0f);
+            ImGui::SliderInt("Instances", &_nb_instances, 1, MAX_INSTANCE_COUNT);
+        }
     }
     ImGui::End();
 }

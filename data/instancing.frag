@@ -308,8 +308,8 @@ void main()
     vec3 v = normalize( IN.to_camera );
     
     // double-sided
-    //float NdotV = abs( dot( n, v ) ) + 1e-5;
-    float NdotV = ( dot( n, v ) ) + 1e-5;
+    float NdotV = abs( dot( n, v ) ) + 1e-5;
+    //float NdotV = ( dot( n, v ) ) + 1e-5;
 
     vec3 luminance = vec3(0);
 
@@ -363,29 +363,83 @@ void main()
     }
     #endif
 
-    // sky
-    vec3 sky_color = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
-    float sky_intensity = Scene_UBO.sky_color.a;
+    {
+        // sky
+        vec3 sky_color = sRGB_to_Linear(Scene_UBO.sky_color.rgb);
+        float sky_intensity = Scene_UBO.sky_color.a;
 
-    vec3 Ls = vec3(0,1,0);
-    vec3 Hs = normalize( v + Ls );
-    //float NdotLs = max( dot( n, Ls ), 0.0 );
-    float NdotLs = 0.5 * (dot( n, Ls ) + 1); // wrap
-    float NdotHs = max( dot( n, Hs ), 0.0 );
-    float VdotHs = max( dot( v, Hs ), 0.0 );
-    float LsdotHs = max( dot( Ls, Hs ), 0.0 );
+        vec3 Ls = vec3(0,1,0);
+        vec3 Hs = normalize( v + Ls );
+        float NdotLs = max( dot( n, Ls ), 0.0 );
+        //float NdotLs = 0.5 * (dot( n, Ls ) + 1); // wrap
+        float NdotHs = max( dot( n, Hs ), 0.0 );
+        float VdotHs = max( dot( v, Hs ), 0.0 );
+        float LsdotHs = max( dot( Ls, Hs ), 0.0 );
 
-    vec3 BSDF_Sky = CookTorranceBSDF(
-        diffuse_color, f0, 
-        linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
-        NdotV, NdotLs, NdotHs, VdotHs, LsdotHs,
-        Ls, v, Hs, n
-        );
+        vec3 BSDF_Sky = CookTorranceBSDF(
+            diffuse_color, f0, 
+            linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
+            NdotV, NdotLs, NdotHs, VdotHs, LsdotHs,
+            Ls, v, Hs, n
+            );
     
-    // directional
-    float Is = sky_intensity;
-    float Es = Is * NdotLs;
-    luminance += BSDF_Sky * Es * sky_color;
+        // directional
+        float Is = sky_intensity;
+        float Es = Is * NdotLs;
+        luminance += BSDF_Sky * Es * sky_color;
+    }
+
+    {
+        // directional light
+        vec3 sky_color = vec3(255.0/255.0, 12.0/255.0, 174.0/255.0); // pink
+        float sky_intensity = 1.0;
+
+        vec3 Ls = vec3(1,0,0); // right
+        vec3 Hs = normalize( v + Ls );
+        float NdotLs = max( dot( n, Ls ), 0.0 );
+        //float NdotLs = 0.5 * (dot( n, Ls ) + 1); // wrap
+        float NdotHs = max( dot( n, Hs ), 0.0 );
+        float VdotHs = max( dot( v, Hs ), 0.0 );
+        float LsdotHs = max( dot( Ls, Hs ), 0.0 );
+
+        vec3 BSDF_Sky = CookTorranceBSDF(
+            diffuse_color, f0, 
+            linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
+            NdotV, NdotLs, NdotHs, VdotHs, LsdotHs,
+            Ls, v, Hs, n
+            );
+    
+        // directional
+        float Is = sky_intensity;
+        float Es = Is * NdotLs;
+        luminance += BSDF_Sky * Es * sky_color;
+    }
+
+    {
+        // directional light
+        vec3 sky_color = vec3(40.0/255.0, 137.0/255.0, 255.0/255.0); // blue
+        float sky_intensity = 1.0;
+
+        vec3 Ls = vec3(-1,0,0); // left
+        vec3 Hs = normalize( v + Ls );
+        float NdotLs = max( dot( n, Ls ), 0.0 );
+        //float NdotLs = 0.5 * (dot( n, Ls ) + 1); // wrap
+        float NdotHs = max( dot( n, Hs ), 0.0 );
+        float VdotHs = max( dot( v, Hs ), 0.0 );
+        float LsdotHs = max( dot( Ls, Hs ), 0.0 );
+
+        vec3 BSDF_Sky = CookTorranceBSDF(
+            diffuse_color, f0, 
+            linear_roughness, anisotropy, clearCoatRoughness, clearCoat,
+            NdotV, NdotLs, NdotHs, VdotHs, LsdotHs,
+            Ls, v, Hs, n
+            );
+    
+        // directional
+        float Is = sky_intensity;
+        float Es = Is * NdotLs;
+        luminance += BSDF_Sky * Es * sky_color;
+    }
 
     // fake envmap
     //vec3 r = reflect( -v, n );

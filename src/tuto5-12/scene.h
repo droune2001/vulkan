@@ -12,8 +12,8 @@
 #define MAX_LIGHTS 8
 #define MAX_CAMERAS 16
 
-#define ROWS_COUNT 16 //256
-#define COLS_COUNT 16 //256
+#define ROWS_COUNT 256
+#define COLS_COUNT 256
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
@@ -267,7 +267,7 @@ private:
 
     vulkan_context * _ctx = nullptr;
 
-    bool _animate_camera = true;
+    bool _animate_camera = false;
     bool _animate_light = true;
     bool _animate_object = true;
     bool _animate_instance_data = true;
@@ -348,8 +348,9 @@ private:
     struct _lighting_block_t
     {
         //glm::vec4 sky_color = glm::vec4(214 / 255.0f, 224 / 255.0f, 255 / 255.0f, 0.3f); // RGB: color A:intensity
-        glm::vec4 sky_color = glm::vec4(255 / 255.0f, 166 / 255.0f, 76 / 255.0f, 0.3f);
+        //glm::vec4 sky_color = glm::vec4(255 / 255.0f, 166 / 255.0f, 76 / 255.0f, 0.3f);
         //glm::vec4 sky_color    = glm::vec4(0.39, 0.58, 0.92, 1);
+        glm::vec4 sky_color = glm::vec4(114 / 255.0f, 255 / 255.0f, 0 / 255.0f, 0.3f); // lime green
 
         std::array<_light_t, MAX_LIGHTS_PER_SHADER> lights;
     } _lighting_block;
@@ -486,38 +487,48 @@ private:
     _pipeline_t _instance_pipe;
 
     // IMGUI controlled vars
-    float _instances_layout_radius = 120;// ROWS_COUNT / 4.0f;
-    float _camera_distance = 25.0f;// 67.0f;
-    float _camera_elevation = 15.0f;// 40.0f;
     glm::vec4 _bg_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
-    float _ax = 10.0f;
-    float _ay = 10.0f;
-    float _az = 10.0f;
-    float _bx = 1.3f;
-    float _by = 1.6f;
-    float _bz = 1.3f;
-    float _cx = 1.0f;
-    float _cy = 1.0f;
-    float _cz = 1.0f;
-    float _dx = 50.0f;
-    float _dy = 50.0f;
-    float _dz = 50.0f;
-    float _e0 = 0.1f; // jitter 0 mult
-    float _e1 = 1.0f;
-    float _e2 = 1.0f;
-    float _e3 = 0.0f;
 
-    float _psx = 0.1f; // particle scale
-    float _psy = 0.1f;
+
+    // camera
+    float _instances_layout_radius = 120;// ROWS_COUNT / 4.0f;
+    float _camera_distance = 50.0f;
+    float _camera_elevation = 30.0f;
+    
+    // curve shape
+    float _ax = 20.0f; // big loops radius
+    float _ay = 20.0f;
+    float _az = 20.0f;
+    float _bx = 2.969f; // nb big loops
+    float _by = 4.937f;
+    float _bz = 6.871f;
+    float _cx = 1.459f; // small loops radius
+    float _cy = 4.541f;
+    float _cz = 1.918f;
+    float _dx = 54.688f;
+    float _dy = 35.938f;
+    float _dz = 94.531f;
+
+    // jitter
+    float _e0 = 0.6f; // start position offset
+    float _e1 = 0.9f; // inner circles offset
+    float _e2 = 1.0f; // self-rotation
+    float _e3 = 1.0f; // ??
+
+    float _psx = 0.4f; // particle scale
+    float _psy = 0.4f;
     float _psz = 1.0f;
 
-    float _rsx = 100.0f; // particle self rotation speed
-    float _rsy = 100.0f;
-    float _rsz = 100.0f;
+    float _rsx = 30.0f; // particle self rotation speed
+    float _rsy = 30.0f;
+    float _rsz = 0.0f;
 
     float _pdt = 0.001f; // delta time in sec
 
-    float _speed = 0.039f;
+    float _speed = 0.020f;
+    float _rotation_speed = 1.0f;
+
+    int32_t _nb_instances = 5000;
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_

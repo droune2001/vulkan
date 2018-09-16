@@ -111,8 +111,8 @@ bool VulkanApplication::loop()
         ShowMainMenuBar();
         ShowFPSWindow(should_refresh_fps, fps);
 
-        //if (show_demo_window)
-        //ImGui::ShowDemoWindow(&show_demo_window);
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
 
         _r->Update(dt);
 
@@ -212,8 +212,8 @@ void VulkanApplication::BuildScene()
         Scene::material_instance_description_t mi = {};
         mi.instance_id = "neutral_dielectric";
         mi.pipeline_id = "default";
-        mi.base_tex = "neutral_base";
-        mi.specular_tex = "neutral_dielectric_spec";
+        mi.base_tex = "neutral_base"; // 1 1 1 1
+        mi.specular_tex = "neutral_dielectric_spec"; // 1 0 1 0
         _scene->add_material_instance(mi);
     }
 
@@ -419,7 +419,8 @@ void VulkanApplication::BuildScene()
     // METAL instance set
     //
     {
-        //IndexedMesh obj = make_icosphere(1, 0.2f);
+        //IndexedMesh obj = make_icosphere(0, 1.0f);
+        //IndexedMesh obj = make_icosphere(1, 1.0f);
         //IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
         IndexedMesh obj = make_hexagon(1.0f, 1.0f, glm::vec3(0, 0, 1));
         Scene::object_description_t obj_desc = {};
@@ -429,9 +430,10 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.position = glm::vec3(0, 0, 0);
-        obj_desc.material = "neutral_metal";
+        obj_desc.material = "neutral_dielectric"; // 1 1 1 1 et 1 0 1 0
+        //obj_desc.material = "neutral_metal";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1);
-        obj_desc.specular = glm::vec4(0.1, 1, 0.5, 0);
+        obj_desc.specular = glm::vec4(1, 0, 0.5, 0);
 
         Scene::instance_set_description_t is_desc;
         is_desc.instance_set = "metal_spheres";
@@ -452,9 +454,8 @@ void VulkanApplication::BuildScene()
 
             float roughness = roughness_min;
             float metallic = 0.0f;
-            glm::vec4 gold_reflectance(1.0f, 0.85f, 0.57f, 1.0f);
-            //instanced_object_desc.base_color = glm::vec4(r, g, b, 1);
-            instanced_object_desc.base_color = gold_reflectance;
+            instanced_object_desc.base_color = glm::vec4(1, 1, 1, 1);
+            //instanced_object_desc.base_color = glm:vec4(1.0f, 0.85f, 0.57f, 1.0f); // gold_reflectance;
             instanced_object_desc.specular = glm::vec4(roughness, metallic, 1, 0);
 
             _scene->add_object_to_instance_set(instanced_object_desc, "metal_spheres");
@@ -612,6 +613,7 @@ void VulkanApplication::ShowFPSWindow(bool should_refresh_fps, uint64_t fps)
             max_fps = fps;
     }
     std::string text = std::string("FPS: ") + std::to_string(fps);
+    ImGui::PushItemWidth(-1);
     ImGui::PlotLines("", values, IM_ARRAYSIZE(values), values_offset, text.c_str(), 0.0f, (float)max_fps, ImVec2(0, 50));
     //ImGui::PlotHistogram("", values, IM_ARRAYSIZE(values), 0, text.c_str(), 0.0f, (float)max_fps, ImVec2(0, 50));
 
