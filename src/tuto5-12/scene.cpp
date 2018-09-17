@@ -1280,20 +1280,19 @@ void Scene::animate_camera(float dt)
 
     auto &camera = _cameras["perspective"];
 
-    const float cam_r = _camera_distance; // radius
     const float cam_as = 0.3f; // angular_speed, radians/sec
     if (_animate_camera)
     {
         accum_dt += dt;
-        camera.pos.x = cam_r * std::cos(cam_as * accum_dt);
+        camera.pos.x = _camera_distance * std::cos(cam_as * accum_dt);
         camera.pos.y = _camera_elevation;
-        camera.pos.z = cam_r * std::sin(cam_as * accum_dt);
+        camera.pos.z = _camera_distance * std::sin(cam_as * accum_dt);
     }
     else
     {
-//        camera.pos.x = cam_r;
-//        camera.pos.y = _camera_elevation;
-//        camera.pos.z = cam_r;
+        camera.pos.x = _camera_distance;
+        camera.pos.y = _camera_elevation;
+        camera.pos.z = _camera_distance;
     }
     camera.v = glm::lookAt(camera.pos.xyz(), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 }

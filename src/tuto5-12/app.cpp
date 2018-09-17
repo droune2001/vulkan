@@ -81,7 +81,7 @@ bool VulkanApplication::loop()
     uint64_t frame_counter = 0;
     uint64_t fps = 0;
 
-    bool show_demo_window = true;
+    bool show_demo_window = false;
 
     while (_w->Update())
     {
@@ -102,10 +102,6 @@ bool VulkanApplication::loop()
             fps = frame_counter;
             frame_counter = 0;
             should_refresh_fps = true;
-
-            //std::ostringstream oss;
-            //oss << "*** FPS: " << fps << std::endl;
-            //Log(oss.str().c_str());
         }
 
         ShowMainMenuBar();
@@ -421,8 +417,8 @@ void VulkanApplication::BuildScene()
     {
         //IndexedMesh obj = make_icosphere(0, 1.0f);
         //IndexedMesh obj = make_icosphere(1, 1.0f);
-        //IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
-        IndexedMesh obj = make_hexagon(1.0f, 1.0f, glm::vec3(0, 0, 1));
+        IndexedMesh obj = make_flat_cube(0.5f, 0.5f, 0.5f);
+        //IndexedMesh obj = make_hexagon(1.0f, 1.0f, glm::vec3(0, 0, 1));
         Scene::object_description_t obj_desc = {};
         obj_desc.name = std::string("Obj2_Template");
         obj_desc.vertexCount = (uint32_t)obj.first.size();
@@ -430,8 +426,8 @@ void VulkanApplication::BuildScene()
         obj_desc.indexCount = (uint32_t)obj.second.size();
         obj_desc.indices = obj.second.data();
         obj_desc.position = glm::vec3(0, 0, 0);
-        obj_desc.material = "neutral_dielectric"; // 1 1 1 1 et 1 0 1 0
-        //obj_desc.material = "neutral_metal";
+        //obj_desc.material = "neutral_dielectric"; // 1 1 1 1 et 1 0 1 0
+        obj_desc.material = "neutral_metal";
         obj_desc.base_color = glm::vec4(1, 1, 1, 1);
         obj_desc.specular = glm::vec4(1, 0, 0.5, 0);
 
@@ -453,9 +449,12 @@ void VulkanApplication::BuildScene()
             instanced_object_desc.jitters = glm::vec4(real_rand(), real_rand(), real_rand(), real_rand());
 
             float roughness = roughness_min;
-            float metallic = 0.0f;
-            instanced_object_desc.base_color = glm::vec4(1, 1, 1, 1);
-            //instanced_object_desc.base_color = glm:vec4(1.0f, 0.85f, 0.57f, 1.0f); // gold_reflectance;
+
+            //float metallic = 0.0f;
+            //instanced_object_desc.base_color = glm::vec4(1, 1, 1, 1);
+
+            float metallic = 1.0f;
+            instanced_object_desc.base_color = glm::vec4(1.0f, 0.85f, 0.57f, 1.0f); // gold_reflectance;
             instanced_object_desc.specular = glm::vec4(roughness, metallic, 1, 0);
 
             _scene->add_object_to_instance_set(instanced_object_desc, "metal_spheres");
