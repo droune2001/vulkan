@@ -2360,7 +2360,7 @@ void Scene::show_property_sheet()
 
             ImGui::SliderFloat("Psx", &_psx, 0.01f, 1.0f);
             ImGui::SliderFloat("Psy", &_psy, 0.01f, 1.0f);
-            //ImGui::SliderFloat("Psz", &_psz, 0.01f, 1.0f);
+            ImGui::SliderFloat("Psz", &_psz, 0.01f, 1.0f);
 
             ImGui::SliderFloat("Delta time", &_pdt, 0.0001f, 0.01f);
             ImGui::SliderFloat("Speed", &_speed, 0.001f, 1.0f);

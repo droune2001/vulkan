@@ -517,7 +517,7 @@ private:
 
     float _psx = 0.4f; // particle scale
     float _psy = 0.4f;
-    float _psz = 1.0f;
+    float _psz = 0.4f;
 
     float _rsx = 30.0f; // particle self rotation speed
     float _rsy = 30.0f;

@@ -241,7 +241,7 @@ void VulkanApplication::BuildScene()
     // Objects
     //
 #define WITH_SPHERES 0
-#define WITH_FLOOR 1
+#define WITH_FLOOR 0
 #define WITH_CUBES 0
 #define WITH_INSTANCED_OBJECTS 1
 
