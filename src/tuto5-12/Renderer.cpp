@@ -18,6 +18,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <set>
 
 Renderer::Renderer(Window *w) : _w(w)
 {
@@ -553,18 +554,25 @@ bool Renderer::CreateLogicalDevice()
 {
     VkResult result;
 
-    float queue_priorities[]{ 1.0f }; // priorities are float from 0.0f to 1.0f
-    VkDeviceQueueCreateInfo device_queue_create_info = {};
-    device_queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    device_queue_create_info.queueFamilyIndex = _ctx.graphics.family_index;
-    device_queue_create_info.queueCount = 1;
-    device_queue_create_info.pQueuePriorities = queue_priorities;
+    std::set<uint32_t> unique_families = { _ctx.graphics.family_index, _ctx.compute.family_index, _ctx.present.family_index, _ctx.transfer.family_index };
+    size_t nb_unique = unique_families.size();
+
+    float queue_priorities[] = { 1.0f }; // priorities are float from 0.0f to 1.0f
+
+    std::vector<VkDeviceQueueCreateInfo> device_queue_create_infos(nb_unique);
+    for (size_t i = 0; i < nb_unique; ++i)
+    {
+        device_queue_create_infos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        device_queue_create_infos[i].queueFamilyIndex = unique_families[i];
+        device_queue_create_infos[i].queueCount = 1;
+        device_queue_create_infos[i].pQueuePriorities = queue_priorities;
+    }
 
     // Create a logical "device" associated with the physical "device"
     VkDeviceCreateInfo device_create_info = {};
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_create_info.queueCreateInfoCount = 1;
-    device_create_info.pQueueCreateInfos = &device_queue_create_info;
+    device_create_info.queueCreateInfoCount = (uint32_t)nb_unique;
+    device_create_info.pQueueCreateInfos = device_queue_create_infos.data();
     //device_create_info.enabledLayerCount = _ctx.device_layers.size(); // deprecated
     //device_create_info.ppEnabledLayerNames = _ctx.device_layers.data(); // deprecated
     device_create_info.enabledExtensionCount = (uint32_t)_ctx.device_extensions.size();
@@ -785,7 +793,6 @@ bool Renderer::InitSynchronizations()
     Log("#     Create two semaphores and a fence per parallel frame\n");
     for (uint32_t i = 0; i < MAX_PARALLEL_FRAMES; ++i)
     {
-        
         VkSemaphoreCreateInfo semaphore_create_info = {};
         semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -803,6 +810,14 @@ bool Renderer::InitSynchronizations()
         fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT; // we are starting the rendering by a wait on a fence.
         result = vkCreateFence(_ctx.device, &fence_create_info, nullptr, &_render_fences[i]);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+
+        VkFenceCreateInfo compute_fence_create_info = {};
+        fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT; // we are starting the rendering by a wait on a fence.
+        result = vkCreateFence(_ctx.device, &compute_fence_create_info, nullptr, &_compute_fences[i]);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
@@ -841,13 +856,35 @@ void Renderer::Draw(float dt)
 {
     VkResult result;
 
+    auto &compute_cmd = _ctx.compute.command_buffers[current_frame];
+    _scene->record_compute_commands(compute_cmd);
+
     // CPU wait for the end of the previous same parallel frame.
     // If we want to render frame 1 of 2 parallel frames, wait for
     // the end of the previous frame 1.
     vkWaitForFences(_ctx.device, 1, &_render_fences[current_frame], VK_TRUE, UINT64_MAX);
     vkResetFences(_ctx.device, 1, &_render_fences[current_frame]);
 
-    _scene->upload();
+    _scene->upload(); // upload uniforms for graphics and compute
+
+    //
+    // COMPUTE
+    //
+    {
+        VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.waitSemaphoreCount = 0;
+        submit_info.pWaitSemaphores = nullptr;
+        submit_info.pWaitDstStageMask = 0;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &compute_cmd;
+        submit_info.signalSemaphoreCount = 0;
+        submit_info.pSignalSemaphores = nullptr;
+
+        result = vkQueueSubmit(_ctx.compute.queue, 1, &submit_info, _compute_fences[current_frame]);
+        ErrorCheck(result);
+    }
 
     // Begin render = acquire image and set semaphore to be signaled when presenting
     // engine is done reading that frame.

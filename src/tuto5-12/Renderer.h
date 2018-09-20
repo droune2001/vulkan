@@ -43,7 +43,7 @@ struct vulkan_context
 
     VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
 
-    VkDebugReportCallbackEXT    debug_report = VK_NULL_HANDLE;
+    VkDebugReportCallbackEXT debug_report = VK_NULL_HANDLE;
 
     // keep it in here to be able to give it to VkCreateInstance
     VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
@@ -144,4 +144,5 @@ private:
     std::array<VkSemaphore, MAX_PARALLEL_FRAMES> _render_complete_semaphores = {};
     std::array<VkSemaphore, MAX_PARALLEL_FRAMES> _present_complete_semaphores = {};
     std::array<VkFence, MAX_PARALLEL_FRAMES>     _render_fences = {};
+    std::array<VkFence, MAX_PARALLEL_FRAMES>     _compute_fences = {};
 };

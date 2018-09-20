@@ -168,7 +168,11 @@ public:
     bool compile(); // create descriptor sets once all ythe scene is built.
     void update(float dt);
     void upload();
+    
+    // fill graphics command buffer
     void draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect);
+    // fill compute command buffer
+    void record_compute_commands(VkCommandBuffer cmd);
 
     const glm::vec4 &sky_color() { return _lighting_block.sky_color; }
     const glm::vec4 &bg_color() { return _bg_color; }

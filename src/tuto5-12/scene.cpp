@@ -418,6 +418,57 @@ void Scene::upload()
     update_all_instances_vbos();
 }
 
+void Scene::record_compute_commands(VkCommandBuffer cmd)
+{
+    VkResult result;
+
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    result = vkBeginCommandBuffer(cmd, &begin_info);
+    ErrorCheck(result);
+    {
+        // barrier for reading from uniform buffer after all writing is done:
+        VkBufferMemoryBarrier storage_buffer_memory_barrier = {};
+        storage_buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        storage_buffer_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT; // TODO
+        storage_buffer_memory_barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT; // TODO
+
+        vkCmdPipelineBarrier(cmd,
+            VK_PIPELINE_STAGE_HOST_BIT, // TODO
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, // TODO
+            0,
+            1, &storage_buffer_memory_barrier,
+            0, nullptr,
+            0, nullptr);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_pipeline.pipeline);
+
+        // bind storage buffer and uniform buffer
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_pipeline.pipeline_layout,
+            0, // bind to set #0
+            1, &compute_pipeline.descriptor_set, 0, nullptr);
+
+        vkCmdDispatch(cmd, 1 + _nb_instances / 256, 1, 1);
+
+        // barrier for reading from uniform buffer after all writing is done:
+        VkBufferMemoryBarrier storage_buffer_memory_barrier2 = {};
+        storage_buffer_memory_barrier2.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        storage_buffer_memory_barrier2.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT; // TODO
+        storage_buffer_memory_barrier2.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT; // TODO
+
+        vkCmdPipelineBarrier(cmd,
+            VK_PIPELINE_STAGE_HOST_BIT, // TODO
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, // TODO
+            0,
+            1, &storage_buffer_memory_barrier2,
+            0, nullptr,
+            0, nullptr);
+    }
+    result = vkEndCommandBuffer(cmd); // compiles the command buffer
+    ErrorCheck(result);
+}
+
 void Scene::draw(VkCommandBuffer cmd, VkViewport viewport, VkRect2D scissor_rect)
 {
 #define DRAW_GLOBAL_INSTANCES 0
