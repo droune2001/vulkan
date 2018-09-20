@@ -559,13 +559,16 @@ bool Renderer::CreateLogicalDevice()
 
     float queue_priorities[] = { 1.0f }; // priorities are float from 0.0f to 1.0f
 
-    std::vector<VkDeviceQueueCreateInfo> device_queue_create_infos(nb_unique);
-    for (size_t i = 0; i < nb_unique; ++i)
+    std::vector<VkDeviceQueueCreateInfo> device_queue_create_infos = {};
+    for (auto &unique_family_index : unique_families)
     {
-        device_queue_create_infos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        device_queue_create_infos[i].queueFamilyIndex = unique_families[i];
-        device_queue_create_infos[i].queueCount = 1;
-        device_queue_create_infos[i].pQueuePriorities = queue_priorities;
+        VkDeviceQueueCreateInfo device_queue_create_info = {};
+        device_queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        device_queue_create_info.queueFamilyIndex = unique_family_index;
+        device_queue_create_info.queueCount = 1;
+        device_queue_create_info.pQueuePriorities = queue_priorities;
+
+        device_queue_create_infos.push_back(device_queue_create_info);
     }
 
     // Create a logical "device" associated with the physical "device"
@@ -831,6 +834,7 @@ void Renderer::DeInitSynchronizations()
     for (uint32_t i = 0; i < MAX_PARALLEL_FRAMES; ++i)
     {
         vkDestroyFence(_ctx.device, _render_fences[i], nullptr);
+        vkDestroyFence(_ctx.device, _compute_fences[i], nullptr);
         vkDestroySemaphore(_ctx.device, _render_complete_semaphores[i], nullptr);
         vkDestroySemaphore(_ctx.device, _present_complete_semaphores[i], nullptr);
     }
@@ -995,61 +999,44 @@ bool Renderer::InitCommandBuffer()
 {
     VkResult result;
 
-    Log("#  Create Graphics Command Pool\n");
-    VkCommandPoolCreateInfo pool_create_info = {};
-    pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    pool_create_info.queueFamilyIndex = _ctx.graphics.family_index;
-    pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | // commands will be short lived, might be reset of freed often.
-        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // we are going to reset
-
-    result = vkCreateCommandPool(_ctx.device, &pool_create_info, nullptr, &_ctx.graphics.command_pool);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#  Allocate 1 Graphics Command Buffer\n");
-
-    VkCommandBufferAllocateInfo command_buffer_allocate_info{};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.commandPool = _ctx.graphics.command_pool;
-    command_buffer_allocate_info.commandBufferCount = MAX_PARALLEL_FRAMES;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
-
-    result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, _ctx.graphics.command_buffers.data());
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-
-
-
-    Log("#  Create Transfer Command Pool\n");
+    auto create_command_pool_and_buffer = [&](vulkan_queue &vqueue) -> bool
     {
         VkCommandPoolCreateInfo pool_create_info = {};
         pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        pool_create_info.queueFamilyIndex = _ctx.transfer.family_index;
+        pool_create_info.queueFamilyIndex = _ctx.graphics.family_index;
         pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | // commands will be short lived, might be reset of freed often.
             VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // we are going to reset
 
-        result = vkCreateCommandPool(_ctx.device, &pool_create_info, nullptr, &_ctx.transfer.command_pool);
+        result = vkCreateCommandPool(_ctx.device, &pool_create_info, nullptr, &vqueue.command_pool);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
-    }
 
-    Log("#  Allocate 1 Transfer Command Buffer\n");
-    {
         VkCommandBufferAllocateInfo command_buffer_allocate_info{};
         command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        command_buffer_allocate_info.commandPool = _ctx.transfer.command_pool;
+        command_buffer_allocate_info.commandPool = vqueue.command_pool;
         command_buffer_allocate_info.commandBufferCount = MAX_PARALLEL_FRAMES;
         command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // primary can be pushed to a queue manually, secondary cannot.
 
-        result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, _ctx.transfer.command_buffers.data());
+        result = vkAllocateCommandBuffers(_ctx.device, &command_buffer_allocate_info, vqueue.command_buffers.data());
         ErrorCheck(result);
         if (result != VK_SUCCESS)
             return false;
-    }
+
+        return true;
+    };
+
+    Log("#  Create [Graphics] Command Pool and Command Buffer\n");
+    if (!create_command_pool_and_buffer(_ctx.graphics))
+        return false;
+
+    Log("#  Create [Compute] Command Pool and Command Buffer\n");
+    if (!create_command_pool_and_buffer(_ctx.compute))
+        return false;
+
+    Log("#  Create [Transfer] Command Pool and Command Buffer\n");
+    if (!create_command_pool_and_buffer(_ctx.transfer))
+        return false;
 
     return true;
 }
@@ -1058,6 +1045,9 @@ void Renderer::DeInitCommandBuffer()
 {
     Log("#  Destroy Graphics Command Pool\n");
     vkDestroyCommandPool(_ctx.device, _ctx.graphics.command_pool, nullptr);
+
+    Log("#  Destroy Compute Command Pool\n");
+    vkDestroyCommandPool(_ctx.device, _ctx.compute.command_pool, nullptr);
 
     Log("#  Destroy Transfer Command Pool\n");
     vkDestroyCommandPool(_ctx.device, _ctx.transfer.command_pool, nullptr);

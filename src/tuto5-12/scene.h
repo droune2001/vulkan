@@ -428,6 +428,8 @@ private:
         MATERIAL_DESCRIPTOR_SET_LAYOUT,
         OBJECT_DESCRIPTOR_SET_LAYOUT,
 
+        // TODO: add one for the compute
+
         DESCRIPTOR_SET_LAYOUT_COUNT
     };
     std::array<VkDescriptorSetLayout, DESCRIPTOR_SET_LAYOUT_COUNT> _descriptor_set_layouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
@@ -443,6 +445,14 @@ private:
 
     std::unordered_map<pipeline_id_t, _pipeline_t> _pipelines;
 
+    struct _compute_pipeline_t
+    {
+        VkShaderModule   cs = VK_NULL_HANDLE;
+        VkPipeline       pipeline = VK_NULL_HANDLE;
+        VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
+    };
+
+    _compute_pipeline_t compute_pipeline;
 
     struct _material_instance_t
     {
@@ -454,6 +464,10 @@ private:
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
 
+    struct _compute_particles_data_t
+    {
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+    } compute_particles;
 
     //
     // instances

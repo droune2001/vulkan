@@ -428,18 +428,24 @@ void Scene::record_compute_commands(VkCommandBuffer cmd)
     result = vkBeginCommandBuffer(cmd, &begin_info);
     ErrorCheck(result);
     {
-        // barrier for reading from uniform buffer after all writing is done:
-        VkBufferMemoryBarrier storage_buffer_memory_barrier = {};
-        storage_buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        storage_buffer_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT; // TODO
-        storage_buffer_memory_barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT; // TODO
+        // TODO: for each instance set
+        auto &is = _instance_sets["metal_spheres"];
+
+        VkBufferMemoryBarrier storage_buffer_memory_barrier_before = {};
+        storage_buffer_memory_barrier_before.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        storage_buffer_memory_barrier_before.srcAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        storage_buffer_memory_barrier_before.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        storage_buffer_memory_barrier_before.buffer = is.instance_buffer.buffer; // <====== hardcoded 0
+        storage_buffer_memory_barrier_before.size = VK_WHOLE_SIZE;
+        storage_buffer_memory_barrier_before.srcQueueFamilyIndex = _ctx->graphics.family_index;
+        storage_buffer_memory_barrier_before.dstQueueFamilyIndex = _ctx->compute.family_index;
 
         vkCmdPipelineBarrier(cmd,
-            VK_PIPELINE_STAGE_HOST_BIT, // TODO
-            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, // TODO
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             0,
-            1, &storage_buffer_memory_barrier,
             0, nullptr,
+            1, &storage_buffer_memory_barrier_before,
             0, nullptr);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_pipeline.pipeline);
@@ -447,22 +453,25 @@ void Scene::record_compute_commands(VkCommandBuffer cmd)
         // bind storage buffer and uniform buffer
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_pipeline.pipeline_layout,
             0, // bind to set #0
-            1, &compute_pipeline.descriptor_set, 0, nullptr);
+            1, &compute_particles.descriptor_set, 0, nullptr);
 
         vkCmdDispatch(cmd, 1 + _nb_instances / 256, 1, 1);
 
-        // barrier for reading from uniform buffer after all writing is done:
-        VkBufferMemoryBarrier storage_buffer_memory_barrier2 = {};
-        storage_buffer_memory_barrier2.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        storage_buffer_memory_barrier2.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT; // TODO
-        storage_buffer_memory_barrier2.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT; // TODO
+        VkBufferMemoryBarrier storage_buffer_memory_barrier_after = {};
+        storage_buffer_memory_barrier_after.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        storage_buffer_memory_barrier_after.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        storage_buffer_memory_barrier_after.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        storage_buffer_memory_barrier_after.buffer = is.instance_buffer.buffer;
+        storage_buffer_memory_barrier_after.size = VK_WHOLE_SIZE;
+        storage_buffer_memory_barrier_after.srcQueueFamilyIndex = _ctx->compute.family_index;
+        storage_buffer_memory_barrier_after.dstQueueFamilyIndex = _ctx->graphics.family_index;
 
         vkCmdPipelineBarrier(cmd,
-            VK_PIPELINE_STAGE_HOST_BIT, // TODO
-            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, // TODO
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
             0,
-            1, &storage_buffer_memory_barrier2,
             0, nullptr,
+            1, &storage_buffer_memory_barrier_after,
             0, nullptr);
     }
     result = vkEndCommandBuffer(cmd); // compiles the command buffer
