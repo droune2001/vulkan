@@ -1,15 +1,17 @@
 COMPUTE PARTICLES:
-- STORAGE flag for the vertexbuffer of instanced data.
+x STORAGE flag for the vertexbuffer of instanced data.
 x compute queue
-- compute command buffer pool
-- compute command buffer
-- add things to the global descriptor pool
+x compute command buffer pool
+x compute command buffer
+x add things to the global descriptor pool
 - compute descriptor set
 - compute descriptor set layout
 - compute pipeline layout
 - compute pipeline
 x compute fences
-- compute uniform buffer to drive simulation
+= compute uniform buffer to drive simulation
+  x create uniform buffer
+  - fill each frame with time
 x record compute command buffer
 
 - Put last "pass" = transfer of last view to the current swap view in renderer.

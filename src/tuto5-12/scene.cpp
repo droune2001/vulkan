@@ -13,7 +13,7 @@
 #include <string>
 
 #define MAX_NB_OBJECTS 1024
-#define USE_STAGING_FOR_INSTANCING 0
+#define USE_STAGING_FOR_INSTANCING 1
 
 //
 // VERTEX
@@ -306,43 +306,48 @@ bool Scene::add_object_to_global_instance_set(object_description_t desc)
     return true;
 }
 
-bool Scene::add_instance_set(instance_set_description_t is, uint32_t estimated_instance_count)
+bool Scene::add_instance_set(instance_set_description_t isd, uint32_t estimated_instance_count)
 {
-    _instance_set_t _is;
-    _is.model_index = _add_object(is.object_desc);
-    _is.material_ref = is.object_desc.material;
-
-    _instance_sets[is.instance_set] = _is;
+    auto &is = _instance_sets[isd.instance_set];
+    is.model_index = _add_object(isd.object_desc);
+    is.material_ref = isd.object_desc.material;
 
     if (estimated_instance_count > 0)
     {
         // NOTE(nfauvet): resize et pas reserve parce que je m'en sers comme un tableau tab[i], pas push_back
-        _instance_sets[is.instance_set].positions.resize(MAX_INSTANCE_COUNT);
-        _instance_sets[is.instance_set].rotations.resize(MAX_INSTANCE_COUNT);
-        _instance_sets[is.instance_set].scales.resize(MAX_INSTANCE_COUNT);
-        _instance_sets[is.instance_set].base_colors.resize(MAX_INSTANCE_COUNT);
-        _instance_sets[is.instance_set].speculars.resize(MAX_INSTANCE_COUNT);
-        _instance_sets[is.instance_set].jitters.resize(MAX_INSTANCE_COUNT);
-        _instance_sets[is.instance_set].instance_data.resize(MAX_INSTANCE_COUNT);
+        is.positions.resize(MAX_INSTANCE_COUNT);
+        is.rotations.resize(MAX_INSTANCE_COUNT);
+        is.scales.resize(MAX_INSTANCE_COUNT);
+        is.base_colors.resize(MAX_INSTANCE_COUNT);
+        is.speculars.resize(MAX_INSTANCE_COUNT);
+        is.jitters.resize(MAX_INSTANCE_COUNT);
+        is.instance_data.resize(MAX_INSTANCE_COUNT);
     }
 
 #if USE_STAGING_FOR_INSTANCING == 1
     Log("#     Create Instance Set VBO\n");
     if (!create_buffer(
-        &_instance_sets[is.instance_set].instance_buffer.buffer,
-        &_instance_sets[is.instance_set].instance_buffer.memory,
-        ROWS_COUNT * COLS_COUNT * sizeof(instance_data_t),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        &is.instance_buffer.buffer,
+        &is.instance_buffer.memory,
+        MAX_INSTANCE_COUNT * sizeof(instance_data_t),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return false;
 
     if (!create_buffer(
-        &_instance_sets[is.instance_set].staging_buffer.buffer,
-        &_instance_sets[is.instance_set].staging_buffer.memory,
-        ROWS_COUNT * COLS_COUNT * sizeof(instance_data_t),
+        &is.staging_buffer.buffer,
+        &is.staging_buffer.memory,
+        MAX_INSTANCE_COUNT * sizeof(instance_data_t),
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
         return false;
+
+    // initial fill of buffer
+    uint32_t instance_count = MAX_INSTANCE_COUNT;
+    size_t instance_data_size = instance_count * sizeof(instance_data_t);
+    copy_data_to_staging_buffer(is.staging_buffer, is.instance_data.data(), instance_data_size, false);
+    copy_buffer_to_buffer(is.staging_buffer.buffer, is.instance_buffer.buffer, instance_data_size, 0, 0);
+
 #else
     Log("#     Create Instance Set VBO\n");
     if (!create_buffer(
@@ -1152,9 +1157,10 @@ Scene::uniform_buffer_t &Scene::get_scene_ubo()
 
 bool Scene::create_scene_ubo()
 {
+#if 0
     VkResult result;
 
-    Log("#     Create Matrices Uniform Buffer\n");
+    
     VkBufferCreateInfo uniform_buffer_create_info = {};
     uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     uniform_buffer_create_info.size = sizeof(_camera_t) + sizeof(_lighting_block); // one camera and max lights
@@ -1186,8 +1192,27 @@ bool Scene::create_scene_ubo()
     ErrorCheck(result);
     if (result != VK_SUCCESS)
         return false;
+#endif
+
+    Log("#     Create Matrices Uniform Buffer\n");
+    if (!create_buffer(
+        &_scene_ubo.buffer,
+        &_scene_ubo.memory,
+        sizeof(_camera_t) + sizeof(_lighting_block), // one camera and max lights
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
 
     _scene_ubo_created = true;
+
+    Log("#     Create Simulation Uniform Buffer\n");
+    if (!create_buffer(
+        &_compute_particles_ubo.buffer,
+        &_compute_particles_ubo.memory,
+        sizeof(_simulation_data_t),
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
 
     return true;
 }
@@ -1491,6 +1516,16 @@ bool Scene::update_all_objects_ubos()
 
 bool Scene::update_all_instances_vbos()
 {
+    if (_simulate_cpu)
+    {
+        auto &is = _instance_sets["metal_spheres"];
+        uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
+        size_t instance_data_size = instance_count * sizeof(instance_data_t);
+        copy_data_to_staging_buffer(is.staging_buffer, is.instance_data.data(), instance_data_size, false);
+        copy_buffer_to_buffer(is.staging_buffer.buffer, is.instance_buffer.buffer, instance_data_size, 0, 0);
+    }
+
+#if 0
     if (_animate_instance_data)
     {
         for (auto _is : _instance_sets)
@@ -1518,6 +1553,7 @@ bool Scene::update_all_instances_vbos()
 #endif
         }
     }
+#endif
     return true;
 }
 

@@ -464,10 +464,23 @@ private:
     };
     std::unordered_map<material_instance_id_t, _material_instance_t> _material_instances;
 
+    //
+    // COMPUTE
+    //
+
     struct _compute_particles_data_t
     {
+        // set = 0 binding = 0 instance_data/vbo
+        //         binding = 1 ubo (time, simu params...)
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     } compute_particles;
+
+    struct _simulation_data_t
+    {
+        glm::vec4 data0; // x = time
+    };
+    uniform_buffer_t _compute_particles_ubo;
+    bool _simulate_cpu = false;
 
     //
     // instances
@@ -479,14 +492,6 @@ private:
         uint32_t instance_count = 0;
         vertex_buffer_object_t instance_buffer;
         staging_buffer_t staging_buffer;
-
-        // STACK OVERFLOW
-        //std::array<glm::vec3, MAX_INSTANCE_COUNT> positions = {};
-        //std::array<glm::vec3, MAX_INSTANCE_COUNT> rotations = {};
-        //std::array<glm::vec3, MAX_INSTANCE_COUNT> scales = {};
-        //std::array<glm::vec4, MAX_INSTANCE_COUNT> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
-        //std::array<glm::vec4, MAX_INSTANCE_COUNT> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
-        //std::array<instance_data_t, MAX_INSTANCE_COUNT> instance_data = {};
 
         std::vector<glm::vec3> positions = {};
         std::vector<glm::vec3> rotations = {};
