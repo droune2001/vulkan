@@ -41,7 +41,7 @@ struct vulkan_context
     std::vector< const char * > device_extensions;
     VkPhysicalDeviceFeatures    features = {};
 
-    VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
+    VkDescriptorPool descriptor_pool = VK_NULL_HANDLE; // big descriptor pool for ImGui
 
     VkDebugReportCallbackEXT debug_report = VK_NULL_HANDLE;
 

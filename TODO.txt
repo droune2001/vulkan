@@ -4,15 +4,20 @@ x compute queue
 x compute command buffer pool
 x compute command buffer
 x add things to the global descriptor pool
-- compute descriptor set
-- compute descriptor set layout
-- compute pipeline layout
-- compute pipeline
+x compute shader
+x compute descriptor set
+x compute descriptor set layout
+x compute pipeline layout
+x compute pipeline
 x compute fences
 = compute uniform buffer to drive simulation
   x create uniform buffer
   - fill each frame with time
 x record compute command buffer
+
+- Add stb image
+- Add tiny obj loader
+- Add gltf loader?
 
 - Put last "pass" = transfer of last view to the current swap view in renderer.
  - no need for a renderpass, onr a pipeline, I think

@@ -59,6 +59,19 @@ VkBufferImageCopy buffer_image_copy()
 namespace pipeline
 {
 
+VkPipelineShaderStageCreateInfo shader_stage_create_info(VkShaderModule module, VkShaderStageFlagBits stage_flags)
+{
+    VkPipelineShaderStageCreateInfo info = {};
+
+    info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    info.stage = stage_flags;
+    info.module = module;
+    info.pName = "main";
+    info.pSpecializationInfo = nullptr;
+
+    return info;
+}
+
 VkStencilOpState stencil_op_state_NOP()
 {
     VkStencilOpState noOP_stencil_state = {};

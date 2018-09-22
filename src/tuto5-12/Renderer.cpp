@@ -153,7 +153,7 @@ bool Renderer::InitSceneVulkan()
     if (!InitSwapChainFrameBuffers())
         return false;
 
-    Log("#    Init Descriptor Pool\n");
+    Log("#    Init ImGui Big Descriptor Pool\n");
     if (!InitDescriptorPool())
         return false;
 
@@ -818,8 +818,8 @@ bool Renderer::InitSynchronizations()
             return false;
 
         VkFenceCreateInfo compute_fence_create_info = {};
-        fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT; // we are starting the rendering by a wait on a fence.
+        compute_fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        compute_fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT; // we are starting the rendering by a wait on a fence.
         result = vkCreateFence(_ctx.device, &compute_fence_create_info, nullptr, &_compute_fences[i]);
         ErrorCheck(result);
         if (result != VK_SUCCESS)
@@ -871,28 +871,27 @@ void Renderer::Draw(float dt)
 
     _scene->upload(); // upload uniforms for graphics and compute
 
+    // Begin render = acquire image and set semaphore to be signaled when presenting
+    // engine is done reading that frame.
+    _w->BeginRender(_present_complete_semaphores[current_frame]);
+
+
+
     //
     // COMPUTE
     //
     {
-        VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         VkSubmitInfo submit_info = {};
         submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submit_info.waitSemaphoreCount = 0;
-        submit_info.pWaitSemaphores = nullptr;
-        submit_info.pWaitDstStageMask = 0;
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &compute_cmd;
-        submit_info.signalSemaphoreCount = 0;
-        submit_info.pSignalSemaphores = nullptr;
 
-        result = vkQueueSubmit(_ctx.compute.queue, 1, &submit_info, _compute_fences[current_frame]);
+        result = vkQueueSubmit(_ctx.compute.queue, 1, &submit_info, VK_NULL_HANDLE);// _compute_fences[current_frame]);
         ErrorCheck(result);
     }
 
-    // Begin render = acquire image and set semaphore to be signaled when presenting
-    // engine is done reading that frame.
-    _w->BeginRender(_present_complete_semaphores[current_frame]);
+
+
 
     auto &cmd = _ctx.graphics.command_buffers[current_frame];
 

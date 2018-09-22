@@ -442,22 +442,25 @@ void VulkanApplication::BuildScene()
     {
         for (uint32_t j = 0; j < COLS_COUNT; ++j)
         {
-            Scene::instanced_object_description_t instanced_object_desc;
-            instanced_object_desc.position = glm::vec3(-4.5f + i * 0.5f, -1.0f, 10 + -4.5f + j * 0.5f);
-            instanced_object_desc.rotation = glm::vec3(0, 0, 0);
-            instanced_object_desc.scale = glm::vec3(1, 1, 1);
-            instanced_object_desc.jitters = glm::vec4(real_rand(), real_rand(), real_rand(), real_rand());
+            for (uint32_t k = 0; k < SLICE_COUNT; ++k)
+            {
+                Scene::instanced_object_description_t instanced_object_desc;
+                instanced_object_desc.position = glm::vec3(-(ROWS_COUNT/2) + i * ROWS_COUNT, -(COLS_COUNT / 2) + j * SLICE_COUNT, -(SLICE_COUNT / 2) + k * SLICE_COUNT);
+                instanced_object_desc.rotation = glm::vec3(0, 0, 0);
+                instanced_object_desc.scale = glm::vec3(1, 1, 1);
+                instanced_object_desc.jitters = glm::vec4(real_rand(), real_rand(), real_rand(), real_rand());
 
-            float roughness = roughness_min;
+                float roughness = roughness_min;
 
-            //float metallic = 0.0f;
-            //instanced_object_desc.base_color = glm::vec4(1, 1, 1, 1);
+                //float metallic = 0.0f;
+                //instanced_object_desc.base_color = glm::vec4(1, 1, 1, 1);
 
-            float metallic = 1.0f;
-            instanced_object_desc.base_color = glm::vec4(1.0f, 0.85f, 0.57f, 1.0f); // gold_reflectance;
-            instanced_object_desc.specular = glm::vec4(roughness, metallic, 1, 0);
+                float metallic = 1.0f;
+                instanced_object_desc.base_color = glm::vec4(1.0f, 0.85f, 0.57f, 1.0f); // gold_reflectance;
+                instanced_object_desc.specular = glm::vec4(roughness, metallic, 1, 0);
 
-            _scene->add_object_to_instance_set(instanced_object_desc, "metal_spheres");
+                _scene->add_object_to_instance_set(instanced_object_desc, "metal_spheres");
+            }
         }
     }
 #endif

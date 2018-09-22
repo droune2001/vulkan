@@ -14,7 +14,8 @@
 
 #define ROWS_COUNT 256
 #define COLS_COUNT 256
-#define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT)
+#define SLICE_COUNT 256
+#define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT * SLICE_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
 #define USE_INSTANCE_SET_1 0
@@ -242,7 +243,6 @@ private:
     void destroy_pipelines();
 
     bool create_all_descriptor_set_layouts(VkDevice device, VkDescriptorSetLayout *layouts);
-    bool create_all_descriptor_sets_pool();
     bool create_all_descriptor_sets();
     
     // utils
@@ -418,21 +418,17 @@ private:
 
     std::array<VkSampler, 1> _samplers;
 
-    // for all descriptors, 1000 of each type.
-    VkDescriptorPool _descriptor_pool = VK_NULL_HANDLE;
-
     // All descriptor sets layouts
     enum
     {
         SCENE_DESCRIPTOR_SET_LAYOUT = 0,
         MATERIAL_DESCRIPTOR_SET_LAYOUT,
         OBJECT_DESCRIPTOR_SET_LAYOUT,
-
-        // TODO: add one for the compute
+        COMPUTE_DESCRIPTOR_SET_LAYOUT,
 
         DESCRIPTOR_SET_LAYOUT_COUNT
     };
-    std::array<VkDescriptorSetLayout, DESCRIPTOR_SET_LAYOUT_COUNT> _descriptor_set_layouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    std::array<VkDescriptorSetLayout, DESCRIPTOR_SET_LAYOUT_COUNT> _descriptor_set_layouts = {};
 
     struct _pipeline_t
     {
@@ -452,8 +448,6 @@ private:
         VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
     };
 
-    _compute_pipeline_t compute_pipeline;
-
     struct _material_instance_t
     {
         texture_id_t base_tex;
@@ -470,16 +464,22 @@ private:
 
     struct _compute_particles_data_t
     {
+        struct _simulation_data_t
+        {
+            glm::vec4 data0; // x = time, y = speed, z = rot_speed, w = delay
+            glm::vec4 data1; // x = e0, y = e1, z = e2, w = e3
+            glm::vec4 data2; // x = ax, y = bx, z = cx, w = dx
+            glm::vec4 data3; // x = ay, y = by, z = cy, w = dy
+            glm::vec4 data4; // x = az, y = bz, z = cz, w = dz
+            int instance_count;
+        } data;
+        uniform_buffer_t ubo;
+        _compute_pipeline_t pipe;
         // set = 0 binding = 0 instance_data/vbo
         //         binding = 1 ubo (time, simu params...)
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     } compute_particles;
 
-    struct _simulation_data_t
-    {
-        glm::vec4 data0; // x = time
-    };
-    uniform_buffer_t _compute_particles_ubo;
     bool _simulate_cpu = false;
 
     //
@@ -551,7 +551,7 @@ private:
     float _speed = 0.020f;
     float _rotation_speed = 1.0f;
 
-    int32_t _nb_instances = 5000;
+    int32_t _nb_instances = 1;
 };
 
 #endif // _VULKAN_SCENE_2018_07_20_H_

@@ -129,6 +129,9 @@ VkVertexInputAttributeDescription *Scene::instance_data_t::attribute_description
     return vertex_attribute_descriptions.data();
 }
 
+//
+// SCENE
+//
 
 Scene::Scene(vulkan_context *c) : _ctx(c)
 {
@@ -171,10 +174,6 @@ bool Scene::init(VkRenderPass rp)
 
     Log("#    Create All Descriptor Set Layouts\n");
     if (!create_all_descriptor_set_layouts(_ctx->device, _descriptor_set_layouts.data()))
-        return false;
-
-    Log("#    Create Descriptor Pool for all descriptors\n");
-    if (!create_all_descriptor_sets_pool())
         return false;
 
     Log("#    Build All Shaders/Pipelines\n");
@@ -453,10 +452,10 @@ void Scene::record_compute_commands(VkCommandBuffer cmd)
             1, &storage_buffer_memory_barrier_before,
             0, nullptr);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_pipeline.pipeline);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_particles.pipe.pipeline);
 
         // bind storage buffer and uniform buffer
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_pipeline.pipeline_layout,
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, compute_particles.pipe.pipeline_layout,
             0, // bind to set #0
             1, &compute_particles.descriptor_set, 0, nullptr);
 
@@ -1157,43 +1156,6 @@ Scene::uniform_buffer_t &Scene::get_scene_ubo()
 
 bool Scene::create_scene_ubo()
 {
-#if 0
-    VkResult result;
-
-    
-    VkBufferCreateInfo uniform_buffer_create_info = {};
-    uniform_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    uniform_buffer_create_info.size = sizeof(_camera_t) + sizeof(_lighting_block); // one camera and max lights
-    uniform_buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;   // <-- UBO
-    uniform_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    result = vkCreateBuffer(_ctx->device, &uniform_buffer_create_info, nullptr, &_scene_ubo.buffer);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#     Get Uniform Buffer Memory Requirements(size and type)\n");
-    VkMemoryRequirements uniform_buffer_memory_requirements = {};
-    vkGetBufferMemoryRequirements(_ctx->device, _scene_ubo.buffer, &uniform_buffer_memory_requirements);
-
-    VkMemoryAllocateInfo uniform_buffer_allocate_info = {};
-    uniform_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    uniform_buffer_allocate_info.allocationSize = uniform_buffer_memory_requirements.size;
-    uniform_buffer_allocate_info.memoryTypeIndex = find_memory_type(uniform_buffer_memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-    Log("#     Allocate Uniform Buffer Memory\n");
-    result = vkAllocateMemory(_ctx->device, &uniform_buffer_allocate_info, nullptr, &_scene_ubo.memory);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    Log("#     Bind memory to buffer\n");
-    result = vkBindBufferMemory(_ctx->device, _scene_ubo.buffer, _scene_ubo.memory, 0);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-#endif
-
     Log("#     Create Matrices Uniform Buffer\n");
     if (!create_buffer(
         &_scene_ubo.buffer,
@@ -1207,9 +1169,9 @@ bool Scene::create_scene_ubo()
 
     Log("#     Create Simulation Uniform Buffer\n");
     if (!create_buffer(
-        &_compute_particles_ubo.buffer,
-        &_compute_particles_ubo.memory,
-        sizeof(_simulation_data_t),
+        &compute_particles.ubo.buffer,
+        &compute_particles.ubo.memory,
+        sizeof(_compute_particles_data_t::_simulation_data_t),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
         return false;
@@ -1234,6 +1196,7 @@ void *Scene::get_aligned(dynamic_uniform_buffer_t *buffer, uint32_t idx)
 
 void Scene::animate_object(float dt)
 {
+#if 0
     static float obj_x = 0.0f;
     static float obj_y = 0.0f;
     static float obj_z = 0.0f;
@@ -1257,6 +1220,7 @@ void Scene::animate_object(float dt)
 
     *model_mat_obj_0 = glm::translate(glm::mat4(1), obj_0.position + glm::vec3(obj_x, obj_y, obj_z));
     *model_mat_obj_1 = glm::translate(glm::mat4(1), obj_1.position + glm::vec3(-obj_x, obj_y, -obj_z));
+#endif
 
     if (!_animate_instance_data)
         return;
@@ -1264,98 +1228,112 @@ void Scene::animate_object(float dt)
     static float t = 0.0f; // in seconds
     t += dt;
 
-    //
-    // animate instanced objects
-    //
-    constexpr float TWO_PI = 6.2831853071f;
-    constexpr float SQRT_2 = 1.414213562f;
-#if USE_INSTANCE_SET_1 == 1
+    if (_simulate_cpu)
     {
-        auto &is = _instance_sets["plastic_cubes"];
-        for (uint32_t i = 0; i < is.instance_count; ++i)
+        //
+        // animate instanced objects
+        //
+        constexpr float TWO_PI = 6.2831853071f;
+        constexpr float SQRT_2 = 1.414213562f;
+#if USE_INSTANCE_SET_1 == 1
         {
-            uint32_t row = i / ROWS_COUNT;
-            uint32_t col = i % COLS_COUNT;
-            float norm_start_x = (0.5f + (col - (ROWS_COUNT / 2.0f))) / ((ROWS_COUNT / 2.0f) - 0.5f);
-            float norm_start_z = (0.5f + (row - (COLS_COUNT / 2.0f))) / ((COLS_COUNT / 2.0f) - 0.5f);
+            auto &is = _instance_sets["plastic_cubes"];
+            for (uint32_t i = 0; i < is.instance_count; ++i)
+            {
+                uint32_t row = i / ROWS_COUNT;
+                uint32_t col = i % COLS_COUNT;
+                float norm_start_x = (0.5f + (col - (ROWS_COUNT / 2.0f))) / ((ROWS_COUNT / 2.0f) - 0.5f);
+                float norm_start_z = (0.5f + (row - (COLS_COUNT / 2.0f))) / ((COLS_COUNT / 2.0f) - 0.5f);
 
-            float d2 = norm_start_x * norm_start_x + norm_start_z * norm_start_z;
-            float d = sqrtf((float)d2/SQRT_2) ; // normalized distance
+                float d2 = norm_start_x * norm_start_x + norm_start_z * norm_start_z;
+                float d = sqrtf((float)d2 / SQRT_2); // normalized distance
 
-            constexpr float speed = 3.0f; // radian/sec
-            float radius = _instances_layout_radius;// 20.0f; // dependant de rows/cols_count
-            constexpr float height = 1.0f;
-            is.positions[i].x = radius * norm_start_x;// radius * d * std::cos(speed * accum);
-            is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
-            is.positions[i].z = radius * norm_start_z;// radius * d * std::sin(speed * accum);
+                constexpr float speed = 3.0f; // radian/sec
+                float radius = _instances_layout_radius;// 20.0f; // dependant de rows/cols_count
+                constexpr float height = 1.0f;
+                is.positions[i].x = radius * norm_start_x;// radius * d * std::cos(speed * accum);
+                is.positions[i].y = 1.0f + d * height * std::cos(d2 + 3.0f * speed * accum);
+                is.positions[i].z = radius * norm_start_z;// radius * d * std::sin(speed * accum);
 
-            constexpr float rotation_speed = 30.0f;
-            is.rotations[i].x = glm::radians(d * rotation_speed * accum);
-            is.rotations[i].y = 0.0f;
-            is.rotations[i].z = 0.0f;
+                constexpr float rotation_speed = 30.0f;
+                is.rotations[i].x = glm::radians(d * rotation_speed * accum);
+                is.rotations[i].y = 0.0f;
+                is.rotations[i].z = 0.0f;
 
-            is.scales[i].x = 1.0f;
-            is.scales[i].y = 1.0f;
-            is.scales[i].z = 1.0f;
+                is.scales[i].x = 1.0f;
+                is.scales[i].y = 1.0f;
+                is.scales[i].z = 1.0f;
+            }
         }
-    }
 #endif
 #if USE_INSTANCE_SET_2 == 1
-    {
-        auto &is = _instance_sets["metal_spheres"];
-        uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
-        for (uint32_t i = 0; i < instance_count; ++i)
         {
-            float tt = _speed * t + i * _pdt; // delay each successive particle
-            float rt = _rotation_speed * t + i * _pdt; // delay each successive particle
+            auto &is = _instance_sets["metal_spheres"];
+            uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
+            for (uint32_t i = 0; i < instance_count; ++i)
+            {
+                float tt = _speed * t + i * _pdt; // delay each successive particle
+                float rt = _rotation_speed * t + i * _pdt; // delay each successive particle
 
-            auto J = is.jitters[i];
-            // J.xyz = = offset sur position de depart, decale toute la track.
-            // _e0 = facteur de jitter sur la position de depart 
-            // _e1 = facteur de jitter sur taille des petits cercles.
-            // _e2 = facteur de jitter sur rotatin speed.
+                auto J = is.jitters[i];
+                // J.xyz = = offset sur position de depart, decale toute la track.
+                // _e0 = facteur de jitter sur la position de depart 
+                // _e1 = facteur de jitter sur taille des petits cercles.
+                // _e2 = facteur de jitter sur rotatin speed.
 
-            float global_pos_offset_x = _e0 * (2.0f * J.x - 1.0f);
-            float global_pos_offset_y = _e0 * (2.0f * J.y - 1.0f);
-            float global_pos_offset_z = _e0 * (2.0f * J.z - 1.0f);
+                float global_pos_offset_x = _e0 * (2.0f * J.x - 1.0f);
+                float global_pos_offset_y = _e0 * (2.0f * J.y - 1.0f);
+                float global_pos_offset_z = _e0 * (2.0f * J.z - 1.0f);
 
-            float local_pos_offset_x = _e1 * (2.0f * J.x - 1.0f);
-            float local_pos_offset_y = _e1 * (2.0f * J.y - 1.0f);
-            float local_pos_offset_z = _e1 * (2.0f * J.z - 1.0f);
+                float local_pos_offset_x = _e1 * (2.0f * J.x - 1.0f);
+                float local_pos_offset_y = _e1 * (2.0f * J.y - 1.0f);
+                float local_pos_offset_z = _e1 * (2.0f * J.z - 1.0f);
 
-            is.positions[i].x = _ax * std::cos(_bx*tt) + (_cx + local_pos_offset_x) * std::sin(_dx*tt) + global_pos_offset_x;
-            is.positions[i].y = _ay * std::sin(_by*tt) + (_cy + local_pos_offset_y) * std::cos(_dy*tt) + global_pos_offset_y;
-            is.positions[i].z = _az * std::sin(_bz*tt) + (_cz + local_pos_offset_z) * std::cos(_dz*tt) + global_pos_offset_z;
+                is.positions[i].x = _ax * std::cos(_bx*tt) + (_cx + local_pos_offset_x) * std::sin(_dx*tt) + global_pos_offset_x;
+                is.positions[i].y = _ay * std::sin(_by*tt) + (_cy + local_pos_offset_y) * std::cos(_dy*tt) + global_pos_offset_y;
+                is.positions[i].z = _az * std::sin(_bz*tt) + (_cz + local_pos_offset_z) * std::cos(_dz*tt) + global_pos_offset_z;
 
-            is.rotations[i].x = glm::radians(_e2*J.x * _rsx * TWO_PI * rt);
-            is.rotations[i].y = glm::radians(_e2*J.y * _rsy * TWO_PI * rt);
-            is.rotations[i].z = glm::radians(_e2*J.z * _rsz * TWO_PI * rt);
+                is.rotations[i].x = glm::radians(_e2*J.x * _rsx * TWO_PI * rt);
+                is.rotations[i].y = glm::radians(_e2*J.y * _rsy * TWO_PI * rt);
+                is.rotations[i].z = glm::radians(_e2*J.z * _rsz * TWO_PI * rt);
 
-            is.scales[i].x = _psx;
-            is.scales[i].y = _psy;
-            is.scales[i].z = _psz;
+                is.scales[i].x = _psx;
+                is.scales[i].y = _psy;
+                is.scales[i].z = _psz;
+            }
         }
-    }
 #endif
 
-    // fill instance buffer data
-    for (auto &_is : _instance_sets)
-    {
-        auto &is = _is.second;
-        uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
-        for (uint32_t i = 0; i < instance_count; ++i)
+        // fill instance buffer data
+        for (auto &_is : _instance_sets)
         {
-            glm::mat4 m(1);
-            m = glm::translate(m, is.positions[i].xyz());
-            m = glm::rotate(m, is.rotations[i].x, glm::vec3(1, 0, 0));
-            m = glm::rotate(m, is.rotations[i].y, glm::vec3(0, 1, 0));
-            m = glm::rotate(m, is.rotations[i].z, glm::vec3(0, 0, 1)); 
-            m = glm::scale(m, is.scales[i]);
+            auto &is = _is.second;
+            uint32_t instance_count = std::min(is.instance_count, (uint32_t)_nb_instances);
+            for (uint32_t i = 0; i < instance_count; ++i)
+            {
+                glm::mat4 m(1);
+                m = glm::translate(m, is.positions[i].xyz());
+                m = glm::rotate(m, is.rotations[i].x, glm::vec3(1, 0, 0));
+                m = glm::rotate(m, is.rotations[i].y, glm::vec3(0, 1, 0));
+                m = glm::rotate(m, is.rotations[i].z, glm::vec3(0, 0, 1));
+                m = glm::scale(m, is.scales[i]);
 
-            is.instance_data[i].m = m;
-            is.instance_data[i].b = is.base_colors[i];
-            is.instance_data[i].s = is.speculars[i];
+                is.instance_data[i].m = m;
+                is.instance_data[i].b = is.base_colors[i];
+                is.instance_data[i].s = is.speculars[i];
+            }
         }
+    } // simulate cpu
+
+    // fill uniform data for the simulation compute shader.
+    {
+        uint32_t instance_count = std::min(_instance_sets["metal_spheres"].instance_count, (uint32_t)_nb_instances);
+        compute_particles.data.data0 = glm::vec4(t, _speed, _rotation_speed, _pdt);
+        compute_particles.data.data1 = glm::vec4(_e0, _e1, _e2, _e3);
+        compute_particles.data.data2 = glm::vec4(_ax, _bx, _cx, _dx);
+        compute_particles.data.data3 = glm::vec4(_ay, _by, _cy, _dy);
+        compute_particles.data.data4 = glm::vec4(_az, _bz, _cz, _dz);
+        compute_particles.data.instance_count = instance_count;
     }
 }
 
@@ -1449,6 +1427,7 @@ bool Scene::update_scene_ubo()
     memcpy(((float *)mapped + 16), glm::value_ptr(camera.p), sizeof(camera.p));
     memcpy(((float *)mapped + 32), &_lighting_block, sizeof(_lighting_block));
     
+    // useless, COHERENT_BIT
     VkMappedMemoryRange memory_range = {};
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memory_range.memory = _scene_ubo.memory;
@@ -1458,6 +1437,22 @@ bool Scene::update_scene_ubo()
 
     //Log("#   UnMap Uniform Buffer\n");
     vkUnmapMemory(_ctx->device, _scene_ubo.memory);
+
+
+    //
+    // COMPUTE UBO
+    //
+    {
+        void *mapped = nullptr;
+        result = vkMapMemory(_ctx->device, compute_particles.ubo.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+
+        memcpy(mapped, &compute_particles.data, sizeof(compute_particles.data));
+
+        vkUnmapMemory(_ctx->device, compute_particles.ubo.memory);
+    }
 
     return true;
 }
@@ -1698,6 +1693,9 @@ bool Scene::create_all_descriptor_set_layouts(VkDevice device, VkDescriptorSetLa
     //    set = 2 (OBJECT instance)
     //        binding = 0 : model matrix               (Dyn UBO)(VS)
     //        binding = 1 : material overrides         (Dyn UBO)(FS) // same ubo?
+    //    set = x (COMPUTE particles)
+    //        binding = 0 : instance data              (SSBO)
+    //        binding = 1 : simulation params          (UBO)
 
     //
     // PER-SCENE
@@ -1788,40 +1786,36 @@ bool Scene::create_all_descriptor_set_layouts(VkDevice device, VkDescriptorSetLa
         if (result != VK_SUCCESS)
             return false;
     }
-    return true;
-}
 
-bool Scene::create_all_descriptor_sets_pool()
-{
-    VkResult result;
+    //
+    // COMPUTE
+    //
+    {
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {};
 
-    // allocate just enough for what we'll need.
-    std::array<VkDescriptorPoolSize, 4> pool_sizes = {};
-    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    pool_sizes[0].descriptorCount = 1; // scene camera + light ubo
+        bindings[0].binding = 0;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[0].descriptorCount = 1; // use >1 for arrays bound to a single binding.
+        bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bindings[0].pImmutableSamplers = nullptr;
 
-    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    pool_sizes[1].descriptorCount = 2; // dynamic object ubos
+        bindings[1].binding = 1;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[1].descriptorCount = 1;
+        bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bindings[1].pImmutableSamplers = nullptr;
 
-    pool_sizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-    pool_sizes[2].descriptorCount = 1; // texture sampler;
+        VkDescriptorSetLayoutCreateInfo desc_set_layout_create_info = {};
+        desc_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        desc_set_layout_create_info.bindingCount = (uint32_t)bindings.size();
+        desc_set_layout_create_info.pBindings = bindings.data();
 
-    pool_sizes[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    pool_sizes[3].descriptorCount = 3 * 2;// (uint32_t)_material_instances.size(); // <-- not created yet
-
-    VkDescriptorPoolCreateInfo pool_create_info = {};
-    pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_create_info.maxSets = 1 + 2 + 1 + 3 * 2;
-    pool_create_info.poolSizeCount = (uint32_t)pool_sizes.size();
-    pool_create_info.pPoolSizes = pool_sizes.data();
-
-    Log("#      Create Global Descriptor Set Pool\n");
-    result = vkCreateDescriptorPool(_ctx->device, &pool_create_info, nullptr, &_descriptor_pool);
-    ErrorCheck(result);
-    if (result != VK_SUCCESS)
-        return false;
-
-    // TODO: use global big descriptor pool, in _ctx->descriptor_pool
+        Log("#      Create Descriptor Set Layout for Compute Particles (SSBO+UBO)\n");
+        result = vkCreateDescriptorSetLayout(device, &desc_set_layout_create_info, nullptr, layouts + COMPUTE_DESCRIPTOR_SET_LAYOUT);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
 
     return true;
 }
@@ -1834,7 +1828,7 @@ bool Scene::create_all_descriptor_sets()
 
     VkDescriptorSetAllocateInfo descriptor_allocate_info = {};
     descriptor_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_allocate_info.descriptorPool = _descriptor_pool;
+    descriptor_allocate_info.descriptorPool = _ctx->descriptor_pool;// _descriptor_pool;
     descriptor_allocate_info.descriptorSetCount = 1;
     descriptor_allocate_info.pSetLayouts = &_descriptor_set_layouts[SCENE_DESCRIPTOR_SET_LAYOUT];
 
@@ -1864,6 +1858,14 @@ bool Scene::create_all_descriptor_sets()
     if (result != VK_SUCCESS)
         return false;
 
+    Log("#      Allocate Compute Descriptor Set\n");
+    descriptor_allocate_info.descriptorSetCount = 1;
+    descriptor_allocate_info.pSetLayouts = &_descriptor_set_layouts[COMPUTE_DESCRIPTOR_SET_LAYOUT];
+    result = vkAllocateDescriptorSets(_ctx->device, &descriptor_allocate_info, &compute_particles.descriptor_set);
+    ErrorCheck(result);
+    if (result != VK_SUCCESS)
+        return false;
+
     //
     // CONFIGURE DESCRIPTOR SETS
     //
@@ -1872,7 +1874,7 @@ bool Scene::create_all_descriptor_sets()
 
     std::vector<VkWriteDescriptorSet> write_descriptor_sets = {};
 
-    // 3 SETS
+    // 4 SETS
     //    set = 0 (SCENE)
     //        binding = 0 : camera matrices, light     (UBO)(VS+FS)
     //        binding = 1 : texture sampler            (SMP)(FS)
@@ -1882,6 +1884,9 @@ bool Scene::create_all_descriptor_sets()
     //    set = 2 (OBJECT instance)
     //        binding = 0 : model matrix               (Dyn UBO)(VS)
     //        binding = 1 : material overrides         (Dyn UBO)(FS) // same ubo?
+    //    set = x (compute)
+    //        binding = 0 : per-instance data          (SSBO)
+    //        binding = 1 : simulation data            (UBO)
 
     // SCENE UBO CAMERA = 0
     {
@@ -2031,6 +2036,58 @@ bool Scene::create_all_descriptor_sets()
         vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
     }
 
+    //
+    // COMPUTE - PER INSTANCE SSBO = 0
+    //
+    {
+        Log("#      Update Descriptor Set (Per-Instance SSBO)\n");
+
+        VkDescriptorBufferInfo descriptor_buffer_info = {};
+        descriptor_buffer_info.buffer = _instance_sets["metal_spheres"].instance_buffer.buffer;
+        descriptor_buffer_info.offset = 0;
+        descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet write_descriptor_set = {};
+        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_set.dstSet = compute_particles.descriptor_set;
+        write_descriptor_set.dstBinding = 0;
+        write_descriptor_set.dstArrayElement = 0;
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write_descriptor_set.pImageInfo = nullptr;
+        write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+        write_descriptor_set.pTexelBufferView = nullptr;
+
+        //write_descriptor_sets.push_back(write_descriptor_set);
+        vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
+    }
+
+    //
+    // COMPUTE - SIMULATION DATA UBO = 1
+    //
+    {
+        Log("#      Update Descriptor Set (Per-Instance SSBO)\n");
+
+        VkDescriptorBufferInfo descriptor_buffer_info = {};
+        descriptor_buffer_info.buffer = compute_particles.ubo.buffer;
+        descriptor_buffer_info.offset = 0;
+        descriptor_buffer_info.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet write_descriptor_set = {};
+        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_set.dstSet = compute_particles.descriptor_set;
+        write_descriptor_set.dstBinding = 1;
+        write_descriptor_set.dstArrayElement = 0;
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write_descriptor_set.pImageInfo = nullptr;
+        write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+        write_descriptor_set.pTexelBufferView = nullptr;
+
+        vkUpdateDescriptorSets(_ctx->device, 1, &write_descriptor_set, 0, nullptr);
+    }
+
+
     // UPDATE ALL AT ONCE
     //vkUpdateDescriptorSets(_ctx->device, (uint32_t)write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
 
@@ -2054,13 +2111,10 @@ bool Scene::build_pipelines(VkRenderPass rp)
     _pipeline_t &default_pipeline = _pipelines["default"];
 
     {
-        // TODO: check if local var will not cause any problem...
-        // if problem, rename "_descriptor_set_layouts" to "_all_descriptor_set_layouts"
-        // and put the 2 sub arrays as class members.
         std::array<VkDescriptorSetLayout, 3> pipeline_descriptor_set_layouts = {
-            _descriptor_set_layouts[0], // scene ubo
-            _descriptor_set_layouts[1], // sampler
-            _descriptor_set_layouts[2]  // material override per object ubo
+            _descriptor_set_layouts[SCENE_DESCRIPTOR_SET_LAYOUT], // scene ubo
+            _descriptor_set_layouts[MATERIAL_DESCRIPTOR_SET_LAYOUT], // sampler
+            _descriptor_set_layouts[OBJECT_DESCRIPTOR_SET_LAYOUT]  // material override per object ubo
         };
 
         // use it later to define uniform buffer
@@ -2086,18 +2140,10 @@ bool Scene::build_pipelines(VkRenderPass rp)
     if (!create_shader_module("./simple.frag.spv", &default_pipeline.fs))
         return false;
 
-    std::array<VkPipelineShaderStageCreateInfo, 2> shader_stage_create_infos = {};
-    shader_stage_create_infos[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shader_stage_create_infos[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shader_stage_create_infos[0].module = default_pipeline.vs;
-    shader_stage_create_infos[0].pName = "main";        // shader entry point function name
-    shader_stage_create_infos[0].pSpecializationInfo = nullptr;
-
-    shader_stage_create_infos[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shader_stage_create_infos[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shader_stage_create_infos[1].module = default_pipeline.fs;
-    shader_stage_create_infos[1].pName = "main";        // shader entry point function name
-    shader_stage_create_infos[1].pSpecializationInfo = nullptr;
+    std::array<VkPipelineShaderStageCreateInfo, 2> shader_stage_create_infos = {
+        vk::init::pipeline::shader_stage_create_info(default_pipeline.vs, VK_SHADER_STAGE_VERTEX_BIT),
+        vk::init::pipeline::shader_stage_create_info(default_pipeline.fs, VK_SHADER_STAGE_FRAGMENT_BIT)
+    };
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -2184,8 +2230,8 @@ bool Scene::build_pipelines(VkRenderPass rp)
 
     {
         std::array<VkDescriptorSetLayout, 2> pipeline_descriptor_set_layouts = {
-            _descriptor_set_layouts[0], // scene ubo
-            _descriptor_set_layouts[1]  // sampler
+            _descriptor_set_layouts[SCENE_DESCRIPTOR_SET_LAYOUT], // scene ubo
+            _descriptor_set_layouts[MATERIAL_DESCRIPTOR_SET_LAYOUT]  // sampler
         };
 
         // use it later to define uniform buffer
@@ -2254,13 +2300,61 @@ bool Scene::build_pipelines(VkRenderPass rp)
             return false;
     }
 
+    //
+    // COMPUTE PARRTICLES
+    //
+
+    {
+        VkDescriptorSetLayout compute_pipeline_descriptor_set_layout = 
+            _descriptor_set_layouts[COMPUTE_DESCRIPTOR_SET_LAYOUT];
+
+        VkPipelineLayoutCreateInfo layout_create_info = {};
+        layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layout_create_info.setLayoutCount = 1;
+        layout_create_info.pSetLayouts = &compute_pipeline_descriptor_set_layout;
+        layout_create_info.pushConstantRangeCount = 0;
+        layout_create_info.pPushConstantRanges = nullptr;
+
+        Log("#     Create Compute Pipeline Layout\n");
+        result = vkCreatePipelineLayout(_ctx->device, &layout_create_info, nullptr, &compute_particles.pipe.pipeline_layout);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+
+        Log("#     Create Particles Compute Shader\n");
+        if (!create_shader_module("./particles.comp.spv", &compute_particles.pipe.cs))
+            return false;
+
+        VkPipelineShaderStageCreateInfo compute_shader_stage_create_info =
+            vk::init::pipeline::shader_stage_create_info(compute_particles.pipe.cs, VK_SHADER_STAGE_COMPUTE_BIT);
+
+        VkComputePipelineCreateInfo compute_pipeline_create_info = {};
+        compute_pipeline_create_info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        compute_pipeline_create_info.stage = compute_shader_stage_create_info;
+        compute_pipeline_create_info.layout = compute_particles.pipe.pipeline_layout;
+        compute_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+        compute_pipeline_create_info.basePipelineIndex = 0;
+
+        Log("#     Create Instancing Pipeline\n");
+        result = vkCreateComputePipelines(
+            _ctx->device,
+            VK_NULL_HANDLE, // cache
+            1,
+            &compute_pipeline_create_info,
+            nullptr,
+            &compute_particles.pipe.pipeline);
+        ErrorCheck(result);
+        if (result != VK_SUCCESS)
+            return false;
+    }
+
     return true;
 }
 
 void Scene::destroy_pipelines()
 {
-    Log("#    Destroy Descriptor Pool\n");
-    vkDestroyDescriptorPool(_ctx->device, _descriptor_pool, nullptr);
+    //Log("#    Destroy Descriptor Pool\n");
+    //vkDestroyDescriptorPool(_ctx->device, _descriptor_pool, nullptr);
 
     Log("#    Destroy Descriptor Set Layout\n");
     for (int i = 0; i < DESCRIPTOR_SET_LAYOUT_COUNT; ++i)

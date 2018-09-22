@@ -18,6 +18,7 @@ namespace transfer
 
 namespace pipeline
 {
+    VkPipelineShaderStageCreateInfo shader_stage_create_info(VkShaderModule module, VkShaderStageFlagBits stage_flags);
     VkViewport viewport();
     VkPipelineRasterizationStateCreateInfo raster_state_create_info();
     VkStencilOpState stencil_op_state_NOP();
