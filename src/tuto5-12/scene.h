@@ -62,9 +62,13 @@ public:
     //
     struct instance_data_t
     {
-        glm::mat4 m; // model matrix
-        glm::vec4 b; // base color override
-        glm::vec4 s; // spec color override
+        glm::vec4 position;
+        glm::vec4 rotation;
+        glm::vec4 scale;
+        glm::vec4 speed;
+        glm::vec4 jitter; // random numbers
+        glm::vec4 base;
+        glm::vec4 spec;
 
         static uint32_t binding_description_count();
         static VkVertexInputBindingDescription * binding_descriptions();
@@ -470,7 +474,12 @@ private:
             glm::vec4 data1; // x = e0, y = e1, z = e2, w = e3
             glm::vec4 data2; // x = ax, y = bx, z = cx, w = dx
             glm::vec4 data3; // x = ay, y = by, z = cy, w = dy
+
             glm::vec4 data4; // x = az, y = bz, z = cz, w = dz
+            glm::vec4 data5; // x = psx, y = psy, z = psz, w = _
+            glm::vec4 data6; // x = rsx, y = rsy, z = rsz, w = _
+            glm::vec4 data7; // x = _, y = _, z = _, w = _
+
             int instance_count;
         } data;
         uniform_buffer_t ubo;
@@ -493,11 +502,11 @@ private:
         vertex_buffer_object_t instance_buffer;
         staging_buffer_t staging_buffer;
 
-        std::vector<glm::vec3> positions = {};
-        std::vector<glm::vec3> rotations = {};
-        std::vector<glm::vec3> scales = {};
-        std::vector<glm::vec4> base_colors = {}; // glm::vec4(0.5, 0.5, 0.5, 1.0);
-        std::vector<glm::vec4> speculars = {}; // glm::vec4(1, 1, 0, 0); // roughness, metallic, 0, 0
+        //std::vector<glm::vec3> positions = {};
+        //std::vector<glm::vec3> rotations = {};
+        //std::vector<glm::vec3> scales = {};
+        std::vector<glm::vec4> base_colors = {}; // 512Mo for 16million particles
+        std::vector<glm::vec4> speculars = {};
         std::vector<glm::vec4> jitters = {};
         std::vector<instance_data_t> instance_data = {};
 

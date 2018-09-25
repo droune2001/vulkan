@@ -1,19 +1,12 @@
 COMPUTE PARTICLES:
-x STORAGE flag for the vertexbuffer of instanced data.
-x compute queue
-x compute command buffer pool
-x compute command buffer
-x add things to the global descriptor pool
-x compute shader
-x compute descriptor set
-x compute descriptor set layout
-x compute pipeline layout
-x compute pipeline
-x compute fences
-= compute uniform buffer to drive simulation
-  x create uniform buffer
-  - fill each frame with time
-x record compute command buffer
+- use two SSBOs
+  - one for simulation data: pos, rot, scale, speed, ...
+  - one for instance data: matrix, material
+  - can help with parallelism:
+    - compute shader reads/write from/to first
+    - write into second
+    - fragment shader read second
+    - first one available for reading.
 
 - Add stb image
 - Add tiny obj loader

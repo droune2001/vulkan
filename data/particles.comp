@@ -3,17 +3,21 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-struct object_instance_data
+struct particle
 {
-    mat4 m; // model matrix
-    vec4 b; // base color override
-    vec4 s; // spec color override
+    vec4 position;
+    vec4 rotation;
+    vec4 scale;
+    vec4 speed;
+    vec4 jitter;
+    vec4 base;
+    vec4 spec;
 };
 
 // Binding 0 : Position storage buffer
 layout(std140, binding = 0) buffer Pos 
 {
-   object_instance_data objects[];
+   particle particles[];
 };
 
 layout (local_size_x = 256) in;
@@ -25,6 +29,9 @@ layout (binding = 1) uniform UBO
     vec4 data2; // x = ax, y = bx, z = cx, w = dx
     vec4 data3; // x = ay, y = by, z = cy, w = dy
     vec4 data4; // x = az, y = bz, z = cz, w = dz
+    vec4 data5; // x = psx, y = psy, z = psz, w = __
+    vec4 data6; // x = rsx, y = rsy, z = rsz, w = __
+    vec4 data7; // x = __, y = __, z = __, w = __
     uint instance_count;
 } ubo;
 
@@ -121,12 +128,22 @@ void main()
     float bx = ubo.data2.y;
     float by = ubo.data3.y;
     float bz = ubo.data4.y;
-    float cx = ubo.data2.z;
-    float cy = ubo.data3.z;
-    float cz = ubo.data4.z;
+    float Cx = ubo.data2.z;
+    float Cy = ubo.data3.z;
+    float Cz = ubo.data4.z;
     float dx = ubo.data2.w;
     float dy = ubo.data3.w;
     float dz = ubo.data4.w;
+
+    float psx = ubo.data5.x;
+    float psy = ubo.data5.y;
+    float psz = ubo.data5.z;
+
+    float rsx = ubo.data6.x;
+    float rsy = ubo.data6.y;
+    float rsz = ubo.data6.z;
+
+    particle PIN = particles[i];
 
     // delay each successive particle, adds some distance.
     float tt = speed * t + i * pdt;
@@ -134,9 +151,15 @@ void main()
 
     vec4 J = vec4(1,1,1,1); // jitters per particle, TODO: input
 
+    uint z_pos = i/65536;
+    uint in_slice = z_pos%65536;
+    uint y_pos = in_slice/256;
+    uint x_pos = in_slice%256;
+
     J.x = snoise(vec2(t, float(i)/float(ubo.instance_count)));
-    J.y = snoise(vec2(t, float(i%256)/256.0));
-    J.z = snoise(vec2(t, 1.0-float(i%256)/256.0));
+    J.y = snoise(vec2(float(x_pos), float(y_pos)));
+    J.z = snoise(vec2(t, float(z_pos)));
+    J.w = snoise(vec2(float(y_pos), float(z_pos)));
 
     float global_pos_offset_x = e0 * (2.0f * J.x - 1.0f);
     float global_pos_offset_y = e0 * (2.0f * J.y - 1.0f);
@@ -147,14 +170,25 @@ void main()
     float local_pos_offset_z = e1 * (2.0f * J.z - 1.0f);
 
     vec4 position = vec4(0,0,0,1);
-    position.x = ax * cos(bx*tt) + (cx + local_pos_offset_x) * sin(dx*tt) + global_pos_offset_x;
-    position.y = ay * sin(by*tt) + (cy + local_pos_offset_y) * cos(dy*tt) + global_pos_offset_y;
-    position.z = az * sin(bz*tt) + (cz + local_pos_offset_z) * cos(dz*tt) + global_pos_offset_z;
+    position.x = ax * cos(bx*tt) + (Cx + local_pos_offset_x) * sin(dx*tt) + global_pos_offset_x;
+    position.y = ay * sin(by*tt) + (Cy + local_pos_offset_y) * cos(dy*tt) + global_pos_offset_y;
+    position.z = az * sin(bz*tt) + (Cz + local_pos_offset_z) * cos(dz*tt) + global_pos_offset_z;
 
-    mat4 obj_matrix = mat4(1.0);
-    obj_matrix[3] = position;
+    #define TWO_PI (2.0*3.14159)
+    vec4 rotation = vec4(rsx, rsy, rsz, 0);
+    rotation.x = e2 * J.x * rsx * TWO_PI * rt;
+    rotation.y = e2 * J.y * rsy * TWO_PI * rt;
+    rotation.z = e2 * J.z * rsz * TWO_PI * rt;
 
-    objects[i].m = obj_matrix;
-    objects[i].b = vec4(1.0, 0.85, 0.57, 1.0);
-    objects[i].s = vec4(0.045, 1, 1, 0);
+    vec4 scale = vec4(psx, psy, psz, 0);
+
+    particles[i].position = position;
+    particles[i].rotation = rotation;
+    particles[i].scale = scale;
+    particles[i].speed = PIN.speed;
+    particles[i].jitter = PIN.jitter;
+    particles[i].base = PIN.base;
+    particles[i].spec = PIN.spec;
+//    particles[i].base = vec4(1.0, 0.85, 0.57, 1.0);
+//    particles[i].spec = vec4(0.045, 1, 1, 0);
 }

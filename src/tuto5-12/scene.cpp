@@ -69,62 +69,75 @@ VkVertexInputBindingDescription *Scene::instance_data_t::binding_descriptions()
     return vertex_binding_descriptions.data();
 }
 
-uint32_t Scene::instance_data_t::attribute_description_count() { return 3+4+2; }
+uint32_t Scene::instance_data_t::attribute_description_count() { return 3 + 7; }
 VkVertexInputAttributeDescription *Scene::instance_data_t::attribute_descriptions()
 {
-    static std::array<VkVertexInputAttributeDescription, 3 + 4 + 2> vertex_attribute_descriptions = {};
-
+    static std::array<VkVertexInputAttributeDescription, 3 + 7> vertex_attribute_descriptions = {};
+    
     //
     // vertex_t
     //
     vertex_attribute_descriptions[0].location = 0;
     vertex_attribute_descriptions[0].binding = 0;
     vertex_attribute_descriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
-    vertex_attribute_descriptions[0].offset = offsetof(Scene::vertex_t, p); //0;
+    vertex_attribute_descriptions[0].offset = offsetof(Scene::vertex_t, p);
 
     vertex_attribute_descriptions[1].location = 1;
     vertex_attribute_descriptions[1].binding = 0;
     vertex_attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; // normal = 3 floats
-    vertex_attribute_descriptions[1].offset = offsetof(Scene::vertex_t, n);//4 * sizeof(float); 
+    vertex_attribute_descriptions[1].offset = offsetof(Scene::vertex_t, n);
 
     vertex_attribute_descriptions[2].location = 2;
     vertex_attribute_descriptions[2].binding = 0;
     vertex_attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT; // uv = 2 floats
-    vertex_attribute_descriptions[2].offset = offsetof(Scene::vertex_t, uv); // (4 + 3) * sizeof(float);
+    vertex_attribute_descriptions[2].offset = offsetof(Scene::vertex_t, uv);
 
     //
     // instance_t
     //
 
+    glm::vec4 position;
+    glm::vec4 rotation;
+    glm::vec4 scale;
+    glm::vec4 speed;
+    glm::vec4 jitter; // random numbers
+    glm::vec4 base;
+    glm::vec4 spec;
+
     vertex_attribute_descriptions[3].location = 3;
     vertex_attribute_descriptions[3].binding = 1;
-    vertex_attribute_descriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 1st row (column??) = 4 float
-    vertex_attribute_descriptions[3].offset = offsetof(Scene::instance_data_t, m); // 0;
+    vertex_attribute_descriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
+    vertex_attribute_descriptions[3].offset = offsetof(Scene::instance_data_t, position);
 
     vertex_attribute_descriptions[4].location = 4;
     vertex_attribute_descriptions[4].binding = 1;
-    vertex_attribute_descriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 2nd row (column??) = 4 float
-    vertex_attribute_descriptions[4].offset = offsetof(Scene::instance_data_t, m)+16; // 0;
+    vertex_attribute_descriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT; // rotation = 4 float
+    vertex_attribute_descriptions[4].offset = offsetof(Scene::instance_data_t, rotation);
 
     vertex_attribute_descriptions[5].location = 5;
     vertex_attribute_descriptions[5].binding = 1;
-    vertex_attribute_descriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 3rd row (column??) = 4 float
-    vertex_attribute_descriptions[5].offset = offsetof(Scene::instance_data_t, m)+16+16; // 0;
+    vertex_attribute_descriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT; // scale = 4 float
+    vertex_attribute_descriptions[5].offset = offsetof(Scene::instance_data_t, scale);
 
     vertex_attribute_descriptions[6].location = 6;
     vertex_attribute_descriptions[6].binding = 1;
-    vertex_attribute_descriptions[6].format = VK_FORMAT_R32G32B32A32_SFLOAT; // mat 4th row (column??) = 4 float
-    vertex_attribute_descriptions[6].offset = offsetof(Scene::instance_data_t, m)+16+16+16; // 0;
+    vertex_attribute_descriptions[6].format = VK_FORMAT_R32G32B32A32_SFLOAT; // speed = 4 float
+    vertex_attribute_descriptions[6].offset = offsetof(Scene::instance_data_t, speed);
 
     vertex_attribute_descriptions[7].location = 7;
     vertex_attribute_descriptions[7].binding = 1;
-    vertex_attribute_descriptions[7].format = VK_FORMAT_R32G32B32A32_SFLOAT; // base color = 4 floats
-    vertex_attribute_descriptions[7].offset = offsetof(Scene::instance_data_t, b);
+    vertex_attribute_descriptions[7].format = VK_FORMAT_R32G32B32A32_SFLOAT; // jitter = 4 floats
+    vertex_attribute_descriptions[7].offset = offsetof(Scene::instance_data_t, jitter);
 
     vertex_attribute_descriptions[8].location = 8;
     vertex_attribute_descriptions[8].binding = 1;
-    vertex_attribute_descriptions[8].format = VK_FORMAT_R32G32B32A32_SFLOAT; // specular = 4 floats
-    vertex_attribute_descriptions[8].offset = offsetof(Scene::instance_data_t, s);
+    vertex_attribute_descriptions[8].format = VK_FORMAT_R32G32B32A32_SFLOAT; // base color = 4 floats
+    vertex_attribute_descriptions[8].offset = offsetof(Scene::instance_data_t, base);
+
+    vertex_attribute_descriptions[9].location = 9;
+    vertex_attribute_descriptions[9].binding = 1;
+    vertex_attribute_descriptions[9].format = VK_FORMAT_R32G32B32A32_SFLOAT; // specular = 4 floats
+    vertex_attribute_descriptions[9].offset = offsetof(Scene::instance_data_t, spec);
 
     return vertex_attribute_descriptions.data();
 }
@@ -1333,6 +1346,9 @@ void Scene::animate_object(float dt)
         compute_particles.data.data2 = glm::vec4(_ax, _bx, _cx, _dx);
         compute_particles.data.data3 = glm::vec4(_ay, _by, _cy, _dy);
         compute_particles.data.data4 = glm::vec4(_az, _bz, _cz, _dz);
+        compute_particles.data.data5 = glm::vec4(_psx, _psy, _psz, 0);
+        compute_particles.data.data6 = glm::vec4(_rsx, _rsy, _rsz, 0);
+        compute_particles.data.data7 = glm::vec4(0,0,0,0);
         compute_particles.data.instance_count = instance_count;
     }
 }

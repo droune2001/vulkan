@@ -149,4 +149,9 @@
       <Filter>Resource Files\Shader Sources</Filter>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\data\particles.comp">
+      <Filter>Resource Files\Shader Sources</Filter>
+    </None>
+  </ItemGroup>
 </Project>

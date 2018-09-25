@@ -17,10 +17,10 @@ struct light_t
 //
 // SCENE/VIEW
 // Common to VS and FS
-layout( set = 0, binding = 0, std140 ) uniform scene_ubo
+layout( set = 0, binding = 0, std140 ) uniform subo
 {
-    mat4 view_matrix;
-    mat4 proj_matrix;
+    mat4 view;
+    mat4 proj;
 
     vec4 sky_color;
 
@@ -28,7 +28,7 @@ layout( set = 0, binding = 0, std140 ) uniform scene_ubo
 
     // + light type, outer/inner cone angles?
     // + camera lens properties?
-} Scene_UBO;
+} scene;
 
 //
 // SHADER/PIPELINE
@@ -324,7 +324,7 @@ void main()
     // FOR EACH LIGHT
     for (int i=0; i<8; i++)
     {
-        light_t light = Scene_UBO.lights[i];
+        light_t light = scene.lights[i];
 
         vec3 to_light = light.position.xyz - IN.world_pos;
         vec3 l = normalize( to_light );
