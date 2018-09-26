@@ -370,6 +370,8 @@ void main()
     }
     #endif
 
+    // DIRECTIONAL LIGHTS
+    #if 1
     const vec3 dir_light_dir[6] = {
         vec3(0,1,0),
         vec3(0,-1,0),
@@ -418,6 +420,7 @@ void main()
         float Es = Is * NdotLs;
         luminance += BSDF_Sky * Es * sky_color;
     }
+    #endif
 
     // fake envmap
     //vec3 r = reflect( -v, n );
@@ -435,7 +438,7 @@ void main()
     uFragColor = vec4(Linear_to_sRGB(luminance), 1);
 
     // DEBUG
-    //uFragColor = vec4(0.5*(N+1),1);
+    //uFragColor = vec4(0.5*(n+1),1);
     //uFragColor = vec4(0.5*(V+1),1);
     //uFragColor = vec4(0.5*(L+1),1);
     //uFragColor = vec4(0.5*(R+1),1);

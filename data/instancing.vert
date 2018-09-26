@@ -76,15 +76,20 @@ mat4 rebuild_matrix(vec4 p, vec3 r, vec3 s)
         vec3(0,0,1)
     );
 
-    mat4 rot_mat = mat4(mat3(rot_matrix_z * rot_matrix_y * rot_matrix_x));
+    mat4 rot_mat = mat4(rot_matrix_x * rot_matrix_y * rot_matrix_z);
+    rot_mat[3][3] = 1;
 
     // rotation
     m *= rot_mat;
 
     // scale
-    m[0][0] *= s.x;
-    m[1][1] *= s.y;
-    m[2][2] *= s.z;
+    mat4 scale_mat = mat4(
+    s.x, 0,   0,   0,
+    0,   s.y, 0,   0,
+    0,   0,   s.z, 0,
+    0,   0,   0,   1);
+
+    m *= scale_mat;
 
     return m;
 }
@@ -99,9 +104,11 @@ void main()
     gl_Position = scene.proj * model_view * v_pos;
 
     OUT.uv = uv;
-    OUT.normal = (inverse(transpose(model_view)) * vec4(normal, 0.0)).xyz;
+    OUT.normal = (transpose(inverse(model_matrix)) * vec4(normal, 0.0)).xyz; // world space normals
     OUT.to_camera = camera_pos.xyz - world_pos.xyz;
     OUT.world_pos = world_pos.xyz;
-    OUT.base = i_base;
-    OUT.spec = i_spec;
+//    OUT.base = i_base;
+//    OUT.spec = i_spec;
+    OUT.base = vec4(1.0, 0.85, 0.57, 1.0);
+    OUT.spec = vec4(0.045, 1, 1, 0);
 }

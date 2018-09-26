@@ -525,41 +525,42 @@ private:
 
     // camera
     float _instances_layout_radius = 120;// ROWS_COUNT / 4.0f;
-    float _camera_distance = 50.0f;
-    float _camera_elevation = 30.0f;
+    float _camera_distance = 16.609f;// 50.0f;
+    float _camera_elevation = 29.297;// 30.0f;
     
+    // TODO: put in array, to better save profiles.
+
     // curve shape
     float _ax = 20.0f; // big loops radius
     float _ay = 20.0f;
     float _az = 20.0f;
-    float _bx = 2.969f; // nb big loops
-    float _by = 4.937f;
-    float _bz = 6.871f;
-    float _cx = 1.459f; // small loops radius
-    float _cy = 4.541f;
-    float _cz = 1.918f;
-    float _dx = 54.688f;
-    float _dy = 35.938f;
-    float _dz = 94.531f;
+    float _bx = 1.0f;// 2.969f; // nb big loops
+    float _by = 1.0f;// 4.937f;
+    float _bz = 1.0f;// 6.871f;
+    float _cx = 1.650f;// 1.459f; // small loops radius
+    float _cy = 1.650f;//4.541f;
+    float _cz = 1.650f;//1.918f;
+    float _dx = 11.716f; // 54.688f;
+    float _dy = 7.031f; // 35.938f;
+    float _dz = 14.844f; // 94.531f;
 
     // jitter
-    float _e0 = 0.6f; // start position offset
-    float _e1 = 0.9f; // inner circles offset
-    float _e2 = 1.0f; // self-rotation
+    float _e0 = 0.84f;// 0.6f; // start position offset
+    float _e1 = 1.0f;// 0.9f; // inner circles offset
+    float _e2 = 2.297f;// 1.0f; // self-rotation
     float _e3 = 1.0f; // ??
 
-    float _psx = 0.4f; // particle scale
-    float _psy = 0.4f;
-    float _psz = 0.4f;
+    float _psx = 0.1f; // particle scale
+    float _psy = 0.5f;
+    float _psz = 0.5f;
 
-    float _rsx = 30.0f; // particle self rotation speed
-    float _rsy = 30.0f;
-    float _rsz = 0.0f;
+    float _rsx = 0.293f;// 1.0f; // particle self rotation speed
+    float _rsy = 0.098f;// 1.0f;
+    float _rsz = 0.156f;// 1.0f;
 
-    float _pdt = 0.001f; // delta time in sec
-
-    float _speed = 0.020f;
-    float _rotation_speed = 1.0f;
+    float _pdt = 0.1f; // delta time in sec
+    float _speed = 0.001f;
+    float _rotation_speed = 0.1f;// 1.0f;
 
     int32_t _nb_instances = 1;
 };

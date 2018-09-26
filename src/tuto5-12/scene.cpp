@@ -322,41 +322,6 @@ bool Scene::add_instance_set(instance_set_description_t isd, uint32_t estimated_
         is.instance_data.resize(MAX_INSTANCE_COUNT);
     }
 
-#if USE_STAGING_FOR_INSTANCING == 1
-    Log("#     Create Instance Set VBO\n");
-    if (!create_buffer(
-        &is.instance_buffer.buffer,
-        &is.instance_buffer.memory,
-        MAX_INSTANCE_COUNT * sizeof(instance_data_t),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-        return false;
-
-    if (!create_buffer(
-        &is.staging_buffer.buffer,
-        &is.staging_buffer.memory,
-        MAX_INSTANCE_COUNT * sizeof(instance_data_t),
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-        return false;
-
-    // initial fill of buffer
-    uint32_t instance_count = MAX_INSTANCE_COUNT;
-    size_t instance_data_size = instance_count * sizeof(instance_data_t);
-    copy_data_to_staging_buffer(is.staging_buffer, is.instance_data.data(), instance_data_size, false);
-    copy_buffer_to_buffer(is.staging_buffer.buffer, is.instance_buffer.buffer, instance_data_size, 0, 0);
-
-#else
-    Log("#     Create Instance Set VBO\n");
-    if (!create_buffer(
-        &_instance_sets[is.instance_set].instance_buffer.buffer,
-        &_instance_sets[is.instance_set].instance_buffer.memory,
-        ROWS_COUNT * COLS_COUNT * sizeof(instance_data_t),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ))//| VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-        return false;
-#endif
-
     return true;
 }
 
@@ -2102,13 +2067,40 @@ bool Scene::create_all_descriptor_sets()
 
 bool Scene::compile()
 {
+    auto &is = _instance_sets["metal_spheres"];
+
+    Log("#     Create Instance Set SSBO/VBO\n");
+    if (!create_buffer(
+        &is.instance_buffer.buffer,
+        &is.instance_buffer.memory,
+        MAX_INSTANCE_COUNT * sizeof(instance_data_t),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        return false;
+
+    if (!create_buffer(
+        &is.staging_buffer.buffer,
+        &is.staging_buffer.memory,
+        MAX_INSTANCE_COUNT * sizeof(instance_data_t),
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+        return false;
+
+    // initial fill of buffer
+    uint32_t instance_count = MAX_INSTANCE_COUNT;
+    size_t instance_data_size = instance_count * sizeof(instance_data_t);
+    copy_data_to_staging_buffer(is.staging_buffer, is.instance_data.data(), instance_data_size, false);
+    copy_buffer_to_buffer(is.staging_buffer.buffer, is.instance_buffer.buffer, instance_data_size, 0, 0);
+
+    // clear simulation instance data.
+    _instance_sets["metal_spheres"].instance_data.clear();
+
+
     // All descriptor sets, for all objects/instance_set
     Log("#     Create Scene and global object Descriptor Ses\n");
     if (!create_all_descriptor_sets())
         return false;
 
-    // clear simulation instance data.
-    _instance_sets["metal_spheres"].instance_data.clear();
 
     return true;
 }
@@ -2544,17 +2536,17 @@ void Scene::show_property_sheet()
 
         if (ImGui::CollapsingHeader("Jitter"))
         {
-            ImGui::SliderFloat("E0(jitter 0)", &_e0, 0.0f, 5.0f);
-            ImGui::SliderFloat("E1(jitter 1)", &_e1, 0.01f, 1.0f);
-            ImGui::SliderFloat("E2(jitter 2)", &_e2, 1.0f, 100.0f);
-            ImGui::SliderFloat("E3(jitter 3)", &_e3, 0.01f, 1.0f);
+            ImGui::SliderFloat("E0", &_e0, 0.0f, 5.0f);
+            ImGui::SliderFloat("E1", &_e1, 0.01f, 1.0f);
+            ImGui::SliderFloat("E2", &_e2, 1.0f, 5.0f);
+            ImGui::SliderFloat("E3", &_e3, 0.01f, 1.0f);
         }
 
         if (ImGui::CollapsingHeader("Misc"))
         {
-            ImGui::SliderFloat("Rx", &_rsx, 0.0f, 100.0f);
-            ImGui::SliderFloat("Ry", &_rsy, 0.0f, 100.0f);
-            //ImGui::SliderFloat("Rz", &_rsz, 0.0f, 100.0f);
+            ImGui::SliderFloat("Rx (tour/s)", &_rsx, 0.0f, 5.0f);
+            ImGui::SliderFloat("Ry", &_rsy, 0.0f, 5.0f);
+            ImGui::SliderFloat("Rz", &_rsz, 0.0f, 5.0f);
 
             ImGui::SliderFloat("Psx", &_psx, 0.01f, 1.0f);
             ImGui::SliderFloat("Psy", &_psy, 0.01f, 1.0f);

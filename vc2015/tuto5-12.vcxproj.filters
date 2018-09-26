@@ -143,4 +143,15 @@
       <Filter>Resource Files\Shaders Source</Filter>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\data\luminance.frag">
+      <Filter>Resource Files\Shaders Source</Filter>
+    </None>
+    <None Include="..\data\luminance.vert">
+      <Filter>Resource Files\Shaders Source</Filter>
+    </None>
+    <None Include="..\data\particles.comp">
+      <Filter>Resource Files\Shaders Source</Filter>
+    </None>
+  </ItemGroup>
 </Project>

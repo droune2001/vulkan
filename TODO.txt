@@ -8,6 +8,7 @@ COMPUTE PARTICLES:
     - fragment shader read second
     - first one available for reading.
 
+- Add ImGui control of base/spec of particles (add uniforms to simu)
 - Add stb image
 - Add tiny obj loader
 - Add gltf loader?

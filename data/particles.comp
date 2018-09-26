@@ -149,7 +149,7 @@ void main()
     float tt = speed * t + i * pdt;
     float rt = rotation_speed * t + i * pdt;
 
-	vec4 J = vec4(1,1,1,1); // jitters per particle
+    vec4 J = vec4(1,1,1,1); // jitters per particle
     vec4 N = vec4(1,1,1,1); // noise
 
     uint z_pos = i/65536;
@@ -157,16 +157,16 @@ void main()
     uint y_pos = in_slice/256;
     uint x_pos = in_slice%256;
 
-    N.x = snoise(vec2(t, float(i)/float(ubo.instance_count)));
-    N.y = snoise(vec2(float(x_pos), float(y_pos)));
-    N.z = snoise(vec2(t, float(z_pos)));
-    N.w = snoise(vec2(float(y_pos), float(z_pos)));
+    //N.x = snoise(vec2(t, float(i)/float(ubo.instance_count)));
+    //N.y = snoise(vec2(float(x_pos), float(y_pos)));
+    //N.z = snoise(vec2(t, float(z_pos)));
+    //N.w = snoise(vec2(float(y_pos), float(z_pos)));
 
-	J.x = PIN.jitter[0];
-    J.y = PIN.jitter[1];
-    J.z = PIN.jitter[2];
-    J.w = PIN.jitter[3];
-	
+    J.x = PIN.jitter.x;
+    J.y = PIN.jitter.y;
+    J.z = PIN.jitter.z;
+    J.w = PIN.jitter.w;
+
     float global_pos_offset_x = e0 * (2.0f * J.x - 1.0f);
     float global_pos_offset_y = e0 * (2.0f * J.y - 1.0f);
     float global_pos_offset_z = e0 * (2.0f * J.z - 1.0f);
@@ -181,10 +181,11 @@ void main()
     position.z = az * sin(bz*tt) + (Cz + local_pos_offset_z) * cos(dz*tt) + global_pos_offset_z;
 
     #define TWO_PI (2.0*3.14159)
-    vec4 rotation = vec4(rsx, rsy, rsz, 0);
-    rotation.x = e2 * J.x * rsx * TWO_PI * rt;
-    rotation.y = e2 * J.y * rsy * TWO_PI * rt;
-    rotation.z = e2 * J.z * rsz * TWO_PI * rt;
+    vec4 rotation = vec4(
+        e2 * J.x * rsx * TWO_PI * rt, // jitter_scale * jitter * turns/s * time_in_sec
+        e2 * J.y * rsy * TWO_PI * rt,
+        e2 * J.z * rsz * TWO_PI * rt,
+        1.0);
 
     vec4 scale = vec4(psx, psy, psz, 0);
 
@@ -195,6 +196,4 @@ void main()
     particles[i].jitter = PIN.jitter;
     particles[i].base = PIN.base;
     particles[i].spec = PIN.spec;
-//    particles[i].base = vec4(1.0, 0.85, 0.57, 1.0);
-//    particles[i].spec = vec4(0.045, 1, 1, 0);
 }

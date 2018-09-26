@@ -445,7 +445,10 @@ void VulkanApplication::BuildScene()
             for (uint32_t k = 0; k < SLICE_COUNT; ++k)
             {
                 Scene::instanced_object_description_t instanced_object_desc;
-                instanced_object_desc.position = glm::vec3(-(ROWS_COUNT/2) + i * ROWS_COUNT, -(COLS_COUNT / 2) + j * SLICE_COUNT, -(SLICE_COUNT / 2) + k * SLICE_COUNT);
+                instanced_object_desc.position = glm::vec3(
+                    float(i) * ROWS_COUNT - (ROWS_COUNT/2.0),
+                    float(j) * COLS_COUNT - (COLS_COUNT/2.0),
+                    float(k) * SLICE_COUNT - (SLICE_COUNT/2.0));
                 instanced_object_desc.rotation = glm::vec3(0, 0, 0);
                 instanced_object_desc.scale = glm::vec3(1, 1, 1);
                 instanced_object_desc.jitters = glm::vec4(real_rand(), real_rand(), real_rand(), real_rand());

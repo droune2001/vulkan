@@ -860,14 +860,23 @@ void Renderer::Draw(float dt)
 {
     VkResult result;
 
+    {
+        std::array<VkFence, 1> fences_to_wait_on = {_compute_fences[current_frame]};
+        vkWaitForFences(_ctx.device, 1, fences_to_wait_on.data(), VK_TRUE, UINT64_MAX);
+        vkResetFences(_ctx.device, 1, fences_to_wait_on.data());
+    }
+
     auto &compute_cmd = _ctx.compute.command_buffers[current_frame];
     _scene->record_compute_commands(compute_cmd);
 
     // CPU wait for the end of the previous same parallel frame.
     // If we want to render frame 1 of 2 parallel frames, wait for
     // the end of the previous frame 1.
-    vkWaitForFences(_ctx.device, 1, &_render_fences[current_frame], VK_TRUE, UINT64_MAX);
-    vkResetFences(_ctx.device, 1, &_render_fences[current_frame]);
+    {
+        std::array<VkFence, 1> fences_to_wait_on = {_render_fences[current_frame]};
+        vkWaitForFences(_ctx.device, 1, fences_to_wait_on.data(), VK_TRUE, UINT64_MAX);
+        vkResetFences(_ctx.device, 1, fences_to_wait_on.data());
+    }
 
     _scene->upload(); // upload uniforms for graphics and compute
 
@@ -886,7 +895,8 @@ void Renderer::Draw(float dt)
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &compute_cmd;
 
-        result = vkQueueSubmit(_ctx.compute.queue, 1, &submit_info, VK_NULL_HANDLE);// _compute_fences[current_frame]);
+        //result = vkQueueSubmit(_ctx.compute.queue, 1, &submit_info, VK_NULL_HANDLE);// _compute_fences[current_frame]);
+        result = vkQueueSubmit(_ctx.compute.queue, 1, &submit_info, _compute_fences[current_frame]);
         ErrorCheck(result);
     }
 
