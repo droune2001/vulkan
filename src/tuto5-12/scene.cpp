@@ -96,14 +96,6 @@ VkVertexInputAttributeDescription *Scene::instance_data_t::attribute_description
     // instance_t
     //
 
-    glm::vec4 position;
-    glm::vec4 rotation;
-    glm::vec4 scale;
-    glm::vec4 speed;
-    glm::vec4 jitter; // random numbers
-    glm::vec4 base;
-    glm::vec4 spec;
-
     vertex_attribute_descriptions[3].location = 3;
     vertex_attribute_descriptions[3].binding = 1;
     vertex_attribute_descriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT; // position = 4 float
@@ -327,12 +319,6 @@ bool Scene::add_instance_set(instance_set_description_t isd, uint32_t estimated_
     if (estimated_instance_count > 0)
     {
         // NOTE(nfauvet): resize et pas reserve parce que je m'en sers comme un tableau tab[i], pas push_back
-        is.positions.resize(MAX_INSTANCE_COUNT);
-        is.rotations.resize(MAX_INSTANCE_COUNT);
-        is.scales.resize(MAX_INSTANCE_COUNT);
-        is.base_colors.resize(MAX_INSTANCE_COUNT);
-        is.speculars.resize(MAX_INSTANCE_COUNT);
-        is.jitters.resize(MAX_INSTANCE_COUNT);
         is.instance_data.resize(MAX_INSTANCE_COUNT);
     }
 
@@ -378,12 +364,14 @@ uint32_t Scene::add_object_to_instance_set(instanced_object_description_t o, ins
 {
     auto &is = _instance_sets[id];
     uint32_t idx = is.instance_count;
-    is.base_colors[idx] = o.base_color;
-    is.speculars[idx] = o.specular;
-    is.positions[idx] = o.position;
-    is.rotations[idx] = o.rotation;
-    is.scales[idx] = o.scale;
-    is.jitters[idx] = o.jitters;
+    instance_data_t &data = is.instance_data[idx];
+    data.position = glm::vec4(o.position,1);
+    data.rotation = glm::vec4(o.rotation,0);
+    data.scale = glm::vec4(o.scale,0);
+    data.speed = glm::vec4(0,0,0,0);
+    data.jitter = o.jitters;
+    data.base = o.base_color;
+    data.spec = o.specular;
 
     return is.instance_count++;
 }
@@ -1241,6 +1229,7 @@ void Scene::animate_object(float dt)
     static float t = 0.0f; // in seconds
     t += dt;
 
+#if 0 // no more cpu sim, too much RAM used on laptop.
     if (_simulate_cpu)
     {
         //
@@ -1337,6 +1326,7 @@ void Scene::animate_object(float dt)
             }
         }
     } // simulate cpu
+#endif
 
     // fill uniform data for the simulation compute shader.
     {
@@ -2116,6 +2106,9 @@ bool Scene::compile()
     Log("#     Create Scene and global object Descriptor Ses\n");
     if (!create_all_descriptor_sets())
         return false;
+
+    // clear simulation instance data.
+    _instance_sets["metal_spheres"].instance_data.clear();
 
     return true;
 }

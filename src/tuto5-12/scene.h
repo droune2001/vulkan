@@ -14,7 +14,7 @@
 
 #define ROWS_COUNT 256
 #define COLS_COUNT 256
-#define SLICE_COUNT 256
+#define SLICE_COUNT 2 //256
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT * SLICE_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
@@ -62,6 +62,7 @@ public:
     //
     struct instance_data_t
     {
+        // 116 bytes -> 1.75GB of data for 16mil of particles
         glm::vec4 position;
         glm::vec4 rotation;
         glm::vec4 scale;
@@ -505,9 +506,9 @@ private:
         //std::vector<glm::vec3> positions = {};
         //std::vector<glm::vec3> rotations = {};
         //std::vector<glm::vec3> scales = {};
-        std::vector<glm::vec4> base_colors = {}; // 512Mo for 16million particles
-        std::vector<glm::vec4> speculars = {};
-        std::vector<glm::vec4> jitters = {};
+        //std::vector<glm::vec4> base_colors = {}; // 512Mo for 16million particles
+        //std::vector<glm::vec4> speculars = {};
+        //std::vector<glm::vec4> jitters = {};
         std::vector<instance_data_t> instance_data = {};
 
         // TODO: array of material indices.

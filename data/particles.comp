@@ -149,18 +149,24 @@ void main()
     float tt = speed * t + i * pdt;
     float rt = rotation_speed * t + i * pdt;
 
-    vec4 J = vec4(1,1,1,1); // jitters per particle, TODO: input
+	vec4 J = vec4(1,1,1,1); // jitters per particle
+    vec4 N = vec4(1,1,1,1); // noise
 
     uint z_pos = i/65536;
     uint in_slice = z_pos%65536;
     uint y_pos = in_slice/256;
     uint x_pos = in_slice%256;
 
-    J.x = snoise(vec2(t, float(i)/float(ubo.instance_count)));
-    J.y = snoise(vec2(float(x_pos), float(y_pos)));
-    J.z = snoise(vec2(t, float(z_pos)));
-    J.w = snoise(vec2(float(y_pos), float(z_pos)));
+    N.x = snoise(vec2(t, float(i)/float(ubo.instance_count)));
+    N.y = snoise(vec2(float(x_pos), float(y_pos)));
+    N.z = snoise(vec2(t, float(z_pos)));
+    N.w = snoise(vec2(float(y_pos), float(z_pos)));
 
+	J.x = PIN.jitter[0];
+    J.y = PIN.jitter[1];
+    J.z = PIN.jitter[2];
+    J.w = PIN.jitter[3];
+	
     float global_pos_offset_x = e0 * (2.0f * J.x - 1.0f);
     float global_pos_offset_y = e0 * (2.0f * J.y - 1.0f);
     float global_pos_offset_z = e0 * (2.0f * J.z - 1.0f);
