@@ -18,8 +18,6 @@
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT * SLICE_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
-#define USE_INSTANCE_SET_1 0
-#define USE_INSTANCE_SET_2 1
 
 #ifndef PI 
 #   define PI 3.1415f
