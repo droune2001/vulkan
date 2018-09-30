@@ -55,9 +55,10 @@ Temporary Items
 
 .vs
 build
+build_test
 vc2015/vulkan.VC.db
-
 vc2017/vulkan.VC.db
 *.spv
 *.user
-vc2017/tuto5-12.vcxproj.user
+
+
