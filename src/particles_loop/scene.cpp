@@ -1996,11 +1996,11 @@ bool Scene::build_pipelines(VkRenderPass rp)
     }
 
     Log("#     Create Default Vertex Shader\n");
-    if (!create_shader_module("./simple.vert.spv", &default_pipeline.vs))
+    if (!create_shader_module("./data/simple.vert.spv", &default_pipeline.vs))
         return false;
 
     Log("#     Create Default Fragment Shader\n");
-    if (!create_shader_module("./simple.frag.spv", &default_pipeline.fs))
+    if (!create_shader_module("./data/simple.frag.spv", &default_pipeline.fs))
         return false;
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stage_create_infos = {
@@ -2113,11 +2113,11 @@ bool Scene::build_pipelines(VkRenderPass rp)
     }
 
     Log("#     Create Instancing Vertex Shader\n");
-    if (!create_shader_module("./instancing.vert.spv", &_instance_pipe.vs))
+    if (!create_shader_module("./data/instancing.vert.spv", &_instance_pipe.vs))
         return false;
 
     Log("#     Create Instancing Fragment Shader\n");
-    if (!create_shader_module("./instancing.frag.spv", &_instance_pipe.fs))
+    if (!create_shader_module("./data/instancing.frag.spv", &_instance_pipe.fs))
         return false;
 
     shader_stage_create_infos[0].module = _instance_pipe.vs;
@@ -2185,7 +2185,7 @@ bool Scene::build_pipelines(VkRenderPass rp)
             return false;
 
         Log("#     Create Particles Compute Shader\n");
-        if (!create_shader_module("./particles.comp.spv", &compute_particles.pipe.cs))
+        if (!create_shader_module("./data/particles.comp.spv", &compute_particles.pipe.cs))
             return false;
 
         VkPipelineShaderStageCreateInfo compute_shader_stage_create_info =
