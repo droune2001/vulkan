@@ -1212,8 +1212,22 @@ void Scene::animate_camera(float dt)
 {
     static float accum_dt = 0.0f;
 
+    ImGuiIO& io = ImGui::GetIO();
+    constexpr float PIXELS_TO_RADIANS = 0.01f;
+    if (!io.WantCaptureMouse)
+    {
+        if (io.MouseDown[0])
+        {
+            _camera_alpha += io.MouseDelta.y * PIXELS_TO_RADIANS;
+            _camera_theta += io.MouseDelta.x * PIXELS_TO_RADIANS;
+        }
+        _camera_distance -= io.MouseWheel;
+    }
+    
+
     auto &camera = _cameras["perspective"];
 
+#if 0
     const float cam_as = 0.3f; // angular_speed, radians/sec
     if (_animate_camera)
     {
@@ -1229,6 +1243,18 @@ void Scene::animate_camera(float dt)
         camera.pos.z = _camera_distance;
     }
     camera.v = glm::lookAt(camera.pos.xyz(), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+#else
+    glm::vec3 target(0,0,0);
+    auto trans = glm::translate(glm::translate(glm::mat4(1.f), target), glm::vec3(0.f, 0.f, -_camera_distance));
+    auto alphaRot = glm::rotate(glm::mat4(1.f), _camera_alpha, glm::vec3(1.f, 0.f, 0.f));
+    auto thetaRot = glm::rotate(glm::mat4(1.f), _camera_theta, glm::vec3(0.f, 1.f, 0.f));
+    camera.v = trans * alphaRot * thetaRot;
+
+    //float camX = _camera_distance * -sinf(_camera_alpha) * cosf(_camera_theta);
+    //float camY = _camera_distance * -sinf(_camera_theta);
+    //float camZ = -_camera_distance * cosf(_camera_alpha) * cosf(_camera_theta);
+    //camera.v = glm::lookAt(glm::vec3(camX, camY, camZ), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+#endif
 }
 
 void Scene::animate_light(float dt)
@@ -2375,9 +2401,9 @@ void Scene::show_property_sheet()
         if (ImGui::CollapsingHeader("Camera"))
         {
             ImGui::Checkbox("Rotate camera", &_animate_camera);
-            ImGui::SliderFloat("Radius", &_instances_layout_radius, 1.0f, 400.0f);
             ImGui::SliderFloat("Camera Distance", &_camera_distance, 1.0f, 1000.0f);
-            ImGui::SliderFloat("Camera Elevation", &_camera_elevation, 0.0f, 500.0f);
+            ImGui::SliderFloat("Camera Alpha", &_camera_alpha, 0.0f, 7.0f);
+            ImGui::SliderFloat("Camera Theta", &_camera_theta, 0.0f, 7.0f);
         }
 
         if (ImGui::CollapsingHeader("Curve Shape"))

@@ -1,7 +1,9 @@
 #ifndef _VULKAN_SCENE_2018_07_20_H_
 #define _VULKAN_SCENE_2018_07_20_H_
 
-#include <stdint.h> // uint33_t
+#include "arcball.h"
+
+#include <stdint.h> // uint32_t
 #include "glm_usage.h"
 
 #include <array>
@@ -14,7 +16,7 @@
 
 #define ROWS_COUNT 256
 #define COLS_COUNT 256
-#define SLICE_COUNT 2 //256
+#define SLICE_COUNT 2
 #define MAX_INSTANCE_COUNT (ROWS_COUNT * COLS_COUNT * SLICE_COUNT)
 // 96x96 = 9216
 // 128x128 = 16384 instances. x instance_data_size = 1572864 bytes
@@ -522,10 +524,12 @@ private:
 
 
     // camera
-    float _instances_layout_radius = 120;// ROWS_COUNT / 4.0f;
+    ArcBall camera;
+    float _camera_alpha = 0.0f;
+    float _camera_theta = 0.0f;
     float _camera_distance = 16.609f;// 50.0f;
     float _camera_elevation = 29.297f;// 30.0f;
-    
+
     // TODO: put in array, to better save profiles.
 
     // curve shape
