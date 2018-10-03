@@ -51,8 +51,8 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_BINARY_DIR}/data"
         "$<TARGET_FILE_DIR:${CURRENT_TARGET}>/data"
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ASSETS_DIR}/imgui.ini" "$<TARGET_FILE_DIR:${CURRENT_TARGET}>/imgui.ini"
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ASSETS_DIR}/vk_layer_settings.txt" "$<TARGET_FILE_DIR:${CURRENT_TARGET}>/vk_layer_settings.txt"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ASSETS_DIR}/${CURRENT_TARGET}/imgui.ini" "$<TARGET_FILE_DIR:${CURRENT_TARGET}>/imgui.ini"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ASSETS_DIR}/${CURRENT_TARGET}/vk_layer_settings.txt" "$<TARGET_FILE_DIR:${CURRENT_TARGET}>/vk_layer_settings.txt"
 )
 
 install(TARGETS ${CURRENT_TARGET} DESTINATION .)
